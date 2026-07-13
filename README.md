@@ -3,7 +3,7 @@
 `langgraph-cpp` is a C++-native client and edge intelligent workflow runtime
 for AI Labs.
 
-> Positioning: 面向 AI Lab 的 C++ 原生客户端/边缘智能工作流运行时。
+> Positioning: a C++-native client and edge intelligent workflow runtime for AI Labs.
 
 > Status: `v0.1.0-alpha` / developer preview. This is an independent,
 > community-oriented LangGraph-style runtime, not an official LangGraph or
