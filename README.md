@@ -1,7 +1,12 @@
-# langgraph-cpp
+# langgraph-cpp: LangGraph-Style C++ Runtime for AI Agents, Local LLMs, and Edge Workflows
 
-`langgraph-cpp` is a C++-native client and edge intelligent workflow runtime
-for AI Labs.
+`langgraph-cpp` is an independent C++23 AI agent framework, graph workflow
+engine, and LangGraph-style runtime for building stateful agents and
+recoverable workflows in native C++ clients, edge AI systems, robotics
+applications, and local LLM apps. It brings graph execution, checkpointing,
+streaming events, human-in-the-loop interrupts, structured tool calling,
+message/model abstractions, and SQLite-backed persistence to C++ applications
+without requiring Python in the core runtime.
 
 > Positioning: a C++-native client and edge intelligent workflow runtime for AI Labs.
 
@@ -10,13 +15,10 @@ for AI Labs.
 > LangChain project. The API, ABI, and persisted schemas are still pre-1.0 and
 > may change.
 
-It provides a small LangGraph-style execution kernel built around explicit
-state, graph nodes, conditional routing, checkpoints, streaming events,
-interrupt/resume, messages, models, and structured tool calls. The current MVP
-is designed to help AI labs move agent workflow prototypes toward desktop
-clients, local models, edge devices, and recoverable intelligent applications
-without requiring Python, real hardware, or real model providers in the core
-runtime.
+The current MVP is designed to help AI labs move agent workflow prototypes
+toward desktop clients, local models, edge devices, and recoverable intelligent
+applications without requiring real hardware or real model providers in default
+builds and tests.
 
 The core source API and persisted schema contract are versioned for edge
 runtime work. ABI compatibility is not frozen; breaking source or schema
