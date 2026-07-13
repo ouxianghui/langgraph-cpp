@@ -4,15 +4,15 @@
 | --- | --- |
 | 状态 | 生效中，pre-1.0 开发者预览 |
 | 产品版本 | `v0.1.0-alpha` |
-| 最后更新 | 2026-07-10 |
-| 产品领域 | 面向有状态 Agent 的 C++23 边缘运行时 |
+| 最后更新 | 2026-07-13 |
+| 产品领域 | 面向 AI Lab 的 C++ 原生客户端/边缘智能工作流运行时 |
 | 关联文档 | [AI_INDEX.md](AI_INDEX.md)、[ROADMAP.md](ROADMAP.md)、[internal/WBS.md](internal/WBS.md)、[API_CONTRACT.md](API_CONTRACT.md)、[QUALITY_MODEL.md](QUALITY_MODEL.md)、[TRACEABILITY_MATRIX.md](TRACEABILITY_MATRIX.md)、[LIMITATIONS.md](LIMITATIONS.md) |
 
 ## 1. 产品概述
 
-`langgraph-cpp` 是一个 C++23 边缘运行时，用于构建有状态 Agent 和可恢复工作流图。它提供 LangGraph-style 的执行内核，围绕显式 state、graph node、conditional routing、checkpoint、interrupt、streaming event、message、model adapter、tool 和 edge adapter 组织运行过程。
+`langgraph-cpp` 是一个面向 AI Lab 的 C++ 原生客户端/边缘智能工作流运行时，用于构建有状态 Agent 和可恢复工作流图。它提供 LangGraph-style 的执行内核，围绕显式 state、graph node、conditional routing、checkpoint、interrupt、streaming event、message、model adapter、tool 和 edge adapter 组织运行过程。
 
-本项目不是官方 LangGraph 或 LangChain C++ 移植版，而是一个独立的、社区导向的 C++ runtime。核心运行时必须在没有 Python、真实模型 provider、真实硬件和云服务的情况下完成构建与测试。
+本项目不是官方 LangGraph 或 LangChain C++ 移植版，而是一个独立的、社区导向的 C++ runtime。它的核心价值是帮助 AI Lab 把 Python/研究原型中的 agent workflow 推进到桌面客户端、本地模型、边缘设备、机器人和离线智能应用中。核心运行时必须在没有 Python、真实模型 provider、真实硬件和云服务的情况下完成构建与测试。
 
 ## 2. 问题陈述
 
@@ -53,6 +53,8 @@ Python LangGraph 在 Python 应用中解决了许多类似的编排问题。`lan
 
 | 用户 | 需要完成的事情 |
 | --- | --- |
+| AI Lab 研究与工程团队 | 把 agent workflow、local model、tool calling 和 HITL 原型沉淀成可嵌入客户端/边缘系统的运行时能力。 |
+| 客户端开发团队 | 在桌面或设备端承载可恢复、可中断、可观测、可测试的智能工作流，而不是把 AI 逻辑散落在 UI 和业务回调中。 |
 | 边缘和机器人开发者 | 把感知、规划、行动、验证、重试和人工交接组织成可恢复工作流。 |
 | 本地模型开发者 | 在 C++ 中运行 llama.cpp/GGUF 或 mock model tool-call loop。 |
 | 系统工程师 | 构建能 checkpoint、resume、replay、查询历史并恢复进程重启的工作流运行时。 |

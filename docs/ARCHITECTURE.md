@@ -3,11 +3,11 @@
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | 生效中 |
-| 最后更新 | 2026-07-10 |
+| 最后更新 | 2026-07-13 |
 | 范围 | Runtime 架构、模块边界、扩展端口和关键执行流程 |
 | 关联文档 | [AI_INDEX.md](AI_INDEX.md)、[PRD.md](PRD.md)、[ROADMAP.md](ROADMAP.md)、[API_CONTRACT.md](API_CONTRACT.md)、[QUALITY_MODEL.md](QUALITY_MODEL.md)、[TRACEABILITY_MATRIX.md](TRACEABILITY_MATRIX.md)、[CONCURRENCY_MODEL.md](CONCURRENCY_MODEL.md)、[PERSISTENCE_MODEL.md](PERSISTENCE_MODEL.md)、[SECURITY_MODEL.md](SECURITY_MODEL.md)、[PERFORMANCE_MODEL.md](PERFORMANCE_MODEL.md)、[LIMITATIONS.md](LIMITATIONS.md) |
 
-本文说明 `langgraph-cpp` 作为可嵌入 C++23 edge runtime 的架构。文档先定义系统边界和模块职责，再通过架构图、类图和时序图索引 `src/langgraph` 以及支撑它的 `src/foundation` 层。
+本文说明 `langgraph-cpp` 作为面向 AI Lab 的 C++ 原生客户端/边缘智能工作流运行时的架构。文档先定义系统边界和模块职责，再通过架构图、类图和时序图索引 `src/langgraph` 以及支撑它的 `src/foundation` 层。
 
 ## 系统边界
 

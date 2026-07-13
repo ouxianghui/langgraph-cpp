@@ -3,14 +3,14 @@
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | 生效中 |
-| 最后更新 | 2026-07-10 |
+| 最后更新 | 2026-07-13 |
 | 当前发布线 | `v0.1.0-alpha` / 开发者预览 |
 | 范围来源 | [PRD.md](PRD.md) |
 | 工作包来源 | [internal/WBS.md](internal/WBS.md) |
 
 ## 1. 文档目的
 
-本文说明 `langgraph-cpp` 如何从当前 alpha runtime 继续走向稳定的 C++ edge runtime for stateful agents。它不是历史任务日志；实现级工作放在 [internal/WBS.md](internal/WBS.md)，产品范围与验收标准放在 [PRD.md](PRD.md)。
+本文说明 `langgraph-cpp` 如何从当前 alpha runtime 继续走向面向 AI Lab 的 C++ 原生客户端/边缘智能工作流运行时。它不是历史任务日志；实现级工作放在 [internal/WBS.md](internal/WBS.md)，产品范围与验收标准放在 [PRD.md](PRD.md)。
 
 ## 2. 当前状态
 
@@ -73,7 +73,7 @@
 
 ## 7. 长期方向
 
-长期目标是成为可嵌入 C++ 应用和边缘系统的稳定 workflow kernel。项目应保持：
+长期目标是成为 AI Lab 到客户端/边缘落地之间的稳定 workflow kernel，让研究原型可以逐步沉淀成可嵌入 C++ 应用、桌面客户端、本地模型和边缘系统的运行时能力。项目应保持：
 
 - core 小而明确；
 - state 和 checkpoint 边界显式；

@@ -6,7 +6,8 @@
     "language": "C++23",
     "build_system": "CMake",
     "status": "developer-preview",
-    "description": "Independent C++23 edge runtime for LangGraph-style stateful agents and recoverable workflows.",
+    "description": "C++23 native client and edge intelligent workflow runtime for AI Labs, built around LangGraph-style stateful agents and recoverable workflows.",
+    "positioning_zh": "面向 AI Lab 的 C++ 原生客户端/边缘智能工作流运行时。",
     "official_upstream_port": false
   },
   "contracts": {

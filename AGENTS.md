@@ -18,7 +18,7 @@ request.
 
 ## Project Identity
 
-`langgraph-cpp` is a C++23 edge runtime for stateful agents. The MVP centers on:
+`langgraph-cpp` is a C++23 native client and edge intelligent workflow runtime for AI Labs. The MVP centers on:
 
 - LangGraph-style graph execution with `StateGraph` and `CompiledStateGraph`.
 - JSON-backed state and field reducers.

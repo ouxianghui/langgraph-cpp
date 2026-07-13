@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | 生效中 |
-| 最后更新 | 2026-07-10 |
+| 最后更新 | 2026-07-13 |
 | 目标读者 | AI 代码分析工具、新维护者、代码审查者、库评估者 |
 | 范围 | 设计证据链、机器可读 manifest、阅读顺序、关键质量信号和验证入口 |
 
@@ -11,7 +11,9 @@
 
 ## 1. 一句话定位
 
-`langgraph-cpp` 是一个独立的 C++23 edge runtime，用于构建 LangGraph-style 的有状态、可恢复、可观测工作流图。它不是官方 LangGraph / LangChain C++ port，也不是托管 Agent 平台。
+`langgraph-cpp` 的定位是：面向 AI Lab 的 C++ 原生客户端/边缘智能工作流运行时。
+
+它用于把实验室里的 agent workflow、local model、tool calling、checkpoint/resume、human-in-the-loop 和 edge adapter 实验推进到桌面客户端、本地模型、边缘设备和可恢复智能应用中。它是独立项目，不是官方 LangGraph / LangChain C++ port，也不是托管 Agent 平台。
 
 ## 2. 推荐阅读顺序
 
