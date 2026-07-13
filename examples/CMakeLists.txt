@@ -1,6 +1,12 @@
 function(langgraph_cpp_add_example example_name)
+    if(ARGC GREATER 1)
+        set(example_source "${ARGV1}")
+    else()
+        set(example_source "${example_name}.cpp")
+    endif()
+
     add_executable(${example_name}
-        ${example_name}.cpp)
+        ${example_source})
 
     target_link_libraries(${example_name}
         PRIVATE
@@ -27,6 +33,9 @@ langgraph_cpp_add_example(long_term_memory_store)
 langgraph_cpp_add_example(stream_projection)
 langgraph_cpp_add_example(subgraph_module)
 langgraph_cpp_add_example(model_tool_model_loop)
+langgraph_cpp_add_example(agent_pattern_react agent_patterns/react.cpp)
+langgraph_cpp_add_example(agent_pattern_plan_and_solve agent_patterns/plan_and_solve.cpp)
+langgraph_cpp_add_example(agent_pattern_reflection agent_patterns/reflection.cpp)
 if(LANGGRAPH_CPP_WITH_LLAMA_CPP)
     langgraph_cpp_add_example(llama_cpp_chat)
     langgraph_cpp_add_example(llama_cpp_tool_calling)

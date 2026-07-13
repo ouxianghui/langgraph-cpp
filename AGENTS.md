@@ -78,7 +78,7 @@ instructions or repository-local code patterns, the user request and nearby code
 - `src/langgraph/model`: chat model interface, mock model, optional llama.cpp adapter.
 - `src/langgraph/tool`: tool registry, executor, policies, structured tool results, GBNF helpers.
 - `src/langgraph/edge`: hardware adapter interfaces.
-- `src/core`: runtime service container and lifecycle adapters.
+- `src/core`: runtime service container and lifecycle components.
 - `src/foundation`: reusable infrastructure.
 - `tests`: unit and component tests.
 - `examples`: runnable examples used as acceptance signals.

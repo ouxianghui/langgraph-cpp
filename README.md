@@ -245,6 +245,9 @@ example matrix. The headline examples are:
 | `stream_projection` | Stream v3 projected parts and LangGraph-style envelopes |
 | `subgraph_module` | Parent workflow composed from a compiled subgraph |
 | `model_tool_model_loop` | Mock model, tool call, tool result |
+| `agent_pattern_react` | ReAct reasoning/action loop with model and tool nodes |
+| `agent_pattern_plan_and_solve` | Plan-first workflow with step execution and final solve |
+| `agent_pattern_reflection` | Draft, critique, and revision workflow |
 | `llama_cpp_chat` | Optional local GGUF model invocation |
 | `human_interrupt` | Checkpointed interrupt and resume |
 | `tool_approval_loop` | Human approval before tool execution |

@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | 生效中 |
-| 最后更新 | 2026-07-10 |
+| 最后更新 | 2026-07-13 |
 | 范围 | `examples/` 中的可运行示例、学习路径和验收信号 |
 | 关联文档 | [../docs/EXAMPLE_MATRIX.md](../docs/EXAMPLE_MATRIX.md)、[../docs/tutorials/API_EXAMPLES.md](../docs/tutorials/API_EXAMPLES.md)、[../docs/TRACEABILITY_MATRIX.md](../docs/TRACEABILITY_MATRIX.md) |
 
@@ -23,7 +23,8 @@
 | 8 | `stream_projection` | stream projected parts 和 envelope。 |
 | 9 | `subgraph_module` | parent graph 调用 compiled subgraph。 |
 | 10 | `model_tool_model_loop` | mock model/tool loop。 |
-| 11 | `edge_mock_tool_adapter`、`mock_edge_repair` | mock hardware/edge workflow。 |
+| 11 | `agent_pattern_react`、`agent_pattern_plan_and_solve`、`agent_pattern_reflection` | 常用智能体构建模式。 |
+| 12 | `edge_mock_tool_adapter`、`mock_edge_repair` | mock hardware/edge workflow。 |
 
 ## 2. 运行示例
 

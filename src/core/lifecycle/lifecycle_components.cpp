@@ -1,4 +1,4 @@
-#include "core/lifecycle/lifecycle_adapters.hpp"
+#include "core/lifecycle/lifecycle_components.hpp"
 
 #include <stdexcept>
 #include <utility>
@@ -266,49 +266,49 @@ private:
 
 } // namespace
 
-std::shared_ptr<ILifecycle> lifecycleComponent(
+std::shared_ptr<ILifecycle> makeLifecycleComponent(
     std::string name,
     std::shared_ptr<IExecutor> executor)
 {
     return std::make_shared<ExecutorLifecycleComponent>(std::move(name), std::move(executor));
 }
 
-std::shared_ptr<ILifecycle> lifecycleComponent(
+std::shared_ptr<ILifecycle> makeLifecycleComponent(
     std::string name,
     std::shared_ptr<ITaskScheduler> scheduler)
 {
     return std::make_shared<SchedulerLifecycleComponent>(std::move(name), std::move(scheduler));
 }
 
-std::shared_ptr<ILifecycle> lifecycleComponent(
+std::shared_ptr<ILifecycle> makeLifecycleComponent(
     std::string name,
     std::shared_ptr<IEventSink> eventSink)
 {
     return std::make_shared<EventSinkLifecycleComponent>(std::move(name), std::move(eventSink));
 }
 
-std::shared_ptr<ILifecycle> lifecycleComponent(
+std::shared_ptr<ILifecycle> makeLifecycleComponent(
     std::string name,
     std::shared_ptr<IStorage> storage)
 {
     return std::make_shared<StorageLifecycleComponent>(std::move(name), std::move(storage));
 }
 
-std::shared_ptr<ILifecycle> lifecycleComponent(
+std::shared_ptr<ILifecycle> makeLifecycleComponent(
     std::string name,
     std::shared_ptr<IMetricRecorder> metrics)
 {
     return std::make_shared<MetricLifecycleComponent>(std::move(name), std::move(metrics));
 }
 
-std::shared_ptr<ILifecycle> lifecycleComponent(
+std::shared_ptr<ILifecycle> makeLifecycleComponent(
     std::string name,
     std::shared_ptr<ITraceSink> traceSink)
 {
     return std::make_shared<TraceSinkLifecycleComponent>(std::move(name), std::move(traceSink));
 }
 
-std::shared_ptr<ILifecycle> lifecycleComponent(
+std::shared_ptr<ILifecycle> makeLifecycleComponent(
     std::string name,
     std::shared_ptr<IHttpClient> httpClient)
 {

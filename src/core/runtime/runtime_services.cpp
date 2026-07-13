@@ -1,6 +1,6 @@
 #include "core/runtime/runtime_services.hpp"
 
-#include "core/lifecycle/lifecycle_adapters.hpp"
+#include "core/lifecycle/lifecycle_components.hpp"
 #include "foundation/blob/blob_store.hpp"
 #include "foundation/cache/cache.hpp"
 #include "foundation/event/memory_event_sink.hpp"
@@ -108,31 +108,31 @@ Result<std::shared_ptr<Lifecycle>> RuntimeServices::createLifecycle() const
 
     try {
         if (storage_) {
-            if (auto status = addLifecycleComponent(*lifecycle, lifecycleComponent("storage", storage_)); !status.isOk())
+            if (auto status = addLifecycleComponent(*lifecycle, makeLifecycleComponent("storage", storage_)); !status.isOk())
                 return status;
         }
         if (metrics_) {
-            if (auto status = addLifecycleComponent(*lifecycle, lifecycleComponent("metrics", metrics_)); !status.isOk())
+            if (auto status = addLifecycleComponent(*lifecycle, makeLifecycleComponent("metrics", metrics_)); !status.isOk())
                 return status;
         }
         if (traceSink_) {
-            if (auto status = addLifecycleComponent(*lifecycle, lifecycleComponent("trace", traceSink_)); !status.isOk())
+            if (auto status = addLifecycleComponent(*lifecycle, makeLifecycleComponent("trace", traceSink_)); !status.isOk())
                 return status;
         }
         if (eventSink_) {
-            if (auto status = addLifecycleComponent(*lifecycle, lifecycleComponent("events", eventSink_)); !status.isOk())
+            if (auto status = addLifecycleComponent(*lifecycle, makeLifecycleComponent("events", eventSink_)); !status.isOk())
                 return status;
         }
         if (httpClient_) {
-            if (auto status = addLifecycleComponent(*lifecycle, lifecycleComponent("http", httpClient_)); !status.isOk())
+            if (auto status = addLifecycleComponent(*lifecycle, makeLifecycleComponent("http", httpClient_)); !status.isOk())
                 return status;
         }
         if (executor_) {
-            if (auto status = addLifecycleComponent(*lifecycle, lifecycleComponent("executor", executor_)); !status.isOk())
+            if (auto status = addLifecycleComponent(*lifecycle, makeLifecycleComponent("executor", executor_)); !status.isOk())
                 return status;
         }
         if (scheduler_) {
-            if (auto status = addLifecycleComponent(*lifecycle, lifecycleComponent("scheduler", scheduler_)); !status.isOk())
+            if (auto status = addLifecycleComponent(*lifecycle, makeLifecycleComponent("scheduler", scheduler_)); !status.isOk())
                 return status;
         }
     } catch (const std::exception& error) {
@@ -164,109 +164,6 @@ RuntimeServices defaultRuntimeServices()
         .traceSink_ = services.traceSink_,
     });
     return services;
-}
-
-RuntimeContainer::RuntimeContainer(RuntimeServices services, RuntimeContainerOptions options)
-    : services_(std::move(services))
-    , options_(std::move(options))
-{
-}
-
-RuntimeContainer::~RuntimeContainer()
-{
-    (void)close(options_.closeOptions_);
-}
-
-const RuntimeServices& RuntimeContainer::services() const noexcept
-{
-    return services_;
-}
-
-RuntimeServices& RuntimeContainer::services() noexcept
-{
-    return services_;
-}
-
-Status RuntimeContainer::validate() const
-{
-    std::lock_guard lock(mutex_);
-    if (closed_)
-        return Status::failedPrecondition("runtime container is closed");
-    return services_.validate(options_.requirements_);
-}
-
-Status RuntimeContainer::start()
-{
-    std::lock_guard lock(mutex_);
-    if (closed_)
-        return Status::failedPrecondition("runtime container is closed");
-    if (auto status = ensureLifecycleLocked(); !status.isOk())
-        return status;
-    return lifecycle_->start();
-}
-
-Status RuntimeContainer::waitIdle(Clock::Duration timeout)
-{
-    std::shared_ptr<Lifecycle> lifecycle;
-    {
-        std::lock_guard lock(mutex_);
-        if (closed_)
-            return Status::ok();
-        if (auto status = ensureLifecycleLocked(); !status.isOk())
-            return status;
-        lifecycle = lifecycle_;
-    }
-    return lifecycle->waitIdle(timeout);
-}
-
-Status RuntimeContainer::close(CloseOptions options)
-{
-    std::shared_ptr<Lifecycle> lifecycle;
-    {
-        std::lock_guard lock(mutex_);
-        if (closed_)
-            return Status::ok();
-        closed_ = true;
-        lifecycle = lifecycle_;
-    }
-    if (!lifecycle)
-        return Status::ok();
-    return lifecycle->close(options);
-}
-
-bool RuntimeContainer::isClosed() const noexcept
-{
-    std::lock_guard lock(mutex_);
-    return closed_ || (lifecycle_ && lifecycle_->isClosed());
-}
-
-std::shared_ptr<Lifecycle> RuntimeContainer::lifecycle() const
-{
-    std::lock_guard lock(mutex_);
-    return lifecycle_;
-}
-
-Status RuntimeContainer::ensureLifecycleLocked()
-{
-    if (lifecycle_)
-        return Status::ok();
-    if (auto status = services_.validate(options_.requirements_); !status.isOk())
-        return status;
-    auto lifecycle = services_.createLifecycle();
-    if (!lifecycle.isOk())
-        return lifecycle.status();
-    lifecycle_ = std::move(*lifecycle);
-    return Status::ok();
-}
-
-Result<std::shared_ptr<RuntimeContainer>> createRuntimeContainer(
-    RuntimeServices services,
-    RuntimeContainerOptions options)
-{
-    auto container = std::make_shared<RuntimeContainer>(std::move(services), std::move(options));
-    if (auto status = container->validate(); !status.isOk())
-        return status;
-    return container;
 }
 
 } // namespace lc

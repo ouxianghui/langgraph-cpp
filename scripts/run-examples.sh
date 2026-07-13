@@ -29,6 +29,9 @@ EXAMPLES=(
     stream_projection
     subgraph_module
     model_tool_model_loop
+    agent_pattern_react
+    agent_pattern_plan_and_solve
+    agent_pattern_reflection
     human_interrupt
     tool_approval_loop
     edge_mock_tool_adapter

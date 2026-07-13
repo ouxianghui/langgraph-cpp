@@ -1,4 +1,4 @@
-#include "core/lifecycle/lifecycle_adapters.hpp"
+#include "core/lifecycle/lifecycle_components.hpp"
 #include "foundation/event/memory_event_sink.hpp"
 #include "foundation/event/runtime_event.hpp"
 #include "foundation/executor/concurrent_executor.hpp"
@@ -451,10 +451,10 @@ int main()
         auto storage = std::make_shared<lc::MemoryStorage>();
 
         lc::Lifecycle manager;
-        assert(manager.add(lc::lifecycleComponent("storage", storage)).isOk());
-        assert(manager.add(lc::lifecycleComponent("events", sink)).isOk());
-        assert(manager.add(lc::lifecycleComponent("executor", executor)).isOk());
-        assert(manager.add(lc::lifecycleComponent("scheduler", scheduler)).isOk());
+        assert(manager.add(lc::makeLifecycleComponent("storage", storage)).isOk());
+        assert(manager.add(lc::makeLifecycleComponent("events", sink)).isOk());
+        assert(manager.add(lc::makeLifecycleComponent("executor", executor)).isOk());
+        assert(manager.add(lc::makeLifecycleComponent("scheduler", scheduler)).isOk());
 
         assert(manager.start().isOk());
 

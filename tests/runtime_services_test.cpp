@@ -1,3 +1,4 @@
+#include "core/runtime/runtime_container.hpp"
 #include "core/runtime/runtime_services.hpp"
 #include "foundation/executor/inline_executor.hpp"
 #include "foundation/status/status.hpp"

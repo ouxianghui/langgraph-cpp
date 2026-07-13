@@ -14,37 +14,36 @@
 
 namespace lc {
 
-// Typed ILifecycle adapters that wrap concrete foundation subsystems
-// (executor, scheduler, event sink, storage, metrics, trace, HTTP client) so
-// they can be registered with a Lifecycle. These live in the app layer because
-// they intentionally couple to specific subsystems; the foundation Lifecycle
-// core stays free of those dependencies.
+// Typed ILifecycle component factories for concrete foundation subsystems
+// (executor, scheduler, event sink, storage, metrics, trace, HTTP client).
+// These live in the app layer because they intentionally couple to specific
+// subsystems; the foundation Lifecycle core stays free of those dependencies.
 
-[[nodiscard]] std::shared_ptr<ILifecycle> lifecycleComponent(
+[[nodiscard]] std::shared_ptr<ILifecycle> makeLifecycleComponent(
     std::string name,
     std::shared_ptr<IExecutor> executor);
 
-[[nodiscard]] std::shared_ptr<ILifecycle> lifecycleComponent(
+[[nodiscard]] std::shared_ptr<ILifecycle> makeLifecycleComponent(
     std::string name,
     std::shared_ptr<ITaskScheduler> scheduler);
 
-[[nodiscard]] std::shared_ptr<ILifecycle> lifecycleComponent(
+[[nodiscard]] std::shared_ptr<ILifecycle> makeLifecycleComponent(
     std::string name,
     std::shared_ptr<IEventSink> eventSink);
 
-[[nodiscard]] std::shared_ptr<ILifecycle> lifecycleComponent(
+[[nodiscard]] std::shared_ptr<ILifecycle> makeLifecycleComponent(
     std::string name,
     std::shared_ptr<IStorage> storage);
 
-[[nodiscard]] std::shared_ptr<ILifecycle> lifecycleComponent(
+[[nodiscard]] std::shared_ptr<ILifecycle> makeLifecycleComponent(
     std::string name,
     std::shared_ptr<IMetricRecorder> metrics);
 
-[[nodiscard]] std::shared_ptr<ILifecycle> lifecycleComponent(
+[[nodiscard]] std::shared_ptr<ILifecycle> makeLifecycleComponent(
     std::string name,
     std::shared_ptr<ITraceSink> traceSink);
 
-[[nodiscard]] std::shared_ptr<ILifecycle> lifecycleComponent(
+[[nodiscard]] std::shared_ptr<ILifecycle> makeLifecycleComponent(
     std::string name,
     std::shared_ptr<IHttpClient> httpClient);
 

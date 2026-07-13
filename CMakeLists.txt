@@ -333,7 +333,7 @@ endif()
 langgraph_cpp_apply_warnings(foundation)
 
 # ============================================================================
-#  core — application-assembly layer (composition root + lifecycle adapters).
+#  core — application-assembly layer (composition root + lifecycle components).
 #  Opinionated wiring that intentionally couples to many subsystems; kept out
 #  of foundation so the foundation stays a set of decoupled primitives.
 # ============================================================================

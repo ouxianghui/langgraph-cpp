@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | 生效中 |
-| 最后更新 | 2026-07-10 |
+| 最后更新 | 2026-07-13 |
 | 默认 preset | `unix-debug` |
 | 可选示例 | `llama_cpp_chat`、`llama_cpp_tool_calling` |
 
@@ -42,6 +42,9 @@ build/unix-debug/examples/minimal_graph
 | `stream_projection` | `examples/stream_projection.cpp` | 是 | `streamProjected`、`RunProjectionOptions`、`StreamMode` | 消费 events、updates、values、messages、tasks、checkpoints、custom events 和 output projection。 |
 | `subgraph_module` | `examples/subgraph_module.cpp` | 是 | `StateGraph::addSubgraph`、`SubgraphOptions` | 父 workflow 组合一个带独立 checkpoint namespace 的 diagnostic subgraph。 |
 | `model_tool_model_loop` | `examples/model_tool_model_loop.cpp` | 是 | `FakeChatModel`、`ToolRegistry`、`ToolNode` | model 发出 tool call，tool result 追加后 model 完成。 |
+| `agent_pattern_react` | `examples/agent_patterns/react.cpp` | 是 | `FakeChatModel`、`ToolRegistry`、`ToolNode` | ReAct 风格的 reason/action/observation/model loop。 |
+| `agent_pattern_plan_and_solve` | `examples/agent_patterns/plan_and_solve.cpp` | 是 | `StateGraph`、conditional loop、state updates | 先生成完整计划，再逐步执行并汇总答案。 |
+| `agent_pattern_reflection` | `examples/agent_patterns/reflection.cpp` | 是 | `StateGraph`、draft/critic/reviser nodes | draft、critique、revise 的自我修正 workflow。 |
 | `llama_cpp_chat` | `examples/llama_cpp_chat.cpp` | 可选 | `LlamaCppChatModel`、`makeModelNode` | 通过 llama.cpp 调用本地 GGUF 模型。 |
 | `llama_cpp_tool_calling` | `examples/llama_cpp_tool_calling.cpp` | 可选 | `LlamaCppChatModel`、GBNF、`ToolRegistry` | 本地 GGUF 模型输出受约束 JSON tool calls。 |
 | `human_interrupt` | `examples/human_interrupt.cpp` | 是 | `NodeOutput::interrupt`、`Command::resume` | action 前暂停，并用外部审批恢复。 |
@@ -55,12 +58,12 @@ build/unix-debug/examples/minimal_graph
 
 ## 2. 验证状态
 
-已在 2026-07-10 使用 `unix-debug` preset 验证。
+已在 2026-07-13 使用 `unix-debug` preset 验证。
 
 构建验证：
 
 ```sh
-cmake --build --preset unix-debug --target minimal_graph parallel_fanout conditional_fanout send_map_reduce command_goto conditional_graph loop_graph checkpoint_resume sqlite_checkpoint_resume time_travel_history long_term_memory_store stream_projection subgraph_module model_tool_model_loop human_interrupt tool_approval_loop edge_mock_tool_adapter mock_edge_repair
+cmake --build --preset unix-debug --target minimal_graph parallel_fanout conditional_fanout send_map_reduce command_goto conditional_graph loop_graph checkpoint_resume sqlite_checkpoint_resume time_travel_history long_term_memory_store stream_projection subgraph_module model_tool_model_loop agent_pattern_react agent_pattern_plan_and_solve agent_pattern_reflection human_interrupt tool_approval_loop edge_mock_tool_adapter mock_edge_repair
 ```
 
 运行验证：
@@ -85,6 +88,9 @@ scripts/run-examples.sh
 | `stream_projection` | 通过 | output 汇总 projected `events`、`updates`、`values`、`messages`、`tasks`、`checkpoints`、`custom` 和 `output` parts。 |
 | `subgraph_module` | 通过 | final state 包含 `diagnosis`、`repair_plan` 和 queued `ticket`。 |
 | `model_tool_model_loop` | 通过 | tool result 包含 `value: 5`。 |
+| `agent_pattern_react` | 通过 | final state 包含 `pattern: react`、sensor tool result 和 final assistant answer。 |
+| `agent_pattern_plan_and_solve` | 通过 | final state 包含 `pattern: plan_and_solve`、`completed_count: 3` 和 `solved: true`。 |
+| `agent_pattern_reflection` | 通过 | final state 包含 `pattern: reflection`、`critique`、`final_answer` 和 `revision_count: 1`。 |
 | `llama_cpp_chat` | 可选，默认门禁未运行 | 仅在提供 llama.cpp 和 GGUF 模型后构建。 |
 | `llama_cpp_tool_calling` | 可选，默认门禁未运行 | 仅在提供 llama.cpp 和 GGUF 模型后构建；使用 GBNF 约束输出。 |
 | `human_interrupt` | 通过 | final state 包含 `approved: true`。 |
@@ -107,13 +113,16 @@ scripts/run-examples.sh
 11. `stream_projection`
 12. `subgraph_module`
 13. `model_tool_model_loop`
-14. `llama_cpp_chat`，当 `LANGGRAPH_CPP_WITH_LLAMA_CPP=ON`
-15. `llama_cpp_tool_calling`，当 `LANGGRAPH_CPP_WITH_LLAMA_CPP=ON`
-16. `human_interrupt`
-17. `tool_approval_loop`
-18. `mock_edge_repair`
+14. `agent_pattern_react`
+15. `agent_pattern_plan_and_solve`
+16. `agent_pattern_reflection`
+17. `llama_cpp_chat`，当 `LANGGRAPH_CPP_WITH_LLAMA_CPP=ON`
+18. `llama_cpp_tool_calling`，当 `LANGGRAPH_CPP_WITH_LLAMA_CPP=ON`
+19. `human_interrupt`
+20. `tool_approval_loop`
+21. `mock_edge_repair`
 
-这个顺序对应 runtime 层次：graph、routing、loop control、checkpointing、time travel、long-term memory、streaming、subgraph composition、messages/models/tools、interrupt/resume，最后是 edge-style workflow orchestration。
+这个顺序对应 runtime 层次：graph、routing、loop control、checkpointing、time travel、long-term memory、streaming、subgraph composition、messages/models/tools、agent patterns、interrupt/resume，最后是 edge-style workflow orchestration。
 
 ## 4. 预期输出
 
@@ -193,6 +202,26 @@ JSON 字段顺序可能不同。
 
 final state 包含一条 user message、一条 assistant tool call、一条带 `{"ok":true,"result":{"value":5}}` 的 tool message，以及最终 assistant response。
 
+### `agent_pattern_react`
+
+final state 包含 user message、assistant tool call、sensor observation tool message，以及最终 assistant response：
+
+```json
+{"pattern":"react"}
+```
+
+### `agent_pattern_plan_and_solve`
+
+```json
+{"completed_count":3,"pattern":"plan_and_solve","solved":true}
+```
+
+### `agent_pattern_reflection`
+
+```json
+{"pattern":"reflection","revision_count":1}
+```
+
 ### `mock_edge_repair`
 
 final state 包含：
@@ -222,6 +251,7 @@ final state 包含：
 | stream projection | `stream_projection` |
 | subgraph | `subgraph_module` |
 | model/tool loop | `model_tool_model_loop`、`llama_cpp_tool_calling` |
+| agent patterns | `agent_pattern_react`、`agent_pattern_plan_and_solve`、`agent_pattern_reflection` |
 | HITL interrupt | `human_interrupt`、`tool_approval_loop`、`mock_edge_repair` |
 | edge adapter shape | `edge_mock_tool_adapter`、`mock_edge_repair` |
 
