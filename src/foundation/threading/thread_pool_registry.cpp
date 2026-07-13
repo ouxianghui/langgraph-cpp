@@ -6,6 +6,11 @@
 
 namespace lc {
 
+ThreadPoolRegistry::ThreadPoolRegistry(std::shared_ptr<ILogger> logger)
+    : logger_(std::move(logger))
+{
+}
+
 std::shared_ptr<IThreadPool> ThreadPoolRegistry::registerNamedPool(std::string name,
     std::size_t threadCount,
     std::size_t maxPendingSubmit)
@@ -21,7 +26,7 @@ std::shared_ptr<IThreadPool> ThreadPoolRegistry::registerNamedPool(std::string n
         return it->second;
     }
 
-    auto pool = std::make_shared<ThreadPool>(threadCount, maxPendingSubmit);
+    auto pool = std::make_shared<ThreadPool>(threadCount, maxPendingSubmit, logger_);
     const auto inserted = byName_.emplace(std::move(name), std::move(pool));
     return inserted.first->second;
 }

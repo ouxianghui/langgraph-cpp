@@ -1,0 +1,25 @@
+{
+  "version": "v3",
+  "run_id": "run-demo",
+  "thread_id": "thread-demo",
+  "checkpoint_ns": "parent|child:task-1",
+  "namespace": [
+    "parent",
+    "child:task-1"
+  ],
+  "mode": "updates",
+  "event": "updates",
+  "name": "plan",
+  "tags": [
+    "demo",
+    "edge"
+  ],
+  "metadata": {
+    "operator": "qa"
+  },
+  "data": {
+    "plan": {
+      "status": "ready"
+    }
+  }
+}

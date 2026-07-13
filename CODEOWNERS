@@ -1,0 +1,26 @@
+# CODEOWNERS for langgraph-cpp.
+#
+# Replace @langgraph-cpp/maintainers with the real GitHub team or maintainer
+# handles before the first public release.
+
+* @langgraph-cpp/maintainers
+
+/include/langgraph_cpp/ @langgraph-cpp/maintainers
+/src/langgraph/graph/ @langgraph-cpp/maintainers
+/src/langgraph/checkpoint/ @langgraph-cpp/maintainers
+/src/langgraph/store/ @langgraph-cpp/maintainers
+/src/langgraph/runtime/ @langgraph-cpp/maintainers
+/src/langgraph/message/ @langgraph-cpp/maintainers
+/src/langgraph/model/ @langgraph-cpp/maintainers
+/src/langgraph/tool/ @langgraph-cpp/maintainers
+/src/langgraph/edge/ @langgraph-cpp/maintainers
+
+/src/foundation/ @langgraph-cpp/maintainers
+/CMakeLists.txt @langgraph-cpp/maintainers
+/CMakePresets.json @langgraph-cpp/maintainers
+/.github/ @langgraph-cpp/maintainers
+/scripts/ @langgraph-cpp/maintainers
+
+/docs/ @langgraph-cpp/maintainers
+/PROJECT_MANIFEST.json @langgraph-cpp/maintainers
+/CODEOWNERS @langgraph-cpp/maintainers

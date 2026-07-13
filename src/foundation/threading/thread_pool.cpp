@@ -2,9 +2,6 @@
 
 #include "foundation/logging/logger.hpp"
 
-#include <asio/post.hpp>
-#include <asio/thread_pool.hpp>
-
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -13,28 +10,27 @@
 #include <exception>
 #include <memory>
 #include <mutex>
-#include <optional>
+#include <queue>
 #include <source_location>
 #include <thread>
 #include <utility>
+#include <vector>
 
 namespace lc {
-
 namespace {
 
 thread_local const void* tlsPoolSelf = nullptr;
 
 struct PoolTlsScope {
     explicit PoolTlsScope(const void* impl) noexcept { tlsPoolSelf = impl; }
-
     ~PoolTlsScope() { tlsPoolSelf = nullptr; }
 };
 
 [[nodiscard]] std::size_t resolveThreadCount(std::size_t requested)
 {
-    if (requested != 0U) {
+    if (requested != 0U)
         return requested;
-    }
+
     const unsigned hc = std::thread::hardware_concurrency();
     return std::max<std::size_t>(1U, hc == 0U ? 1U : static_cast<std::size_t>(hc));
 }
@@ -44,28 +40,39 @@ struct PoolTlsScope {
     return loc.line() != 0 && loc.file_name() != nullptr && loc.file_name()[0] != '\0';
 }
 
-void logUncaughtSubmit(const std::source_location& from, const std::exception* ex) noexcept
+void logUncaughtSubmit(
+    const std::shared_ptr<ILogger>& logger,
+    const std::source_location& from,
+    const std::exception* ex) noexcept
 {
     try {
         if (hasSourceLocation(from)) {
             if (ex != nullptr) {
-                BW_LOG_WARN("ThreadPool",
+                logTo(logger,
+                    LogLevel::Warn,
+                    "ThreadPool",
                     "task exception at {}:{} `{}`: {}",
+                    __FILE__,
+                    __LINE__,
                     from.file_name(),
                     from.line(),
                     from.function_name(),
                     ex->what());
             } else {
-                BW_LOG_WARN("ThreadPool",
+                logTo(logger,
+                    LogLevel::Warn,
+                    "ThreadPool",
                     "task exception (non-std) at {}:{} `{}`",
+                    __FILE__,
+                    __LINE__,
                     from.file_name(),
                     from.line(),
                     from.function_name());
             }
         } else if (ex != nullptr) {
-            BW_LOG_WARN("ThreadPool", "task exception: {}", ex->what());
+            logTo(logger, LogLevel::Warn, "ThreadPool", "task exception: {}", __FILE__, __LINE__, ex->what());
         } else {
-            BW_LOG_WARN("ThreadPool", "task exception: (non-std)");
+            logTo(logger, LogLevel::Warn, "ThreadPool", "task exception: (non-std)", __FILE__, __LINE__);
         }
     } catch (...) {
     }
@@ -80,23 +87,30 @@ struct SubmittedWork {
 
 class ThreadPool::Impl : public std::enable_shared_from_this<Impl> {
 public:
-    Impl(std::size_t requestedThreadCount, std::size_t maxPendingSubmit)
+    Impl(std::size_t requestedThreadCount, std::size_t maxPendingSubmit, std::shared_ptr<ILogger> logger)
         : threadCount_(resolveThreadCount(requestedThreadCount))
         , maxPendingSubmit_(maxPendingSubmit)
-        , pool_(std::make_unique<asio::thread_pool>(threadCount_))
+        , logger_(std::move(logger))
     {
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            running_ = true;
-        }
-        try {
-            if (maxPendingSubmit_ == 0U) {
-                BW_LOG_INFO("ThreadPool", "started threads={} maxPendingSubmit=unbounded", threadCount_);
-            } else {
-                BW_LOG_INFO("ThreadPool", "started threads={} maxPendingSubmit={}", threadCount_, maxPendingSubmit_);
+    }
+
+    static std::shared_ptr<Impl> create(
+        std::size_t requestedThreadCount,
+        std::size_t maxPendingSubmit,
+        std::shared_ptr<ILogger> logger)
+    {
+        struct Enabler final : Impl {
+            Enabler(std::size_t requested, std::size_t maxPending, std::shared_ptr<ILogger> logger)
+                : Impl(requested, maxPending, std::move(logger))
+            {
             }
-        } catch (...) {
-        }
+        };
+        auto impl = std::make_shared<Enabler>(
+            requestedThreadCount,
+            maxPendingSubmit,
+            std::move(logger));
+        impl->start();
+        return impl;
     }
 
     ~Impl() { (void)doShutdown(true, std::chrono::steady_clock::duration {}); }
@@ -105,189 +119,193 @@ public:
     Impl& operator=(const Impl&) = delete;
 
     [[nodiscard]] std::size_t threadCount() const noexcept { return threadCount_; }
+    [[nodiscard]] std::shared_ptr<ILogger> logger() const noexcept { return logger_; }
+
+    void start()
+    {
+        {
+            std::lock_guard lock(mutex_);
+            running_ = true;
+        }
+
+        workers_.reserve(threadCount_);
+        try {
+            for (std::size_t i = 0; i < threadCount_; ++i)
+                workers_.emplace_back([this] { workerLoop(); });
+        } catch (...) {
+            {
+                std::lock_guard lock(mutex_);
+                running_ = false;
+            }
+            workCv_.notify_all();
+            joinWorkers();
+            throw;
+        }
+
+        try {
+            if (maxPendingSubmit_ == 0U)
+                logTo(logger_,
+                    LogLevel::Info,
+                    "ThreadPool",
+                    "started threads={} maxPendingSubmit=unbounded",
+                    __FILE__,
+                    __LINE__,
+                    threadCount_);
+            else
+                logTo(logger_,
+                    LogLevel::Info,
+                    "ThreadPool",
+                    "started threads={} maxPendingSubmit={}",
+                    __FILE__,
+                    __LINE__,
+                    threadCount_,
+                    maxPendingSubmit_);
+        } catch (...) {
+        }
+    }
 
     [[nodiscard]] bool onWorker() const noexcept
     {
         return tlsPoolSelf == static_cast<const void*>(this);
     }
 
-    [[nodiscard]] bool submit(std::function<void()> task, std::source_location from)
+    [[nodiscard]] Status submit(std::function<void()> task, std::source_location from)
     {
-        if (!task) {
-            return false;
-        }
+        if (!task)
+            return Status::invalidArgument("thread pool task cannot be empty");
 
-        auto work = std::make_shared<SubmittedWork>(std::move(task), from);
-
-        std::shared_ptr<Impl> self;
-        std::optional<decltype(std::declval<asio::thread_pool&>().get_executor())> executorForPost;
         {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (!running_ || !pool_) {
+            std::lock_guard lock(mutex_);
+            if (!running_) {
                 submitRejectedWhileStopped_.fetch_add(1, std::memory_order_relaxed);
-                return false;
+                return Status::failedPrecondition("thread pool is stopped");
             }
             if (maxPendingSubmit_ != 0U && outstanding_ >= maxPendingSubmit_) {
                 submitRejectedQueueFull_.fetch_add(1, std::memory_order_relaxed);
-                return false;
+                return Status::resourceExhausted("thread pool queue is full");
             }
-            ++outstanding_;
-            if (outstanding_ > peakOutstanding_) {
-                peakOutstanding_ = outstanding_;
-            }
-            self = shared_from_this();
-            executorForPost = pool_->get_executor();
-        }
 
-        try {
-            asio::post(*executorForPost,
-                [self = std::move(self), work]() noexcept { self->runTask(std::move(work)); });
-        } catch (...) {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (outstanding_ > 0ULL) {
-                --outstanding_;
-            }
-            idleCv_.notify_all();
-            return false;
+            queue_.push(SubmittedWork {
+                .fn = std::move(task),
+                .from = from,
+            });
+            ++outstanding_;
+            if (outstanding_ > peakOutstanding_)
+                peakOutstanding_ = outstanding_;
         }
 
         submitAccepted_.fetch_add(1, std::memory_order_relaxed);
-        return true;
+        workCv_.notify_one();
+        return Status::ok();
     }
 
-    void awaitDrain(bool forever, std::chrono::steady_clock::duration timeout)
-    {
-        (void)awaitDrainFor(forever, timeout);
-    }
-
-    [[nodiscard]] bool awaitDrainFor(bool forever, std::chrono::steady_clock::duration timeout)
+    [[nodiscard]] Status awaitDrainFor(bool forever, std::chrono::steady_clock::duration timeout)
     {
         if (onWorker()) {
             waitIdleEarlyReturnFromPoolThread_.fetch_add(1, std::memory_order_relaxed);
             try {
-                BW_LOG_WARN("ThreadPool", "waitIdle: called from pool worker — skipping wait (deadlock guard)");
+                logTo(logger_,
+                    LogLevel::Warn,
+                    "ThreadPool",
+                    "waitIdle: called from pool worker - skipping wait (deadlock guard)",
+                    __FILE__,
+                    __LINE__);
             } catch (...) {
             }
-            return false;
+            return Status::failedPrecondition("waitIdle cannot be called from a thread pool worker");
         }
 
-        std::unique_lock<std::mutex> lock(mutex_);
+        std::unique_lock lock(mutex_);
         if (forever) {
             idleCv_.wait(lock, [this] { return outstanding_ == 0ULL; });
-            return true;
+            return Status::ok();
         }
         if (timeout <= std::chrono::steady_clock::duration::zero()) {
-            const bool ok = (outstanding_ == 0ULL);
-            if (!ok) {
+            const bool ok = outstanding_ == 0ULL;
+            if (!ok)
                 waitIdleTimeouts_.fetch_add(1, std::memory_order_relaxed);
-            }
-            return ok;
+            return ok ? Status::ok() : Status::deadlineExceeded("thread pool did not become idle before timeout");
         }
+
         const auto deadline = std::chrono::steady_clock::now() + timeout;
         if (!idleCv_.wait_until(lock, deadline, [this] { return outstanding_ == 0ULL; })) {
             waitIdleTimeouts_.fetch_add(1, std::memory_order_relaxed);
-            return false;
+            return Status::deadlineExceeded("thread pool did not become idle before timeout");
         }
-        return true;
+        return Status::ok();
     }
 
-    [[nodiscard]] bool doShutdown(bool drainForever, std::chrono::steady_clock::duration drainBudget) noexcept
+    [[nodiscard]] Status doShutdown(bool drainForever, std::chrono::steady_clock::duration drainBudget)
     {
         joinDeferredTeardown();
 
-        std::unique_ptr<asio::thread_pool> poolToJoin;
-        bool idleDrained = true;
-
+        Status idleDrained = Status::ok();
         {
-            std::unique_lock<std::mutex> lock(mutex_);
-
-            if (!onWorker()) {
-                joinerCv_.wait(lock, [this] { return !joinerBusy_; });
-            }
-
-            if (!pool_) {
-                if (onWorker()) {
-                    if (joinerBusy_ || teardownJoiner_.joinable()) {
-                        return false;
-                    }
-                    return true;
-                }
-                if (teardownJoiner_.joinable()) {
-                    lock.unlock();
-                    joinDeferredTeardown();
-                    return doShutdown(drainForever, drainBudget);
-                }
-                return true;
-            }
+            std::unique_lock lock(mutex_);
+            if (!running_ && workers_.empty())
+                return Status::ok();
 
             running_ = false;
 
             if (onWorker()) {
                 shutdownInvokedFromPoolThread_.fetch_add(1, std::memory_order_relaxed);
                 try {
-                    BW_LOG_WARN("ThreadPool",
-                        "shutdown: called from pool worker — deferring pool::join() to a helper thread");
+                    logTo(logger_,
+                        LogLevel::Warn,
+                        "ThreadPool",
+                        "shutdown: called from pool worker - deferring join to a helper thread",
+                        __FILE__,
+                        __LINE__);
                 } catch (...) {
                 }
 
                 if (teardownJoiner_.joinable()) {
-                    joinerBusy_ = false;
-                    joinerCv_.notify_all();
-                    try {
-                        BW_LOG_ERROR("ThreadPool",
-                            "shutdown from pool worker while deferred joiner already exists");
-                    } catch (...) {
-                    }
                     std::terminate();
                 }
 
-                joinerBusy_ = true;
-                poolToJoin = std::move(pool_);
-                lock.unlock();
-
-                std::thread helper([p = std::move(poolToJoin)]() mutable {
-                    if (p) {
-                        p->join();
-                    }
+                teardownJoiner_ = std::thread([self = shared_from_this()] {
+                    self->workCv_.notify_all();
+                    self->joinWorkers();
                     try {
-                        BW_LOG_INFO("ThreadPool", "deferred pool join finished");
+                        logTo(self->logger_,
+                            LogLevel::Info,
+                            "ThreadPool",
+                            "deferred pool join finished",
+                            __FILE__,
+                            __LINE__);
                     } catch (...) {
                     }
                 });
-
-                {
-                    std::lock_guard<std::mutex> gl(mutex_);
-                    teardownJoiner_ = std::move(helper);
-                    joinerBusy_ = false;
-                }
-                joinerCv_.notify_all();
-                return false;
+                return Status::failedPrecondition("shutdown cannot join a thread pool from its worker");
             }
 
             if (drainForever) {
                 idleCv_.wait(lock, [this] { return outstanding_ == 0ULL; });
             } else if (drainBudget <= std::chrono::steady_clock::duration::zero()) {
-                idleDrained = (outstanding_ == 0ULL);
-                if (!idleDrained) {
+                if (outstanding_ != 0ULL) {
+                    idleDrained = Status::deadlineExceeded("thread pool did not become idle before shutdown timeout");
                     shutdownIdleWaitTimeouts_.fetch_add(1, std::memory_order_relaxed);
                 }
             } else {
                 const auto deadline = std::chrono::steady_clock::now() + drainBudget;
-                idleDrained = idleCv_.wait_until(lock, deadline, [this] { return outstanding_ == 0ULL; });
-                if (!idleDrained) {
+                if (!idleCv_.wait_until(lock, deadline, [this] { return outstanding_ == 0ULL; })) {
+                    idleDrained = Status::deadlineExceeded("thread pool did not become idle before shutdown timeout");
                     shutdownIdleWaitTimeouts_.fetch_add(1, std::memory_order_relaxed);
                 }
             }
-
-            poolToJoin = std::move(pool_);
         }
 
-        if (poolToJoin) {
-            poolToJoin->join();
-        }
+        workCv_.notify_all();
+        joinWorkers();
 
         try {
-            BW_LOG_INFO("ThreadPool", "shutdown complete (threads were {})", threadCount_);
+            logTo(logger_,
+                LogLevel::Info,
+                "ThreadPool",
+                "shutdown complete (threads were {})",
+                __FILE__,
+                __LINE__,
+                threadCount_);
         } catch (...) {
         }
 
@@ -296,8 +314,8 @@ public:
 
     [[nodiscard]] bool isRunning() const noexcept
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return running_ && static_cast<bool>(pool_);
+        std::lock_guard lock(mutex_);
+        return running_;
     }
 
     [[nodiscard]] ThreadPoolStats stats() const noexcept
@@ -309,7 +327,7 @@ public:
         s.tasksCompleted = tasksCompleted_.load(std::memory_order_relaxed);
         s.taskUncaughtExceptions = taskUncaughtExceptions_.load(std::memory_order_relaxed);
         {
-            std::lock_guard<std::mutex> lock(mutex_);
+            std::lock_guard lock(mutex_);
             s.peakOutstanding = peakOutstanding_;
         }
         s.waitIdleEarlyReturnFromPoolThread = waitIdleEarlyReturnFromPoolThread_.load(std::memory_order_relaxed);
@@ -320,68 +338,89 @@ public:
     }
 
 private:
-    void joinDeferredTeardown() noexcept
-    {
-        if (onWorker()) {
-            return;
-        }
-        for (;;) {
-            std::thread joiner;
-            {
-                std::lock_guard<std::mutex> lock(mutex_);
-                if (!teardownJoiner_.joinable()) {
-                    break;
-                }
-                joiner = std::move(teardownJoiner_);
-            }
-            if (joiner.joinable()) {
-                joiner.join();
-            }
-        }
-    }
-
-    void runTask(std::shared_ptr<SubmittedWork> work) noexcept
+    void workerLoop() noexcept
     {
         PoolTlsScope tlsGuard(static_cast<const void*>(this));
 
-        if (!work || !work->fn) {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (outstanding_ > 0ULL) {
-                --outstanding_;
-            }
-            idleCv_.notify_all();
-            return;
-        }
+        for (;;) {
+            SubmittedWork work;
+            {
+                std::unique_lock lock(mutex_);
+                workCv_.wait(lock, [this] {
+                    return !running_ || !queue_.empty();
+                });
 
+                if (!running_ && queue_.empty())
+                    break;
+
+                work = std::move(queue_.front());
+                queue_.pop();
+            }
+
+            runTask(std::move(work));
+        }
+    }
+
+    void joinDeferredTeardown() noexcept
+    {
+        if (onWorker())
+            return;
+
+        std::thread joiner;
+        {
+            std::lock_guard lock(mutex_);
+            if (teardownJoiner_.joinable())
+                joiner = std::move(teardownJoiner_);
+        }
+        if (joiner.joinable())
+            joiner.join();
+    }
+
+    void joinWorkers() noexcept
+    {
+        std::vector<std::thread> workers;
+        {
+            std::lock_guard lock(mutex_);
+            workers = std::move(workers_);
+        }
+        for (auto& worker : workers) {
+            if (worker.joinable())
+                worker.join();
+        }
+    }
+
+    void runTask(SubmittedWork work) noexcept
+    {
         try {
-            work->fn();
+            if (work.fn)
+                work.fn();
             tasksCompleted_.fetch_add(1, std::memory_order_relaxed);
         } catch (const std::exception& ex) {
             taskUncaughtExceptions_.fetch_add(1, std::memory_order_relaxed);
-            logUncaughtSubmit(work->from, &ex);
+            logUncaughtSubmit(logger_, work.from, &ex);
         } catch (...) {
             taskUncaughtExceptions_.fetch_add(1, std::memory_order_relaxed);
-            logUncaughtSubmit(work->from, nullptr);
+            logUncaughtSubmit(logger_, work.from, nullptr);
         }
 
         {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (outstanding_ > 0ULL) {
+            std::lock_guard lock(mutex_);
+            if (outstanding_ > 0ULL)
                 --outstanding_;
-            }
-            idleCv_.notify_all();
         }
+        idleCv_.notify_all();
     }
 
     const std::size_t threadCount_;
     const std::size_t maxPendingSubmit_;
-    std::unique_ptr<asio::thread_pool> pool_;
+    std::shared_ptr<ILogger> logger_;
 
     mutable std::mutex mutex_;
+    std::condition_variable workCv_;
     std::condition_variable idleCv_;
-    std::condition_variable joinerCv_;
-    bool joinerBusy_ { false };
-    std::thread teardownJoiner_{};
+    std::queue<SubmittedWork> queue_;
+    std::vector<std::thread> workers_;
+    std::thread teardownJoiner_ {};
     bool running_ { false };
     std::uint64_t outstanding_ { 0 };
 
@@ -397,47 +436,53 @@ private:
     std::atomic<std::uint64_t> shutdownIdleWaitTimeouts_ { 0 };
 };
 
-ThreadPool::ThreadPool(std::size_t threadCount, std::size_t maxPendingSubmit)
-    : impl_(std::make_shared<Impl>(threadCount, maxPendingSubmit))
+ThreadPool::ThreadPool(std::size_t threadCount, std::size_t maxPendingSubmit, std::shared_ptr<ILogger> logger)
+    : impl_(Impl::create(threadCount, maxPendingSubmit, std::move(logger)))
 {
 }
 
 ThreadPool::~ThreadPool()
 {
-    if (!impl_) {
+    if (!impl_)
         return;
-    }
+
     if (impl_->onWorker()) {
+        auto logger = impl_->logger();
         std::shared_ptr<Impl> keep = std::move(impl_);
         impl_.reset();
         try {
-            std::thread([keep]() mutable {
+            std::thread([keep = std::move(keep)]() mutable {
                 (void)keep->doShutdown(true, std::chrono::steady_clock::duration {});
             }).detach();
         } catch (...) {
             try {
-                BW_LOG_ERROR("ThreadPool",
-                    "failed to spawn async teardown thread after delete from pool worker; terminating");
+                logTo(logger,
+                    LogLevel::Error,
+                    "ThreadPool",
+                    "failed to spawn async teardown thread after delete from pool worker",
+                    __FILE__,
+                    __LINE__);
             } catch (...) {
             }
             std::terminate();
         }
         return;
     }
+
     impl_.reset();
 }
 
-bool ThreadPool::submit(std::function<void()> task, std::source_location from)
+Status ThreadPool::submit(std::function<void()> task, std::source_location from)
 {
     return impl_->submit(std::move(task), from);
 }
 
-bool ThreadPool::waitIdle(std::chrono::steady_clock::duration timeout)
+Status ThreadPool::waitIdle(std::chrono::steady_clock::duration timeout)
 {
     return impl_->awaitDrainFor(false, timeout);
 }
 
-bool ThreadPool::shutdown(std::chrono::steady_clock::duration waitIdleTimeout) noexcept
+Status ThreadPool::shutdown(std::chrono::steady_clock::duration waitIdleTimeout)
 {
     return impl_->doShutdown(false, waitIdleTimeout);
 }
@@ -445,6 +490,11 @@ bool ThreadPool::shutdown(std::chrono::steady_clock::duration waitIdleTimeout) n
 bool ThreadPool::isRunning() const noexcept
 {
     return impl_->isRunning();
+}
+
+bool ThreadPool::isWorkerThread() const noexcept
+{
+    return impl_ && impl_->onWorker();
 }
 
 std::size_t ThreadPool::threadCount() const noexcept
@@ -455,11 +505,6 @@ std::size_t ThreadPool::threadCount() const noexcept
 ThreadPoolStats ThreadPool::stats() const noexcept
 {
     return impl_->stats();
-}
-
-bool ThreadPool::isExecutingOnThisPool() const noexcept
-{
-    return impl_ && impl_->onWorker();
 }
 
 } // namespace lc

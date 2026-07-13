@@ -1,278 +1,425 @@
 #include "foundation/timer/interval_timer.hpp"
 
-#include "foundation/logging/logger.hpp"
-
-#include <asio/bind_executor.hpp>
-#include <asio/dispatch.hpp>
-#include <asio/post.hpp>
-#include <asio/steady_timer.hpp>
-#include <asio/strand.hpp>
-
-#include <atomic>
+#include <algorithm>
+#include <condition_variable>
+#include <cstdint>
 #include <exception>
+#include <memory>
 #include <mutex>
+#include <thread>
 #include <utility>
 
 namespace lc {
-
 namespace {
 
-using Ms = ITimer::Milliseconds;
-
-Ms coercePositive(Ms d) noexcept
+[[nodiscard]] ITimer::Duration normalizeDelay(ITimer::Duration delay) noexcept
 {
-    return d.count() > 0 ? d : Ms { 1 };
+    return std::max(delay, ITimer::Duration(1));
+}
+
+void invokeTimerHandler(const std::shared_ptr<ILogger>& logger, const ITimer::Callback& handler) noexcept
+{
+    if (!handler)
+        return;
+    try {
+        handler();
+    } catch (const std::exception& ex) {
+        try {
+            logTo(logger, LogLevel::Warn, "IntervalTimer", "handler threw: {}", __FILE__, __LINE__, ex.what());
+        } catch (...) {
+        }
+    } catch (...) {
+        try {
+            logTo(logger, LogLevel::Warn, "IntervalTimer", "handler threw non-std exception", __FILE__, __LINE__);
+        } catch (...) {
+        }
+    }
 }
 
 } // namespace
 
-struct IntervalTimer::Impl final : std::enable_shared_from_this<Impl> {
-    asio::strand<asio::any_io_executor> strand_;
-    asio::steady_timer timer_;
-
-    std::atomic<Ms::rep> intervalMs_ { 0 };
-    std::atomic<bool> singleShot_ { false };
-
-    std::atomic<bool> armed_ { false };
-    std::atomic<bool> closed_ { false };
-
-    mutable std::mutex handlerMutex_;
-    ITimer::Callback handler_;
-
-    explicit Impl(asio::any_io_executor ex)
-        : strand_(asio::make_strand(std::move(ex)))
-        , timer_(strand_)
+struct TimerHandle::State {
+    explicit State(std::shared_ptr<ILogger> logger)
+        : logger_(std::move(logger))
     {
     }
 
-    void startFromStrand()
-    {
-        if (closed_.load(std::memory_order_acquire)) {
-            return;
-        }
-        const Ms::rep ms = intervalMs_.load(std::memory_order_relaxed);
-        if (ms <= 0) {
-            return;
-        }
-
-        timer_.cancel();
-
-        armed_.store(true, std::memory_order_release);
-        timer_.expires_after(Ms(ms));
-        timer_.async_wait(asio::bind_executor(
-            strand_, [self = shared_from_this()](const asio::error_code& ec) { self->onTimer(ec); }));
-    }
-
-    void stopFromStrand() noexcept
-    {
-        armed_.store(false, std::memory_order_release);
-        timer_.cancel();
-    }
-
-    void onTimer(const asio::error_code& ec)
-    {
-        if (closed_.load(std::memory_order_acquire)) {
-            return;
-        }
-        if (ec == asio::error::operation_aborted) {
-            return;
-        }
-        if (ec) {
-            BW_LOG_WARN("IntervalTimer", "steady_timer async_wait: {}", ec.message());
-            armed_.store(false, std::memory_order_release);
-            return;
-        }
-
-        if (!armed_.load(std::memory_order_acquire)) {
-            return;
-        }
-
-        ITimer::Callback cb;
-        {
-            std::lock_guard<std::mutex> lock(handlerMutex_);
-            cb = handler_;
-        }
-        if (cb) {
-            try {
-                cb();
-            } catch (const std::exception& ex) {
-                BW_LOG_WARN("IntervalTimer", "handler threw: {}", ex.what());
-            } catch (...) {
-                BW_LOG_WARN("IntervalTimer", "handler threw non-std exception");
-            }
-        }
-
-        if (closed_.load(std::memory_order_acquire)) {
-            return;
-        }
-
-        if (singleShot_.load(std::memory_order_acquire)) {
-            armed_.store(false, std::memory_order_release);
-            return;
-        }
-
-        if (!armed_.load(std::memory_order_acquire)) {
-            return;
-        }
-
-        const Ms::rep ms = intervalMs_.load(std::memory_order_relaxed);
-        if (ms <= 0) {
-            armed_.store(false, std::memory_order_release);
-            return;
-        }
-
-        timer_.expires_after(Ms(ms));
-        timer_.async_wait(asio::bind_executor(
-            strand_, [self = shared_from_this()](const asio::error_code& ec2) { self->onTimer(ec2); }));
-    }
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    std::shared_ptr<ILogger> logger_;
+    std::thread worker_;
+    bool cancelled_ { false };
+    bool running_ { false };
+    bool done_ { false };
 };
 
-IntervalTimer::IntervalTimer(asio::any_io_executor executor)
-    : impl_(std::make_shared<Impl>(std::move(executor)))
+TimerHandle::TimerHandle(std::shared_ptr<State> state)
+    : state_(std::move(state))
+{
+}
+
+TimerHandle::~TimerHandle()
+{
+    if (state_) {
+        (void)cancel();
+        if (state_->worker_.joinable() && state_->worker_.get_id() == std::this_thread::get_id()) {
+            state_->worker_.detach();
+        } else {
+            (void)wait(Duration::max());
+        }
+    }
+}
+
+TimerHandle::TimerHandle(TimerHandle&&) noexcept = default;
+
+TimerHandle& TimerHandle::operator=(TimerHandle&& other) noexcept
+{
+    if (this == &other)
+        return *this;
+    if (state_) {
+        (void)cancel();
+        if (state_->worker_.joinable() && state_->worker_.get_id() == std::this_thread::get_id()) {
+            state_->worker_.detach();
+        } else {
+            (void)wait(Duration::max());
+        }
+    }
+    state_ = std::move(other.state_);
+    return *this;
+}
+
+bool TimerHandle::valid() const noexcept
+{
+    return static_cast<bool>(state_);
+}
+
+bool TimerHandle::active() const noexcept
+{
+    if (!state_)
+        return false;
+    std::lock_guard lock(state_->mutex_);
+    return !state_->done_ && !state_->cancelled_;
+}
+
+Status TimerHandle::cancel()
+{
+    if (!state_)
+        return Status::ok();
+    {
+        std::lock_guard lock(state_->mutex_);
+        if (state_->done_)
+            return Status::ok();
+        state_->cancelled_ = true;
+    }
+    state_->cv_.notify_all();
+    return Status::ok();
+}
+
+Status TimerHandle::wait(Duration timeout)
+{
+    if (!state_)
+        return Status::ok();
+    if (state_->worker_.joinable() && state_->worker_.get_id() == std::this_thread::get_id())
+        return Status::failedPrecondition("timer handle cannot wait from its own worker thread");
+
+    std::unique_lock lock(state_->mutex_);
+    const auto done = [&] { return state_->done_; };
+    if (timeout == Duration::max()) {
+        state_->cv_.wait(lock, done);
+    } else if (timeout <= Duration::zero()) {
+        if (!done())
+            return Status::deadlineExceeded("timer handle wait timed out");
+    } else if (!state_->cv_.wait_for(lock, timeout, done)) {
+        return Status::deadlineExceeded("timer handle wait timed out");
+    }
+    lock.unlock();
+
+    if (state_->worker_.joinable())
+        state_->worker_.join();
+    return Status::ok();
+}
+
+struct IntervalTimer::Impl {
+    struct State {
+        explicit State(std::shared_ptr<ILogger> logger)
+            : logger_(std::move(logger))
+        {
+        }
+
+        mutable std::mutex mutex_;
+        std::condition_variable cv_;
+        std::shared_ptr<ILogger> logger_;
+        Duration interval_ { Duration(1000) };
+        Callback handler_;
+        bool active_ { false };
+        bool singleShot_ { false };
+        bool stopping_ { false };
+        bool closed_ { false };
+        bool callbackRunning_ { false };
+        bool workerDone_ { false };
+        std::uint64_t generation_ { 0 };
+        std::thread worker_;
+    };
+
+    explicit Impl(std::shared_ptr<ILogger> logger)
+        : state_(std::make_shared<State>(std::move(logger)))
+    {
+        state_->worker_ = std::thread([state = state_] { run(std::move(state)); });
+    }
+
+    ~Impl()
+    {
+        (void)close(Duration::max());
+    }
+
+    static void run(std::shared_ptr<State> state) noexcept
+    {
+        std::unique_lock lock(state->mutex_);
+        for (;;) {
+            state->cv_.wait(lock, [&] { return state->stopping_ || state->active_; });
+            if (state->stopping_)
+                break;
+
+            const auto due = std::chrono::steady_clock::now() + state->interval_;
+            const auto generation = state->generation_;
+            if (state->cv_.wait_until(lock, due, [&] {
+                    return state->stopping_ || !state->active_ || state->generation_ != generation;
+                })) {
+                continue;
+            }
+
+            auto handler = state->handler_;
+            const bool singleShot = state->singleShot_;
+            state->callbackRunning_ = true;
+            if (singleShot) {
+                state->active_ = false;
+                ++state->generation_;
+            }
+
+            lock.unlock();
+            invokeTimerHandler(state->logger_, handler);
+            lock.lock();
+            state->callbackRunning_ = false;
+            state->cv_.notify_all();
+        }
+        state->active_ = false;
+        state->workerDone_ = true;
+        state->cv_.notify_all();
+    }
+
+    [[nodiscard]] Status waitIdle(Duration timeout)
+    {
+        auto state = state_;
+        std::unique_lock lock(state->mutex_);
+        const auto idle = [&] { return !state->active_ && !state->callbackRunning_; };
+        if (timeout == Duration::max()) {
+            state->cv_.wait(lock, idle);
+            return Status::ok();
+        }
+        if (timeout <= Duration::zero()) {
+            if (idle())
+                return Status::ok();
+            return Status::deadlineExceeded("timer did not become idle before timeout");
+        }
+        if (!state->cv_.wait_for(lock, timeout, idle))
+            return Status::deadlineExceeded("timer did not become idle before timeout");
+        return Status::ok();
+    }
+
+    [[nodiscard]] Status close(Duration waitIdleTimeout)
+    {
+        std::lock_guard closeLock(closeMutex_);
+        auto state = state_;
+        const bool onWorker = state->worker_.joinable() && state->worker_.get_id() == std::this_thread::get_id();
+
+        {
+            std::lock_guard lock(state->mutex_);
+            if (state->closed_)
+                return Status::ok();
+            state->stopping_ = true;
+            state->active_ = false;
+            ++state->generation_;
+        }
+        state->cv_.notify_all();
+
+        if (onWorker) {
+            if (state->worker_.joinable())
+                state->worker_.detach();
+            std::lock_guard lock(state->mutex_);
+            state->closed_ = true;
+            return Status::ok();
+        }
+
+        std::unique_lock lock(state->mutex_);
+        const auto done = [&] { return state->workerDone_; };
+        if (waitIdleTimeout == Duration::max()) {
+            state->cv_.wait(lock, done);
+        } else if (waitIdleTimeout <= Duration::zero()) {
+            if (!done())
+                return Status::deadlineExceeded("timer close timed out");
+        } else if (!state->cv_.wait_for(lock, waitIdleTimeout, done)) {
+            return Status::deadlineExceeded("timer close timed out");
+        }
+        lock.unlock();
+
+        if (state->worker_.joinable())
+            state->worker_.join();
+        {
+            std::lock_guard guard(state->mutex_);
+            state->closed_ = true;
+        }
+        return Status::ok();
+    }
+
+    mutable std::mutex closeMutex_;
+    std::shared_ptr<State> state_;
+};
+
+IntervalTimer::IntervalTimer(std::shared_ptr<ILogger> logger)
+    : impl_(std::make_shared<Impl>(std::move(logger)))
 {
 }
 
 IntervalTimer::IntervalTimer(IntervalTimer&&) noexcept = default;
 IntervalTimer& IntervalTimer::operator=(IntervalTimer&&) noexcept = default;
 
-IntervalTimer::~IntervalTimer()
+IntervalTimer::~IntervalTimer() = default;
+
+void IntervalTimer::setInterval(Duration value) noexcept
 {
-    std::shared_ptr<Impl> impl = std::exchange(impl_, {});
-    if (!impl) {
+    auto state = impl_->state_;
+    std::lock_guard lock(state->mutex_);
+    if (state->closed_)
         return;
-    }
-    asio::dispatch(impl->strand_, [impl]() {
-        impl->closed_.store(true, std::memory_order_release);
-        impl->armed_.store(false, std::memory_order_release);
-        impl->timer_.cancel();
-    });
+    state->interval_ = value;
+    if (state->active_)
+        ++state->generation_;
+    state->cv_.notify_all();
 }
 
-void IntervalTimer::setInterval(Milliseconds interval) noexcept
+ITimer::Duration IntervalTimer::interval() const noexcept
 {
-    std::shared_ptr<Impl> impl = impl_;
-    if (!impl) {
+    auto state = impl_->state_;
+    std::lock_guard lock(state->mutex_);
+    return state->interval_;
+}
+
+void IntervalTimer::setSingleShot(bool value) noexcept
+{
+    auto state = impl_->state_;
+    std::lock_guard lock(state->mutex_);
+    if (state->closed_)
         return;
-    }
-    impl->intervalMs_.store(interval.count(), std::memory_order_relaxed);
+    state->singleShot_ = value;
 }
 
-ITimer::Milliseconds IntervalTimer::interval() const noexcept
+bool IntervalTimer::singleShot() const noexcept
 {
-    std::shared_ptr<Impl> impl = impl_;
-    if (!impl) {
-        return Milliseconds { 0 };
-    }
-    return Milliseconds(impl->intervalMs_.load(std::memory_order_relaxed));
+    auto state = impl_->state_;
+    std::lock_guard lock(state->mutex_);
+    return state->singleShot_;
 }
 
-void IntervalTimer::setSingleShot(bool singleShot) noexcept
+void IntervalTimer::setHandler(Callback value)
 {
-    std::shared_ptr<Impl> impl = impl_;
-    if (!impl) {
+    auto state = impl_->state_;
+    std::lock_guard lock(state->mutex_);
+    if (state->closed_)
         return;
-    }
-    impl->singleShot_.store(singleShot, std::memory_order_relaxed);
+    state->handler_ = std::move(value);
 }
 
-bool IntervalTimer::isSingleShot() const noexcept
+Status IntervalTimer::start()
 {
-    std::shared_ptr<Impl> impl = impl_;
-    if (!impl) {
-        return false;
-    }
-    return impl->singleShot_.load(std::memory_order_relaxed);
+    auto state = impl_->state_;
+    std::lock_guard lock(state->mutex_);
+    if (state->closed_ || state->stopping_)
+        return Status::failedPrecondition("timer is closed");
+    if (state->interval_ <= Duration::zero())
+        return Status::invalidArgument("timer interval must be positive");
+    state->active_ = true;
+    ++state->generation_;
+    state->cv_.notify_all();
+    return Status::ok();
 }
 
-void IntervalTimer::setTimeoutHandler(Callback handler)
+Status IntervalTimer::start(Duration interval)
 {
-    std::shared_ptr<Impl> impl = impl_;
-    if (!impl) {
-        return;
-    }
-    asio::post(impl->strand_, [impl, h = std::move(handler)]() mutable {
-        if (impl->closed_.load(std::memory_order_acquire)) {
+    auto state = impl_->state_;
+    std::lock_guard lock(state->mutex_);
+    if (state->closed_ || state->stopping_)
+        return Status::failedPrecondition("timer is closed");
+    state->interval_ = normalizeDelay(interval);
+    state->active_ = true;
+    ++state->generation_;
+    state->cv_.notify_all();
+    return Status::ok();
+}
+
+Status IntervalTimer::stop()
+{
+    auto state = impl_->state_;
+    std::lock_guard lock(state->mutex_);
+    if (state->closed_)
+        return Status::ok();
+    state->active_ = false;
+    ++state->generation_;
+    state->cv_.notify_all();
+    return Status::ok();
+}
+
+bool IntervalTimer::active() const noexcept
+{
+    auto state = impl_->state_;
+    std::lock_guard lock(state->mutex_);
+    return state->active_;
+}
+
+Status IntervalTimer::waitIdle(Duration timeout)
+{
+    return impl_->waitIdle(timeout);
+}
+
+Status IntervalTimer::close(Duration waitIdleTimeout)
+{
+    return impl_->close(waitIdleTimeout);
+}
+
+bool IntervalTimer::isClosed() const noexcept
+{
+    auto state = impl_->state_;
+    std::lock_guard lock(state->mutex_);
+    return state->closed_;
+}
+
+TimerHandle IntervalTimer::singleShot(Duration delay, Callback handler, std::shared_ptr<ILogger> logger)
+{
+    if (!handler)
+        return TimerHandle();
+
+    auto state = std::make_shared<TimerHandle::State>(std::move(logger));
+    state->worker_ = std::thread([state, delay = normalizeDelay(delay), handler = std::move(handler)] {
+        std::unique_lock lock(state->mutex_);
+        const auto cancelled = [&] { return state->cancelled_; };
+        if (state->cv_.wait_for(lock, delay, cancelled)) {
+            state->done_ = true;
+            lock.unlock();
+            state->cv_.notify_all();
             return;
         }
-        std::lock_guard<std::mutex> lock(impl->handlerMutex_);
-        impl->handler_ = std::move(h);
+        state->running_ = true;
+        lock.unlock();
+
+        invokeTimerHandler(state->logger_, handler);
+
+        lock.lock();
+        state->running_ = false;
+        state->done_ = true;
+        lock.unlock();
+        state->cv_.notify_all();
     });
-}
 
-void IntervalTimer::start()
-{
-    std::shared_ptr<Impl> impl = impl_;
-    if (!impl) {
-        return;
-    }
-    asio::post(impl->strand_,
-        [impl]() {
-            if (impl->closed_.load(std::memory_order_acquire)) {
-                return;
-            }
-            impl->startFromStrand();
-        });
-}
-
-void IntervalTimer::start(Milliseconds interval)
-{
-    std::shared_ptr<Impl> impl = impl_;
-    if (!impl) {
-        return;
-    }
-    const Milliseconds use = coercePositive(interval);
-    asio::post(impl->strand_,
-        [impl, use]() {
-            if (impl->closed_.load(std::memory_order_acquire)) {
-                return;
-            }
-            impl->intervalMs_.store(use.count(), std::memory_order_relaxed);
-            impl->startFromStrand();
-        });
-}
-
-void IntervalTimer::stop() noexcept
-{
-    std::shared_ptr<Impl> impl = impl_;
-    if (!impl) {
-        return;
-    }
-    asio::post(impl->strand_, [impl]() { impl->stopFromStrand(); });
-}
-
-bool IntervalTimer::isActive() const noexcept
-{
-    std::shared_ptr<Impl> impl = impl_;
-    if (!impl) {
-        return false;
-    }
-    return impl->armed_.load(std::memory_order_acquire);
-}
-
-void IntervalTimer::singleShot(asio::any_io_executor executor, Milliseconds delay, Callback handler)
-{
-    auto strand = std::make_shared<asio::strand<asio::any_io_executor>>(asio::make_strand(executor));
-    auto timer = std::make_shared<asio::steady_timer>(*strand);
-    const Milliseconds when = coercePositive(delay);
-
-    timer->expires_after(when);
-    timer->async_wait(asio::bind_executor(*strand, [timer, h = std::move(handler)](const asio::error_code& ec) mutable {
-        if (ec) {
-            if (ec != asio::error::operation_aborted) {
-                BW_LOG_WARN("IntervalTimer", "singleShot async_wait: {}", ec.message());
-            }
-            return;
-        }
-        if (h) {
-            try {
-                h();
-            } catch (const std::exception& ex) {
-                BW_LOG_WARN("IntervalTimer", "singleShot handler threw: {}", ex.what());
-            } catch (...) {
-                BW_LOG_WARN("IntervalTimer", "singleShot handler threw non-std exception");
-            }
-        }
-    }));
+    return TimerHandle(std::move(state));
 }
 
 } // namespace lc

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "foundation/logging/logger.hpp"
 #include "foundation/threading/i_thread.hpp"
 
 #include <chrono>
@@ -11,10 +12,6 @@
 #include <string>
 #include <string_view>
 
-namespace asio {
-class io_context;
-}
-
 namespace lc {
 
 /// Thrown when `dispatchSync` is called while this dispatcher is not accepting work (`shutdown(timeout)`
@@ -25,9 +22,11 @@ public:
     ThreadStopped();
 };
 
-/// Serial background dispatcher: one `asio::io_context` worker thread + `asio::strand` for strict
-/// FIFO ordering, timers (`dispatchAfter`), and sockets bound to that loop. For parallel work use
-/// `ThreadPool` (`IThreadPool`).
+/// Internal serial worker: one worker thread + a monotonic-time priority queue for strict serial
+/// execution and delayed tasks.
+///
+/// Prefer `SerialExecutor` / `OwnerExecutor` from `foundation/executor` in runtime-facing code.
+/// This class is the reusable substrate those executors build on, not the graph runtime API.
 ///
 /// **Lifecycle contract**
 /// - Call `shutdown(timeout)` before destroying the object if you rely on the worker thread being joined
@@ -43,8 +42,8 @@ public:
 /// - After `shutdown(timeout)`, `isRunning()` is false: `dispatchAsync` / `dispatch` / `dispatchAfter`
 ///   drop work (see `ThreadStats`), and `dispatchSync` throws `ThreadStopped`.
 /// - Destroying `Thread` or calling `shutdown(timeout)` from the serial worker thread defers
-///   `io_context::stop` / `worker_.join()` to a helper thread (same idea as `ThreadPool` from a
-///   pool worker thread). Do not use the `Thread*` after `delete` returns until teardown completes.
+///   worker joining to a helper thread (same idea as `ThreadPool` from a pool worker thread). Do
+///   not use the `Thread*` after `delete` returns until teardown completes.
 /// - `dispatchSync` runs inline when already on this dispatcher's executor thread, avoiding deadlocks
 ///   when nesting sync work.
 /// - Do not call `dispatchSync` from a thread that cannot unwind while another thread may call
@@ -58,9 +57,14 @@ class Thread final : public IThread {
 public:
     /// \param maxPendingDispatch Maximum in-flight dispatched tasks (queued + running). `0` means
     ///        unbounded (no `dispatchRejectedQueueFull_` backpressure).
-    explicit Thread(std::size_t maxPendingDispatch = 0);
+    explicit Thread(
+        std::size_t maxPendingDispatch = 0,
+        std::shared_ptr<ILogger> logger = Logger::defaultLogger());
 
-    Thread(std::string_view name, std::size_t maxPendingDispatch = 0);
+    Thread(
+        std::string_view name,
+        std::size_t maxPendingDispatch = 0,
+        std::shared_ptr<ILogger> logger = Logger::defaultLogger());
 
     ~Thread() override;
 
@@ -69,39 +73,27 @@ public:
     Thread(Thread&&) = delete;
     Thread& operator=(Thread&&) = delete;
 
-    void dispatch(std::function<void()> task,
-        std::source_location from = std::source_location::current()) override;
-
     void dispatchAsync(std::function<void()> task,
-        std::source_location from = std::source_location::current()) override;
-
-    void dispatchSync(std::function<void()> task,
         std::source_location from = std::source_location::current()) override;
 
     void dispatchAfter(std::chrono::steady_clock::duration delay, std::function<void()> task,
         std::source_location from = std::source_location::current()) override;
 
-    [[nodiscard]] bool waitIdle(std::chrono::steady_clock::duration timeout) override;
+    void dispatch(std::function<void()> task,
+        std::source_location from = std::source_location::current()) override;
 
-    [[nodiscard]] bool shutdown(std::chrono::steady_clock::duration waitIdleTimeout) noexcept override;
+    void dispatchSync(std::function<void()> task,
+        std::source_location from = std::source_location::current()) override;
+
+    [[nodiscard]] Status waitIdle(std::chrono::steady_clock::duration timeout) override;
+
+    [[nodiscard]] Status shutdown(std::chrono::steady_clock::duration waitIdleTimeout) override;
 
     [[nodiscard]] bool isRunning() const noexcept override;
 
-    [[nodiscard]] bool isExecutorThread() const noexcept override;
+    [[nodiscard]] bool isCurrentThread() const noexcept override;
 
     [[nodiscard]] ThreadStats stats() const noexcept override;
-
-    template <std::invocable F>
-    void dispatch(F&& f, std::source_location from = std::source_location::current())
-    {
-        dispatch(std::function<void()>(std::forward<F>(f)), from);
-    }
-
-    template <std::invocable F>
-    void dispatchSync(F&& f, std::source_location from = std::source_location::current())
-    {
-        dispatchSync(std::function<void()>(std::forward<F>(f)), from);
-    }
 
     template <std::invocable F>
     void dispatchAsync(F&& f, std::source_location from = std::source_location::current())
@@ -116,8 +108,17 @@ public:
         dispatchAfter(delay, std::function<void()>(std::forward<F>(f)), from);
     }
 
-    /// Non-null: timers and sockets can be bound to this `io_context`.
-    [[nodiscard]] asio::io_context* ioContext() noexcept;
+    template <std::invocable F>
+    void dispatch(F&& f, std::source_location from = std::source_location::current())
+    {
+        dispatch(std::function<void()>(std::forward<F>(f)), from);
+    }
+
+    template <std::invocable F>
+    void dispatchSync(F&& f, std::source_location from = std::source_location::current())
+    {
+        dispatchSync(std::function<void()>(std::forward<F>(f)), from);
+    }
 
 private:
     struct Impl;

@@ -1,127 +1,272 @@
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
+#include "foundation/status/status.hpp"
+
+#include <chrono>
+#include <concepts>
+#include <map>
 #include <memory>
+#include <mutex>
+#include <ostream>
+#include <sstream>
 #include <string>
 #include <string_view>
-
-#include <spdlog/spdlog.h>
+#include <type_traits>
+#include <utility>
 
 namespace lc {
 
-/// Process-wide logging facade backed by spdlog.
-///
-/// Logging is asynchronous: producers enqueue records and sinks run on spdlog's global worker
-/// pool. The first successful initialization wins; logging before explicit initialization lazily
-/// creates a color stderr logger.
-///
-/// `Logger::shutdown()` drains and tears down spdlog's global async state. Avoid mixing this facade
-/// with independent `spdlog::register_logger` users unless their lifetime is managed separately.
-///
-/// Compile-time verbosity: define `SPDLOG_ACTIVE_LEVEL` (see spdlog docs), e.g.
-/// `-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO` for release builds.
-class Logger {
-public:
-    using Level = spdlog::level::level_enum;
+class Redactor;
 
-    /// Queue behavior when the async logger is saturated.
-    enum class OverflowPolicy : std::uint8_t {
-        Block,
-        OverrunOldest,
-        DiscardNew,
-    };
-
-    /// Async logger and worker-pool options.
-    struct AsyncOptions {
-        std::size_t queueSize = 8192;
-        std::size_t workerThreads = 1;
-        OverflowPolicy overflow = OverflowPolicy::Block;
-    };
-
-    /// Console logger options.
-    struct ConsoleOptions {
-        Level level = Level::info;
-        std::string name = "bot_worker";
-        AsyncOptions async;
-    };
-
-    /// Console + rotating file logger options.
-    struct RotatingFileOptions {
-        std::string path;
-        Level level = Level::info;
-        std::string name = "bot_worker";
-        std::size_t maxFileBytes = 10U * 1024U * 1024U;
-        std::size_t maxFiles = 5U;
-        AsyncOptions async;
-    };
-
-    /// Legacy async options kept for existing call sites. Prefer `AsyncOptions` for new code.
-    struct AsyncLogConfig {
-        std::size_t queue_size = 8192;
-        std::size_t worker_threads = 1;
-        OverflowPolicy overflow = OverflowPolicy::Block;
-    };
-
-    /// Initialize a color stderr logger. Idempotent: the first successful configuration wins.
-    static void initConsole();
-    static void initConsole(const ConsoleOptions& options);
-
-    /// Initialize a color stderr logger plus a rotating file sink.
-    /// Creates parent directories best-effort. Idempotent: the first successful configuration wins.
-    static void initRotatingFile(const RotatingFileOptions& options);
-
-    /// Legacy console initializer. Prefer `initConsole`.
-    static void initDefault(Level level = Level::info,
-        std::string_view name = "bot_worker",
-        const AsyncLogConfig* asyncConfig = nullptr);
-
-    /// Legacy rotating-file initializer. Prefer `initRotatingFile`.
-    static void initRotating(std::string_view path, Level level = Level::info,
-        std::string_view name = "bot_worker",
-        std::size_t maxFileBytes = 10U * 1024U * 1024U,
-        std::size_t maxFiles = 5U,
-        const AsyncLogConfig* asyncConfig = nullptr);
-
-    /// Replace the active logger (e.g. tests with a null or memory sink). Thread-safe.
-    static void reset(std::shared_ptr<spdlog::logger> logger);
-
-    [[nodiscard]] static bool isConfigured() noexcept;
-
-    /// Non-null after any init or first log line (lazy default).
-    [[nodiscard]] static spdlog::logger* handle() noexcept;
-
-    [[nodiscard]] static std::shared_ptr<spdlog::logger> loggerPtr() noexcept;
-
-    static void setLevel(Level level) noexcept;
-    [[nodiscard]] static Level getLevel() noexcept;
-
-    static void setPattern(std::string_view pattern);
-    static void flush() noexcept;
-
-    /// Flushes, drops the active logger, and calls `spdlog::shutdown()` (drains global async pool).
-    static void shutdown() noexcept;
+enum class LogLevel {
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
+    Critical,
+    Off,
 };
+
+struct LogRecord {
+    using Fields = std::map<std::string, std::string>;
+
+    LogLevel level_ { LogLevel::Info };
+    std::string tag_;
+    std::string message_;
+    std::chrono::system_clock::time_point timestamp_;
+    std::string file_;
+    int line_ { 0 };
+    std::string traceId_;
+    std::string spanId_;
+    std::string runId_;
+    std::string threadId_;
+    std::string nodeId_;
+    StatusCode statusCode_ { StatusCode::Ok };
+    Fields fields_;
+};
+
+struct LogLimits {
+    std::size_t maxTagLength_ { 128 };
+    std::size_t maxMessageLength_ { 64 * 1024 };
+    std::size_t maxSourceLength_ { 4096 };
+    std::size_t maxFieldCount_ { 64 };
+    std::size_t maxFieldKeyLength_ { 128 };
+    std::size_t maxFieldValueLength_ { 16 * 1024 };
+};
+
+class ILogger {
+public:
+    virtual ~ILogger() = default;
+
+    virtual void log(const LogRecord& record) noexcept = 0;
+    [[nodiscard]] virtual Status flush() = 0;
+    [[nodiscard]] virtual Status close() = 0;
+    [[nodiscard]] virtual bool isClosed() const noexcept = 0;
+};
+
+struct ConsoleLoggerOptions {
+    LogLevel minLevel_ { LogLevel::Info };
+    bool includeTimestamp_ { true };
+    bool includeSource_ { true };
+    bool redact_ { true };
+    LogLimits limits_;
+    std::shared_ptr<const Redactor> redactor_;
+};
+
+class ConsoleLogger final : public ILogger {
+public:
+    explicit ConsoleLogger(ConsoleLoggerOptions options = {});
+    ConsoleLogger(std::ostream& stream, ConsoleLoggerOptions options = {});
+
+    void log(const LogRecord& record) noexcept override;
+    [[nodiscard]] Status flush() override;
+    [[nodiscard]] Status close() override;
+    [[nodiscard]] bool isClosed() const noexcept override;
+
+private:
+    std::ostream* stream_;
+    ConsoleLoggerOptions options_;
+    mutable std::mutex mutex_;
+    bool closed_ { false };
+};
+
+class NullLogger final : public ILogger {
+public:
+    void log(const LogRecord& record) noexcept override;
+    [[nodiscard]] Status flush() override;
+    [[nodiscard]] Status close() override;
+    [[nodiscard]] bool isClosed() const noexcept override;
+};
+
+class Logger final {
+public:
+    [[nodiscard]] static std::shared_ptr<ILogger> defaultLogger();
+    static void setDefaultLogger(std::shared_ptr<ILogger> logger) noexcept;
+    static void useConsoleLogger(ConsoleLoggerOptions options = {});
+    static void disable() noexcept;
+
+    static void setLevel(LogLevel value) noexcept;
+    [[nodiscard]] static LogLevel level() noexcept;
+    [[nodiscard]] static bool shouldLog(LogLevel level) noexcept;
+
+    static void log(
+        LogLevel level,
+        std::string_view tag,
+        std::string message,
+        const char* file = nullptr,
+        int line = 0) noexcept;
+
+    static void log(LogRecord record) noexcept;
+
+    [[nodiscard]] static Status flush();
+    [[nodiscard]] static Status close();
+    [[nodiscard]] static bool isClosed() noexcept;
+
+private:
+    Logger() = delete;
+};
+
+[[nodiscard]] std::string_view logLevelName(LogLevel level) noexcept;
+[[nodiscard]] Status validateLogRecord(const LogRecord& record, const LogLimits& limits = {});
+
+void logTo(
+    const std::shared_ptr<ILogger>& logger,
+    LogLevel level,
+    std::string_view tag,
+    std::string message,
+    const char* file = nullptr,
+    int line = 0) noexcept;
+
+void logTo(const std::shared_ptr<ILogger>& logger, LogRecord record) noexcept;
+
+namespace detail {
+
+template <typename T>
+[[nodiscard]] std::string logValueToString(T&& value)
+{
+    using Value = std::remove_cvref_t<T>;
+    if constexpr (std::same_as<Value, bool>) {
+        return value ? "true" : "false";
+    } else if constexpr (std::same_as<Value, std::string>) {
+        return std::forward<T>(value);
+    } else if constexpr (std::same_as<Value, std::string_view>) {
+        return std::string(value);
+    } else if constexpr (std::is_pointer_v<Value>
+        && std::same_as<std::remove_cv_t<std::remove_pointer_t<Value>>, char>) {
+        return value == nullptr ? std::string("(null)") : std::string(value);
+    } else if constexpr (requires(std::ostringstream& out, T&& item) {
+                             out << std::forward<T>(item);
+                         }) {
+        std::ostringstream out;
+        out << std::forward<T>(value);
+        return out.str();
+    } else {
+        return "<?>";
+    }
+}
+
+inline bool replaceNextPlaceholder(std::string& message, std::size_t& searchOffset, std::string_view value)
+{
+    const auto placeholder = message.find("{}", searchOffset);
+    if (placeholder == std::string::npos)
+        return false;
+
+    message.replace(placeholder, 2, value.data(), value.size());
+    searchOffset = placeholder + value.size();
+    return true;
+}
+
+inline void appendExtraLogValue(std::string& message, std::string_view value)
+{
+    if (!message.empty())
+        message.push_back(' ');
+    message.append(value.data(), value.size());
+}
+
+} // namespace detail
+
+template <typename... Args>
+[[nodiscard]] std::string formatLogMessage(std::string_view format, Args&&... args)
+{
+    std::string message(format);
+    std::size_t searchOffset = 0;
+    auto applyOne = [&](auto&& value) {
+        const auto text = detail::logValueToString(std::forward<decltype(value)>(value));
+        if (!detail::replaceNextPlaceholder(message, searchOffset, text))
+            detail::appendExtraLogValue(message, text);
+    };
+    (applyOne(std::forward<Args>(args)), ...);
+    return message;
+}
+
+template <typename... Args>
+void logTo(
+    const std::shared_ptr<ILogger>& logger,
+    LogLevel level,
+    std::string_view tag,
+    std::string_view format,
+    const char* file,
+    int line,
+    Args&&... args) noexcept
+{
+    if (!logger || level == LogLevel::Off)
+        return;
+    logTo(
+        logger,
+        level,
+        tag,
+        formatLogMessage(format, std::forward<Args>(args)...),
+        file,
+        line);
+}
 
 } // namespace lc
 
-// ----------------------------------------------------------------------------
-// Level macros — delegate to spdlog so format strings are skipped when disabled.
-//
-// *(TAG, fmt, …): prepends one formatted segment "[TAG]" before your message (TAG can be a
-// string literal, std::string, std::string_view, or any type fmt can print with "{}" ).
-// Example: BW_LOG_INFO(WS, "session={}", id);  ->  … [WS] session=…
-// ----------------------------------------------------------------------------
+#define LOG_TRACE(TAG, fmt, ...)                                                \
+    do {                                                                        \
+        if (::lc::Logger::shouldLog(::lc::LogLevel::Trace))                     \
+            ::lc::Logger::log(::lc::LogLevel::Trace, TAG,                       \
+                ::lc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
+                __FILE__, __LINE__);                                            \
+    } while (false)
 
-#define BW_LOG_TRACE(TAG, fmt, ...) \
-    SPDLOG_LOGGER_TRACE(::lc::Logger::handle(), "[{}] " fmt, TAG __VA_OPT__(, ) __VA_ARGS__)
-#define BW_LOG_DEBUG(TAG, fmt, ...) \
-    SPDLOG_LOGGER_DEBUG(::lc::Logger::handle(), "[{}] " fmt, TAG __VA_OPT__(, ) __VA_ARGS__)
-#define BW_LOG_INFO(TAG, fmt, ...) \
-    SPDLOG_LOGGER_INFO(::lc::Logger::handle(), "[{}] " fmt, TAG __VA_OPT__(, ) __VA_ARGS__)
-#define BW_LOG_WARN(TAG, fmt, ...) \
-    SPDLOG_LOGGER_WARN(::lc::Logger::handle(), "[{}] " fmt, TAG __VA_OPT__(, ) __VA_ARGS__)
-#define BW_LOG_ERROR(TAG, fmt, ...) \
-    SPDLOG_LOGGER_ERROR(::lc::Logger::handle(), "[{}] " fmt, TAG __VA_OPT__(, ) __VA_ARGS__)
-#define BW_LOG_CRITICAL(TAG, fmt, ...) \
-    SPDLOG_LOGGER_CRITICAL(::lc::Logger::handle(), "[{}] " fmt, TAG __VA_OPT__(, ) __VA_ARGS__)
+#define LOG_DEBUG(TAG, fmt, ...)                                                \
+    do {                                                                        \
+        if (::lc::Logger::shouldLog(::lc::LogLevel::Debug))                     \
+            ::lc::Logger::log(::lc::LogLevel::Debug, TAG,                       \
+                ::lc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
+                __FILE__, __LINE__);                                            \
+    } while (false)
+
+#define LOG_INFO(TAG, fmt, ...)                                                 \
+    do {                                                                        \
+        if (::lc::Logger::shouldLog(::lc::LogLevel::Info))                      \
+            ::lc::Logger::log(::lc::LogLevel::Info, TAG,                        \
+                ::lc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
+                __FILE__, __LINE__);                                            \
+    } while (false)
+
+#define LOG_WARN(TAG, fmt, ...)                                                 \
+    do {                                                                        \
+        if (::lc::Logger::shouldLog(::lc::LogLevel::Warn))                      \
+            ::lc::Logger::log(::lc::LogLevel::Warn, TAG,                        \
+                ::lc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
+                __FILE__, __LINE__);                                            \
+    } while (false)
+
+#define LOG_ERROR(TAG, fmt, ...)                                                \
+    do {                                                                        \
+        if (::lc::Logger::shouldLog(::lc::LogLevel::Error))                     \
+            ::lc::Logger::log(::lc::LogLevel::Error, TAG,                       \
+                ::lc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
+                __FILE__, __LINE__);                                            \
+    } while (false)
+
+#define LOG_CRITICAL(TAG, fmt, ...)                                             \
+    do {                                                                        \
+        if (::lc::Logger::shouldLog(::lc::LogLevel::Critical))                  \
+            ::lc::Logger::log(::lc::LogLevel::Critical, TAG,                    \
+                ::lc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
+                __FILE__, __LINE__);                                            \
+    } while (false)

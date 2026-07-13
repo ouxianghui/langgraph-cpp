@@ -3,7 +3,7 @@
 #include <string>
 #include <string_view>
 
-#include "foundation/json/json_trackable.hpp"
+#include <nlohmann/json.hpp>
 
 namespace lc {
 

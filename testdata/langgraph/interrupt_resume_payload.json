@@ -1,0 +1,32 @@
+{
+  "thread_id": "thread-demo",
+  "checkpoint_id": "ckpt-paused",
+  "resume": {
+    "approval": {
+      "approved": true,
+      "operator": "qa"
+    },
+    "tool:reset-device": {
+      "approved": true,
+      "reason": "manual reset complete"
+    }
+  },
+  "expected_resume_delivery": [
+    {
+      "interrupt_id": "approval",
+      "node": "approve",
+      "payload": {
+        "approved": true,
+        "operator": "qa"
+      }
+    },
+    {
+      "interrupt_id": "tool:reset-device",
+      "node": "tools",
+      "payload": {
+        "approved": true,
+        "reason": "manual reset complete"
+      }
+    }
+  ]
+}

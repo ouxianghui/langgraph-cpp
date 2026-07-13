@@ -1,28 +1,51 @@
 #pragma once
 
+#include "foundation/logging/logger.hpp"
 #include "foundation/timer/i_timer.hpp"
-
-#include <asio/any_io_executor.hpp>
 
 #include <memory>
 
 namespace lc {
 
-/// Asio `steady_timer` implementation of `ITimer` (monotonic clock).
+class TimerHandle final {
+public:
+    using Duration = ITimer::Duration;
+
+    TimerHandle() = default;
+    ~TimerHandle();
+
+    TimerHandle(const TimerHandle&) = delete;
+    TimerHandle& operator=(const TimerHandle&) = delete;
+    TimerHandle(TimerHandle&&) noexcept;
+    TimerHandle& operator=(TimerHandle&&) noexcept;
+
+    [[nodiscard]] bool valid() const noexcept;
+    [[nodiscard]] bool active() const noexcept;
+    [[nodiscard]] Status cancel();
+    [[nodiscard]] Status wait(Duration timeout);
+
+private:
+    friend class IntervalTimer;
+
+    struct State;
+    explicit TimerHandle(std::shared_ptr<State> state);
+
+    std::shared_ptr<State> state_;
+};
+
+/// Internal standard-library `steady_clock` implementation of `ITimer`.
 ///
-/// - Callbacks run on an internal **strand** built from the constructor `executor` (pass e.g.
-///   `io_context::get_executor()`; handlers never overlap).
-/// - **Thread safety**: `start` / `stop` / setters may be called from any thread; internal work is
-///   **serialized on the strand** created from the constructor executor (see implementation).
+/// Runtime scheduling should prefer `TaskScheduler::scheduleAfter` / `schedulePeriodic`; this class is
+/// kept as a small utility for tests, adapters, and components that need an owned timer primitive.
+///
+/// - Callbacks run on a private worker thread and never overlap for one timer instance.
+/// - **Thread safety**: `start` / `stop` / setters may be called from any thread.
 /// - **Lifetime**: safe to destroy from any thread; pending waits are cancelled and handlers exit
 ///   without invoking the user callback after shutdown.
 ///
-/// Mapping to Qt: `setInterval` / `interval`, `setSingleShot` / `isSingleShot`, `start` / `stop` /
-/// `isActive`, timeout → `setTimeoutHandler`.
 class IntervalTimer final : public ITimer {
 public:
-    /// Build timer bound to `executor` (internally wrapped in an Asio strand for ordered access).
-    explicit IntervalTimer(asio::any_io_executor executor);
+    explicit IntervalTimer(std::shared_ptr<ILogger> logger = Logger::defaultLogger());
 
     IntervalTimer(const IntervalTimer&) = delete;
     IntervalTimer& operator=(const IntervalTimer&) = delete;
@@ -31,29 +54,36 @@ public:
     ~IntervalTimer() override;
 
     /// Zero or negative intervals are rejected by `start()` (no-op); coerced to 1 ms when using
-    /// `start(Milliseconds)` if you pass non-positive (see `.cpp`).
-    void setInterval(Milliseconds interval) noexcept override;
+    /// `start(Duration)` if you pass non-positive (see `.cpp`).
+    void setInterval(Duration value) noexcept override;
 
-    [[nodiscard]] Milliseconds interval() const noexcept override;
+    [[nodiscard]] Duration interval() const noexcept override;
 
-    void setSingleShot(bool singleShot) noexcept override;
+    void setSingleShot(bool value) noexcept override;
 
-    [[nodiscard]] bool isSingleShot() const noexcept override;
+    [[nodiscard]] bool singleShot() const noexcept override;
 
-    void setTimeoutHandler(Callback handler) override;
+    void setHandler(Callback value) override;
 
     /// Arm timer using current `interval()` (must be > 0). Restarts if already active (Qt-like).
-    void start() override;
+    [[nodiscard]] Status start() override;
 
     /// Set interval then `start()`.
-    void start(Milliseconds interval) override;
+    [[nodiscard]] Status start(Duration interval) override;
 
-    void stop() noexcept override;
+    [[nodiscard]] Status stop() override;
 
-    [[nodiscard]] bool isActive() const noexcept override;
+    [[nodiscard]] bool active() const noexcept override;
+    [[nodiscard]] Status waitIdle(Duration timeout) override;
+    [[nodiscard]] Status close(Duration waitIdleTimeout) override;
+    [[nodiscard]] bool isClosed() const noexcept override;
 
-    /// Qt `QTimer::singleShot`: invoke `handler` once after `delay` on `executor` (Asio backend).
-    static void singleShot(asio::any_io_executor executor, Milliseconds delay, Callback handler);
+    /// Schedule `handler` once after `delay`. The returned handle owns the task; destroying it cancels
+    /// and waits for completion.
+    [[nodiscard]] static TimerHandle singleShot(
+        Duration delay,
+        Callback handler,
+        std::shared_ptr<ILogger> logger = Logger::defaultLogger());
 
 private:
     struct Impl;

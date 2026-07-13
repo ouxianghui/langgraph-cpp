@@ -1,0 +1,57 @@
+{
+  "type": "checkpoint",
+  "checkpoint": {
+    "id": "ckpt-0003",
+    "thread_id": "thread-demo",
+    "checkpoint_ns": "parent|child:task-1",
+    "step": 3,
+    "parent_checkpoint_id": "ckpt-0002",
+    "values": {
+      "status": "paused",
+      "count": 2
+    },
+    "next": [
+      "approve"
+    ],
+    "metadata": {
+      "source": "loop",
+      "writes": {
+        "planner": {
+          "status": "paused"
+        }
+      }
+    },
+    "tasks": [
+      {
+        "id": "task-approve",
+        "name": "approve",
+        "path": [
+          "parent",
+          "approve"
+        ],
+        "interrupts": [
+          {
+            "id": "approval",
+            "value": {
+              "question": "approve repair?"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "config": {
+    "configurable": {
+      "thread_id": "thread-demo",
+      "checkpoint_id": "ckpt-0003",
+      "checkpoint_ns": "parent|child:task-1"
+    }
+  },
+  "parent_config": {
+    "configurable": {
+      "thread_id": "thread-demo",
+      "checkpoint_id": "ckpt-0002",
+      "checkpoint_ns": "parent|child:task-1"
+    }
+  }
+}

@@ -1,11 +1,17 @@
 #pragma once
 
-#include <spdlog/details/os.h>
-
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
+
+#if __has_include(<spdlog/details/os.h>)
+#include <spdlog/details/os.h>
+#define LC_HAS_SPDLOG_OS 1
+#else
+#define LC_HAS_SPDLOG_OS 0
+#endif
 
 #if defined(__APPLE__) || defined(__linux__)
 #include <pthread.h>
@@ -45,7 +51,11 @@ public:
 
     [[nodiscard]] static std::size_t currentLogThreadId()
     {
+#if LC_HAS_SPDLOG_OS
         return spdlog::details::os::thread_id();
+#else
+        return std::hash<std::thread::id> {}(std::this_thread::get_id());
+#endif
     }
 
 private:

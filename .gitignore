@@ -1,0 +1,25 @@
+# Build output
+build/
+cmake-build-*/
+CMakeUserPresets.json
+compile_commands.json
+
+# Platform and editor noise
+.DS_Store
+**/.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+.idea/
+
+# Python helper caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local runtime artifacts
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.log

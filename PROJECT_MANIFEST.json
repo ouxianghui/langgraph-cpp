@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "project": {
+    "name": "langgraph-cpp",
+    "version": "0.1.0-alpha",
+    "language": "C++23",
+    "build_system": "CMake",
+    "status": "developer-preview",
+    "description": "Independent C++23 edge runtime for LangGraph-style stateful agents and recoverable workflows.",
+    "official_upstream_port": false
+  },
+  "contracts": {
+    "api_contract_version": 23,
+    "schema_contract_version": 1,
+    "checkpoint_json_schema_version": 3,
+    "content_envelope_version": 1,
+    "storage_schema_version": 1,
+    "abi_stable": false
+  },
+  "entrypoints": {
+    "public_header": "include/langgraph_cpp/langgraph.hpp",
+    "readme": "README.md",
+    "ai_index": "docs/AI_INDEX.md",
+    "architecture": "docs/ARCHITECTURE.md",
+    "api_contract": "docs/API_CONTRACT.md",
+    "quality_model": "docs/QUALITY_MODEL.md",
+    "release_checklist": "docs/RELEASE_CHECKLIST.md"
+  },
+  "source_modules": [
+    {
+      "path": "src/langgraph/graph",
+      "role": "Graph declaration, compiled execution, stream projection, resume, replay, subgraph boundaries."
+    },
+    {
+      "path": "src/langgraph/checkpoint",
+      "role": "Checkpoint saver contract, in-memory and storage-backed savers, pending writes, retention, copy, delete."
+    },
+    {
+      "path": "src/langgraph/store",
+      "role": "Namespaced long-term key-value store surface."
+    },
+    {
+      "path": "src/langgraph/runtime",
+      "role": "Per-node runtime context, stream writer, store/checkpointer access, interrupt surface."
+    },
+    {
+      "path": "src/langgraph/message",
+      "role": "Messages, content blocks, multimodal JSON blocks, tool calls."
+    },
+    {
+      "path": "src/langgraph/model",
+      "role": "Chat model interfaces, fake model, provider model, optional llama.cpp adapter."
+    },
+    {
+      "path": "src/langgraph/tool",
+      "role": "Tool registry, executor, policies, structured tool results, tool-call grammar."
+    },
+    {
+      "path": "src/langgraph/edge",
+      "role": "Hardware adapter interfaces and mock-friendly edge surfaces."
+    },
+    {
+      "path": "src/foundation",
+      "role": "Reusable infrastructure: status/result, storage, serialization, HTTP/SSE, events, logging, metrics, tracing, executors, scheduler, filesystem, crypto, redaction."
+    }
+  ],
+  "architecture_rules": [
+    "src/foundation must not depend on src/langgraph.",
+    "include/langgraph_cpp/langgraph.hpp is the public aggregate header and must not include internal .hh headers.",
+    "Optional provider, hardware, llama.cpp, SQLite, network, crypto, gzip, and logging integrations must remain behind CMake options or injected interfaces.",
+    "Recoverable errors must flow through Status or Result<T>.",
+    "Core tests must not require Python, real hardware, real cloud providers, or external llama.cpp."
+  ],
+  "default_commands": {
+    "configure": "cmake --preset unix-debug",
+    "build": "cmake --build --preset unix-debug",
+    "test": "ctest --test-dir build/unix-debug --output-on-failure",
+    "docs_test": "ctest --test-dir build/unix-debug -L docs --output-on-failure",
+    "dependency_policy": "scripts/check-dependency-policy.sh",
+    "example_smoke": "scripts/run-examples.sh",
+    "quality_report": "scripts/generate-quality-report.sh",
+    "coverage": "scripts/coverage.sh"
+  },
+  "quality_evidence": {
+    "traceability_matrix": "docs/TRACEABILITY_MATRIX.md",
+    "test_catalog": "docs/TEST_CATALOG.md",
+    "security_model": "docs/SECURITY_MODEL.md",
+    "langgraph_compatibility": "docs/LANGGRAPH_COMPATIBILITY.md",
+    "performance_model": "docs/PERFORMANCE_MODEL.md",
+    "ownership": "docs/OWNERSHIP.md",
+    "api_reference": "docs/API_REFERENCE.md",
+    "api_examples": "docs/tutorials/API_EXAMPLES.md",
+    "golden_fixtures": "testdata/langgraph/README.md",
+    "latest_quality_report": "docs/reports/latest-quality-report.md",
+    "example_smoke_report": "docs/reports/example-smoke-report.md"
+  },
+  "known_non_goals": [
+    "Not an official LangGraph or LangChain C++ port.",
+    "Not a hosted agent platform.",
+    "No default privileged shell, filesystem, network, or hardware tools.",
+    "No stable ABI promise before 1.0.",
+    "No complete Python LangGraph serializer, event, provider, or LangSmith parity claim."
+  ]
+}

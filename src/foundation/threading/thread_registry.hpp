@@ -36,7 +36,7 @@ public:
 ///
 class ThreadRegistry final : public IThreadRegistry {
 public:
-    ThreadRegistry() = default;
+    explicit ThreadRegistry(std::shared_ptr<ILogger> logger = Logger::defaultLogger());
     ~ThreadRegistry() override = default;
 
     ThreadRegistry(const ThreadRegistry&) = delete;
@@ -64,6 +64,7 @@ public:
 private:
     mutable std::mutex mutex_;
     std::unordered_map<std::string, std::shared_ptr<Thread>> byName_;
+    std::shared_ptr<ILogger> logger_;
 };
 
 } // namespace lc

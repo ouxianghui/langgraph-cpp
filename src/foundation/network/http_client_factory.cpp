@@ -1,21 +1,48 @@
 #include "foundation/network/http_client_factory.hpp"
 
 #include "foundation/network/http_client.hpp"
+#include "foundation/redaction/redactor.hpp"
 
 #include <utility>
 
 namespace lc {
 
-std::shared_ptr<IHttpClient> DefaultHttpClientFactory::create(
-    HttpClientConfig config,
-    std::shared_ptr<IOAuth2TokenProvider> oauth2TokenProvider)
+DefaultHttpClientFactory::DefaultHttpClientFactory(HttpClientFactoryOptions options)
+    : options_(std::move(options))
 {
-    return std::make_shared<HttpClient>(std::move(config), std::move(oauth2TokenProvider));
+    if (!options_.logger_)
+        options_.logger_ = Logger::defaultLogger();
 }
 
-std::shared_ptr<IHttpClientFactory> defaultHttpClientFactory()
+Result<std::shared_ptr<IHttpClient>> DefaultHttpClientFactory::create(
+    HttpClientConfig config,
+    std::shared_ptr<IAuthorizationProvider> authorizationProvider)
 {
-    return std::make_shared<DefaultHttpClientFactory>();
+    if (!config.rateLimiter_)
+        config.rateLimiter_ = options_.rateLimiter_;
+    if (!config.circuitBreaker_)
+        config.circuitBreaker_ = options_.circuitBreaker_;
+    if (!config.metrics_)
+        config.metrics_ = options_.metrics_;
+    if (!config.traceSink_)
+        config.traceSink_ = options_.traceSink_;
+    if (auto status = config.validate(); !status.isOk())
+        return status;
+
+    auto logger = options_.logger_ ? options_.logger_ : Logger::defaultLogger();
+    if (options_.redactLogs_)
+        logger = std::make_shared<RedactionLogger>(std::move(logger));
+
+    std::shared_ptr<IHttpClient> client = std::make_shared<HttpClient>(
+        std::move(config),
+        std::move(authorizationProvider),
+        std::move(logger));
+    return client;
+}
+
+std::shared_ptr<IHttpClientFactory> defaultHttpClientFactory(HttpClientFactoryOptions options)
+{
+    return std::make_shared<DefaultHttpClientFactory>(std::move(options));
 }
 
 } // namespace lc

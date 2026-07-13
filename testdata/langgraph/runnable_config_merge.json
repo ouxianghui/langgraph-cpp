@@ -1,0 +1,45 @@
+{
+  "base": {
+    "tags": [
+      "edge"
+    ],
+    "metadata": {
+      "tenant": "demo",
+      "priority": "normal"
+    },
+    "configurable": {
+      "thread_id": "thread-a",
+      "checkpoint_ns": "root"
+    }
+  },
+  "patch": {
+    "tags": [
+      "repair"
+    ],
+    "metadata": {
+      "priority": "high"
+    },
+    "configurable": {
+      "checkpoint_id": "ckpt-0002"
+    },
+    "recursion_limit": 25,
+    "max_concurrency": 4
+  },
+  "expected": {
+    "tags": [
+      "edge",
+      "repair"
+    ],
+    "metadata": {
+      "tenant": "demo",
+      "priority": "high"
+    },
+    "configurable": {
+      "thread_id": "thread-a",
+      "checkpoint_ns": "root",
+      "checkpoint_id": "ckpt-0002"
+    },
+    "recursion_limit": 25,
+    "max_concurrency": 4
+  }
+}

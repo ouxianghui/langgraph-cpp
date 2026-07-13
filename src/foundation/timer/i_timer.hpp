@@ -1,35 +1,39 @@
 #pragma once
 
+#include "foundation/status/status.hpp"
+
 #include <chrono>
 #include <functional>
 
 namespace lc {
 
-/// Virtual timer surface (Qt `QTimer`-style semantics). Concrete backends may wrap Asio,
-/// platform APIs, or test doubles.
+/// Internal timer substrate. Runtime-facing scheduling should use `ITaskScheduler`.
 ///
-/// **Single-shot without owning an `ITimer`**: concrete implementations typically expose a static
-/// helper (e.g. `IntervalTimer::singleShot`) or a small free function tied to that backend.
+/// Time reads and deadline calculations live in `foundation/time`; this interface only owns the
+/// low-level scheduling/cancellation primitive used by tests and small adapters.
 class ITimer {
 public:
     using Callback = std::function<void()>;
-    using Milliseconds = std::chrono::milliseconds;
+    using Duration = std::chrono::milliseconds;
 
     virtual ~ITimer() = default;
 
-    virtual void setInterval(Milliseconds interval) noexcept = 0;
-    [[nodiscard]] virtual Milliseconds interval() const noexcept = 0;
+    virtual void setInterval(Duration value) noexcept = 0;
+    [[nodiscard]] virtual Duration interval() const noexcept = 0;
 
-    virtual void setSingleShot(bool singleShot) noexcept = 0;
-    [[nodiscard]] virtual bool isSingleShot() const noexcept = 0;
+    virtual void setSingleShot(bool value) noexcept = 0;
+    [[nodiscard]] virtual bool singleShot() const noexcept = 0;
 
-    virtual void setTimeoutHandler(Callback handler) = 0;
+    virtual void setHandler(Callback value) = 0;
 
-    virtual void start() = 0;
-    virtual void start(Milliseconds interval) = 0;
+    [[nodiscard]] virtual Status start() = 0;
+    [[nodiscard]] virtual Status start(Duration interval) = 0;
 
-    virtual void stop() noexcept = 0;
-    [[nodiscard]] virtual bool isActive() const noexcept = 0;
+    [[nodiscard]] virtual Status stop() = 0;
+    [[nodiscard]] virtual bool active() const noexcept = 0;
+    [[nodiscard]] virtual Status waitIdle(Duration timeout) = 0;
+    [[nodiscard]] virtual Status close(Duration waitIdleTimeout) = 0;
+    [[nodiscard]] virtual bool isClosed() const noexcept = 0;
 };
 
 } // namespace lc

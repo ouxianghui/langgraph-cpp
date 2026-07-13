@@ -6,6 +6,11 @@
 
 namespace lc {
 
+ThreadRegistry::ThreadRegistry(std::shared_ptr<ILogger> logger)
+    : logger_(std::move(logger))
+{
+}
+
 std::shared_ptr<IThread> ThreadRegistry::registerNamed(std::string name, std::size_t maxPendingDispatch)
 {
     if (name.empty()) {
@@ -19,8 +24,8 @@ std::shared_ptr<IThread> ThreadRegistry::registerNamed(std::string name, std::si
         return it->second;
     }
 
-    auto thread = std::make_shared<Thread>(name, maxPendingDispatch);
-    const auto inserted = byName_.emplace(std::move(name), std::move(thread));
+    auto executor = std::make_shared<Thread>(name, maxPendingDispatch, logger_);
+    const auto inserted = byName_.emplace(std::move(name), std::move(executor));
     return inserted.first->second;
 }
 
@@ -48,18 +53,18 @@ std::vector<std::string> ThreadRegistry::registeredNames() const
 
 void ThreadRegistry::unregister(std::string_view name)
 {
-    std::shared_ptr<Thread> thread;
+    std::shared_ptr<Thread> executor;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         const auto it = byName_.find(std::string(name));
         if (it == byName_.end()) {
             return;
         }
-        thread = it->second;
+        executor = it->second;
         byName_.erase(it);
     }
-    if (thread) {
-        (void)thread->shutdown(std::chrono::steady_clock::duration::max());
+    if (executor) {
+        (void)executor->shutdown(std::chrono::steady_clock::duration::max());
     }
 }
 

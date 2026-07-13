@@ -1,6 +1,6 @@
 #pragma once
 
-#include "foundation/threading/executor_checks.hpp"
+#include "foundation/threading/thread_checks.hpp"
 
 #include <chrono>
 #include <functional>
@@ -25,7 +25,7 @@ public:
     OwnerThread(std::shared_ptr<IThread> executor,
         std::string_view owner,
         std::string_view name)
-        : executor_(requireExecutor(std::move(executor), owner, name))
+        : executor_(requireThread(std::move(executor), owner, name))
         , owner_(owner)
         , name_(name)
     {
@@ -33,25 +33,25 @@ public:
 
     [[nodiscard]] const std::shared_ptr<IThread>& executor() const noexcept { return executor_; }
     [[nodiscard]] IThread* get() const noexcept { return executor_.get(); }
-    [[nodiscard]] bool isCurrent() const noexcept { return executor_ && executor_->isExecutorThread(); }
+    [[nodiscard]] bool isCurrent() const noexcept { return executor_ && executor_->isCurrentThread(); }
 
     void check(std::source_location from = std::source_location::current()) const
     {
         (void)from;
-        requireOnExecutor(executor_, owner_, name_);
+        requireOnThread(executor_, owner_, name_);
     }
 
     template <typename F>
     void dispatch(F&& task, std::source_location from = std::source_location::current()) const
     {
-        requireExecutor(executor_, owner_, "dispatch")
+        requireThread(executor_, owner_, "dispatch")
             ->dispatch(std::function<void()>(std::forward<F>(task)), from);
     }
 
     template <typename F>
     void dispatchAsync(F&& task, std::source_location from = std::source_location::current()) const
     {
-        requireExecutor(executor_, owner_, "dispatchAsync")
+        requireThread(executor_, owner_, "dispatchAsync")
             ->dispatchAsync(std::function<void()>(std::forward<F>(task)), from);
     }
 
@@ -60,7 +60,7 @@ public:
         F&& task,
         std::source_location from = std::source_location::current()) const
     {
-        requireExecutor(executor_, owner_, "dispatchAfter")
+        requireThread(executor_, owner_, "dispatchAfter")
             ->dispatchAfter(std::chrono::duration_cast<std::chrono::steady_clock::duration>(delay),
                 std::function<void()>(std::forward<F>(task)),
                 from);

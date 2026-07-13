@@ -1,379 +1,50 @@
 #include "foundation/network/http_client.hpp"
 
 #include "foundation/logging/logger.hpp"
-#include "foundation/network/i_oauth2_token_provider.hpp"
-#include "foundation/network/oauth2_token_provider.hpp"
+#include "foundation/network/authorization_provider.hpp"
+#include "foundation/network/http_client_common.hh"
+#include "foundation/network/http_observation.hh"
+#include "foundation/network/http_transport.hh"
+#include "foundation/rate_limit/circuit_breaker.hpp"
+#include "foundation/rate_limit/rate_limiter.hpp"
+#include "foundation/redaction/redactor.hpp"
+#include "foundation/retry/retry_policy.hpp"
+#include "foundation/network/sse_parser.hh"
 
-#include <cpr/cpr.h>
-#include <cpr/ssl_options.h>
+#include <httplib.h>
 
 #include <algorithm>
 #include <atomic>
-#include <chrono>
 #include <condition_variable>
-#include <cctype>
-#include <cstdint>
 #include <deque>
-#include <filesystem>
+#include <functional>
 #include <memory>
 #include <mutex>
-#include <optional>
-#include <sstream>
 #include <string>
 #include <thread>
-#include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace lc {
-namespace {
+using namespace http_client_detail;
 
-std::string_view trimSv(std::string_view s)
-{
-    while (!s.empty() && (s.front() == ' ' || s.front() == '\t'))
-        s.remove_prefix(1);
-    while (!s.empty() && (s.back() == ' ' || s.back() == '\t'))
-        s.remove_suffix(1);
-    return s;
-}
-
-bool asciiLowerContains(std::string_view hay, std::string_view needle)
-{
-    if (needle.empty())
-        return true;
-    if (needle.size() > hay.size())
-        return false;
-    for (std::size_t i = 0; i <= hay.size() - needle.size(); ++i) {
-        bool ok = true;
-        for (std::size_t j = 0; j < needle.size(); ++j) {
-            char ha = hay[i + j];
-            char nb = needle[j];
-            if (ha >= 'A' && ha <= 'Z')
-                ha = static_cast<char>(ha - 'A' + 'a');
-            if (nb >= 'A' && nb <= 'Z')
-                nb = static_cast<char>(nb - 'A' + 'a');
-            if (ha != nb) {
-                ok = false;
-                break;
-            }
-        }
-        if (ok)
-            return true;
-    }
-    return false;
-}
-
-/// Heuristic for curl errors that did not map to `ErrorCode::OPERATION_TIMEDOUT` but read as timeouts.
-bool isTimeoutLikeMessage(std::string_view msg)
-{
-    return asciiLowerContains(msg, "timed out") || asciiLowerContains(msg, "timeout") || asciiLowerContains(msg, "operation timed out") || asciiLowerContains(msg, "resource temporarily unavailable");
-}
-
-cpr::SslOptions buildSslOptions(const TlsClientParams& p)
-{
-    cpr::SslOptions opts = cpr::Ssl(cpr::ssl::VerifyPeer { p.tlsVerifyPeer_ },
-        cpr::ssl::VerifyHost { p.tlsVerifyPeer_ });
-    switch (p.tlsMinVersion_) {
-    case TlsMinVersion::Tls12:
-        opts.SetOption(cpr::ssl::TLSv1_2 {});
-        break;
-    case TlsMinVersion::Tls13:
-        opts.SetOption(cpr::ssl::TLSv1_3 {});
-        break;
-    default:
-        break;
-    }
-    if (!p.tlsCaBundleFile_.empty()) {
-        opts.SetOption(
-            cpr::ssl::CaInfo { std::filesystem::path(p.tlsCaBundleFile_) });
-    }
-    if (!p.tlsCaPath_.empty()) {
-        opts.SetOption(cpr::ssl::CaPath { std::filesystem::path(p.tlsCaPath_) });
-    }
-    return opts;
-}
-
-bool icmpAscii(std::string_view a, std::string_view b)
-{
-    if (a.size() != b.size())
-        return false;
-    for (std::size_t i = 0; i < a.size(); ++i) {
-        unsigned char ca = static_cast<unsigned char>(a[i]);
-        unsigned char cb = static_cast<unsigned char>(b[i]);
-        unsigned char la = ca >= 'A' && ca <= 'Z' ? static_cast<unsigned char>(ca - 'A' + 'a') : ca;
-        unsigned char lb = cb >= 'A' && cb <= 'Z' ? static_cast<unsigned char>(cb - 'A' + 'a') : cb;
-        if (la != lb)
-            return false;
-    }
-    return true;
-}
-
-bool requestHasAuthorizationHeader(const HttpRequestSpec& spec)
-{
-    for (const auto& h : spec.headers_) {
-        if (icmpAscii(h.first, "authorization"))
-            return true;
-    }
-    return false;
-}
-
-[[nodiscard]] std::string formatHeadersForLog(const cpr::Header& hdr)
-{
-    std::ostringstream oss;
-    for (const auto& kv : hdr) {
-        oss << kv.first << ": " << kv.second << '\n';
-    }
-    return oss.str();
-}
-
-struct PendingJob {
-    std::shared_ptr<HttpRequestSpec> spec;
-    HttpAsyncCallback cb;
-};
-
-void safeCallback(HttpAsyncCallback cb,
-    std::shared_ptr<HttpCallResult> res) noexcept
-{
-    if (!cb || !res)
-        return;
-    try {
-        cb(std::move(res));
-    } catch (const std::exception&) {
-    } catch (...) {
-    }
-}
-
-std::optional<std::size_t> parseContentLengthHeader(const cpr::Header& hdr)
-{
-    for (const auto& kv : hdr) {
-        std::string key;
-        key.reserve(kv.first.size());
-        for (unsigned char c : kv.first) {
-            key.push_back(static_cast<char>(std::tolower(c)));
-        }
-        if (key != "content-length")
-            continue;
-        const std::string_view val = trimSv(kv.second);
-        if (val.empty())
-            return std::nullopt;
-        try {
-            return static_cast<std::size_t>(
-                std::stoull(std::string(val.data(), val.size())));
-        } catch (...) {
-            return std::nullopt;
-        }
-    }
-    return std::nullopt;
-}
-
-std::string normalizePath(std::string path)
-{
-    if (path.empty())
-        return "/";
-    if (path.front() != '/')
-        path.insert(path.begin(), '/');
-    return path;
-}
-
-std::string buildOriginBase(const HttpClientConfig& cfg)
-{
-    std::ostringstream oss;
-    oss << (cfg.tls_ ? "https://" : "http://");
-    if (cfg.host_.find(':') != std::string::npos) {
-        oss << '[' << cfg.host_ << ']';
-    } else {
-        oss << cfg.host_;
-    }
-    const bool nonDefault = (cfg.tls_ && cfg.port_ != 443) || (!cfg.tls_ && cfg.port_ != 80);
-    if (nonDefault) {
-        oss << ':' << static_cast<unsigned>(cfg.port_);
-    }
-    return oss.str();
-}
-
-std::string toUpperMethod(std::string_view m)
-{
-    std::string out(m);
-    for (char& c : out) {
-        if (c >= 'a' && c <= 'z')
-            c = static_cast<char>(c - 'a' + 'A');
-    }
-    return out;
-}
-
-HttpClientErr mapCprError(const cpr::Error& err)
-{
-    switch (err.code) {
-    case cpr::ErrorCode::OPERATION_TIMEDOUT:
-        return HttpClientErr::Timeout;
-    case cpr::ErrorCode::EMPTY_RESPONSE:
-        return HttpClientErr::EmptyResponse;
-    default:
-        break;
-    }
-    if (isTimeoutLikeMessage(err.message))
-        return HttpClientErr::Timeout;
-    return HttpClientErr::Transport;
-}
-
-/// Fills `HttpCallResult` from a successful CPR response (status line, headers, body, size limits).
-void applyCprResponse(const cpr::Response& r, std::size_t maxBodyBytes,
-    std::shared_ptr<HttpCallResult> out)
-{
-    out->response_ = std::make_shared<HttpResponseData>();
-    out->response_->statusCode_ = static_cast<int>(r.status_code);
-    out->response_->statusText_.clear();
-    for (const auto& kv : r.header) {
-        std::string key;
-        key.reserve(kv.first.size());
-        for (unsigned char c : kv.first) {
-            key.push_back(static_cast<char>(std::tolower(c)));
-        }
-        out->response_->headers_.insert({ std::move(key), kv.second });
-    }
-
-    if (maxBodyBytes > 0) {
-        if (const auto cl = parseContentLengthHeader(r.header);
-            cl.has_value() && *cl > maxBodyBytes) {
-            out->error_ = HttpClientErr::PayloadTooLarge;
-            out->errorMessage_ = "HTTP Content-Length exceeds maxResponseBodyBytes_";
-            out->response_.reset();
-            return;
-        }
-    }
-
-    if (maxBodyBytes > 0 && r.text.size() > maxBodyBytes) {
-        out->error_ = HttpClientErr::PayloadTooLarge;
-        out->errorMessage_ = "response body exceeds maxResponseBodyBytes_ after download";
-        out->response_.reset();
-        return;
-    }
-
-    out->response_->body_ = r.text;
-    out->error_ = HttpClientErr::Ok;
-    out->errorMessage_.clear();
-}
-
-cpr::Response performCprRequest(cpr::Session& session,
-    const std::string& methodUpper,
-    const HttpRequestSpec& spec)
-{
-    if (methodUpper == "GET")
-        return session.Get();
-    if (methodUpper == "HEAD")
-        return session.Head();
-    if (methodUpper == "POST") {
-        if (!spec.body_.empty())
-            session.SetBody(cpr::Body { spec.body_ });
-        return session.Post();
-    }
-    if (methodUpper == "PUT") {
-        if (!spec.body_.empty())
-            session.SetBody(cpr::Body { spec.body_ });
-        return session.Put();
-    }
-    if (methodUpper == "DELETE")
-        return session.Delete();
-    if (methodUpper == "OPTIONS")
-        return session.Options();
-    if (methodUpper == "PATCH") {
-        if (!spec.body_.empty())
-            session.SetBody(cpr::Body { spec.body_ });
-        return session.Patch();
-    }
-    return {};
-}
-
-} // namespace
-
-HttpClientConfig HttpClientConfig::parseOrigin(std::string_view input)
-{
-    std::string_view rest = trimSv(input);
-    if (rest.empty())
-        throw std::invalid_argument("HttpClientConfig::parseOrigin: empty input");
-
-    bool tls = false;
-    if (rest.starts_with("https://")) {
-        tls = true;
-        rest.remove_prefix(8);
-    } else if (rest.starts_with("http://")) {
-        tls = false;
-        rest.remove_prefix(7);
-    }
-
-    const std::size_t slash = rest.find('/');
-    if (slash != std::string_view::npos)
-        rest = rest.substr(0, slash);
-
-    rest = trimSv(rest);
-    if (rest.empty())
-        throw std::invalid_argument("HttpClientConfig::parseOrigin: missing host");
-
-    std::uint16_t port = static_cast<std::uint16_t>(tls ? 443 : 80);
-    std::string host;
-
-    if (!rest.empty() && rest.front() == '[') {
-        const std::size_t closeBracket = rest.find(']');
-        if (closeBracket == std::string_view::npos || closeBracket < 2)
-            throw std::invalid_argument(
-                "HttpClientConfig::parseOrigin: invalid IPv6 bracket");
-        host = std::string(rest.substr(1, closeBracket - 1));
-        if (closeBracket + 1 < rest.size()) {
-            if (rest[closeBracket + 1] != ':')
-                throw std::invalid_argument(
-                    "HttpClientConfig::parseOrigin: garbage after IPv6 address");
-            const std::string_view portPart = rest.substr(closeBracket + 2);
-            if (portPart.empty())
-                throw std::invalid_argument(
-                    "HttpClientConfig::parseOrigin: missing port after ':'");
-            port = static_cast<std::uint16_t>(std::stoi(std::string(portPart)));
-        }
-    } else {
-        const std::size_t colon = rest.rfind(':');
-        if (colon != std::string_view::npos && colon > 0) {
-            const std::string_view portPart = rest.substr(colon + 1);
-            bool digits = !portPart.empty();
-            for (char c : portPart) {
-                if (c < '0' || c > '9') {
-                    digits = false;
-                    break;
-                }
-            }
-            if (digits) {
-                host = std::string(rest.substr(0, colon));
-                port = static_cast<std::uint16_t>(std::stoi(std::string(portPart)));
-            } else {
-                host = std::string(rest);
-            }
-        } else {
-            host = std::string(rest);
-        }
-    }
-
-    if (host.empty())
-        throw std::invalid_argument("HttpClientConfig::parseOrigin: empty host");
-
-    HttpClientConfig out;
-    out.host_ = std::move(host);
-    out.port_ = port;
-    out.tls_ = tls;
-    return out;
-}
-
-class HttpClient::Impl {
+class HttpClient::Impl : public std::enable_shared_from_this<HttpClient::Impl> {
 public:
-    explicit Impl(HttpClientConfig config,
-        std::shared_ptr<IOAuth2TokenProvider> oauth2TokenProvider)
+    explicit Impl(
+        HttpClientConfig config,
+        std::shared_ptr<IAuthorizationProvider> authorizationProvider,
+        std::shared_ptr<ILogger> logger)
         : cfg_(std::move(config))
-        , tokenProvider_(oauth2TokenProvider
-                  ? std::move(oauth2TokenProvider)
-                  : std::make_shared<OAuth2TokenProvider>())
-        , originBase_(buildOriginBase(cfg_))
+        , authorizationProvider_(authorizationProvider
+                  ? std::move(authorizationProvider)
+                  : std::make_shared<NoAuthorizationProvider>())
+        , refreshableAuthorization_(std::dynamic_pointer_cast<IRefreshableAuthorization>(authorizationProvider_))
+        , logger_(std::move(logger))
+        , originBase_(formatOrigin(cfg_))
+        , startupStatus_(cfg_.validate())
     {
-        worker_ = std::thread([this] { workerLoop(); });
-        tokenProvider_->onApply([this]() { workCv_.notify_all(); });
-
-        const char* tlsMinStr = "default";
-        switch (cfg_.tlsParams_.tlsMinVersion_) {
+        [[maybe_unused]] const char* tlsMinStr = "default";
+        switch (cfg_.tlsOptions_.minVersion_) {
         case TlsMinVersion::Tls12:
             tlsMinStr = "TLS1.2";
             break;
@@ -383,29 +54,306 @@ public:
         default:
             break;
         }
-        BW_LOG_INFO(
+        logTo(logger_,
+            LogLevel::Info,
             "HttpClient",
-            "{} {}:{} tls={} tlsMin={} verifyPeer={} (libcpr/libcurl) "
-            "retryMax={} maxPending={} maxBodyBytes={}",
-            cfg_.tls_ ? "https" : "http", cfg_.host_, cfg_.port_, cfg_.tls_,
-            tlsMinStr, cfg_.tlsParams_.tlsVerifyPeer_,
-            cfg_.retryMaxAttempts_.has_value()
-                ? static_cast<int>(*cfg_.retryMaxAttempts_)
-                : 0,
-            cfg_.maxPendingRequests_, cfg_.maxResponseBodyBytes_);
+            "{} {}:{} tls={} tlsMin={} verifyPeer={} (cpp-httplib) "
+            "retryMax={} maxPending={} maxBodyBytes={} keepAlive={} poolSize={} followRedirects={} proxy={}",
+            __FILE__,
+            __LINE__,
+            cfg_.useTls_ ? "https" : "http", cfg_.host_, cfg_.port_, cfg_.useTls_,
+            tlsMinStr, cfg_.tlsOptions_.verifyPeer_,
+            cfg_.retryPolicy_.maxRetries_,
+            cfg_.maxPendingRequests_, cfg_.maxResponseBodyBytes_,
+            cfg_.keepAlive_, cfg_.connectionPoolSize_, cfg_.followRedirects_,
+            cfg_.proxy_.isEnabled());
     }
 
-    ~Impl() { shutdown(); }
+    ~Impl()
+    {
+        const auto status = close();
+        if (worker_.joinable()) {
+            if (worker_.get_id() == std::this_thread::get_id())
+                worker_.detach();
+            else if (status.isOk())
+                worker_.join();
+            else
+                worker_.detach();
+        }
+    }
 
-    void shutdown() noexcept
+    Status start()
+    {
+        if (!startupStatus_.isOk()) {
+            stop_.store(true, std::memory_order_release);
+            return startupStatus_;
+        }
+
+        auto self = shared_from_this();
+        try {
+            if (refreshableAuthorization_) {
+                refreshableAuthorization_->onReady([weak = std::weak_ptr<Impl>(self)] {
+                    if (auto locked = weak.lock())
+                        locked->workCv_.notify_all();
+                });
+            }
+            worker_ = std::thread([self = std::move(self)] { self->workerLoop(); });
+            return Status::ok();
+        } catch (const std::exception& ex) {
+            startupStatus_ = Status::unavailable(std::string("failed to start HTTP worker: ") + ex.what());
+        } catch (...) {
+            startupStatus_ = Status::unknown("failed to start HTTP worker");
+        }
+        stop_.store(true, std::memory_order_release);
+        return startupStatus_;
+    }
+
+    Status close()
     {
         bool expected = false;
-        if (!stop_.compare_exchange_strong(expected, true))
-            return;
-        BW_LOG_INFO("HttpClient", "shutdown: stopping worker");
+        if (stop_.compare_exchange_strong(expected, true))
+            logTo(logger_, LogLevel::Info, "HttpClient", "close: stopping worker", __FILE__, __LINE__);
+
         workCv_.notify_all();
-        if (worker_.joinable())
+        poolCv_.notify_all();
+        stopActiveClients();
+
+        if (worker_.joinable() && worker_.get_id() != std::this_thread::get_id()) {
+            std::unique_lock lk(mutex_);
+            const bool done = workerDoneCv_.wait_for(lk, cfg_.closeTimeout_, [this] {
+                return workerDone_;
+            });
+            lk.unlock();
+            if (!done) {
+                stopActiveClients();
+                return Status::deadlineExceeded("HTTP client close timed out");
+            }
             worker_.join();
+        } else if (worker_.joinable() && worker_.get_id() == std::this_thread::get_id()) {
+            worker_.detach();
+        }
+        return Status::ok();
+    }
+
+    [[nodiscard]] bool isClosed() const noexcept
+    {
+        return stop_.load(std::memory_order_acquire);
+    }
+
+    [[nodiscard]] Status startupStatus() const
+    {
+        return startupStatus_;
+    }
+
+    void registerActiveClient(const std::shared_ptr<httplib::Client>& client)
+    {
+        std::lock_guard lock(activeMutex_);
+        activeClients_.erase(
+            std::remove_if(activeClients_.begin(), activeClients_.end(), [](const auto& weak) {
+                return weak.expired();
+            }),
+            activeClients_.end());
+        activeClients_.push_back(client);
+    }
+
+    void unregisterActiveClient(const std::shared_ptr<httplib::Client>& client)
+    {
+        std::lock_guard lock(activeMutex_);
+        activeClients_.erase(
+            std::remove_if(activeClients_.begin(), activeClients_.end(), [&](const auto& weak) {
+                auto locked = weak.lock();
+                return !locked || locked == client;
+            }),
+            activeClients_.end());
+    }
+
+    void stopActiveClients() noexcept
+    {
+        std::vector<std::shared_ptr<httplib::Client>> clients;
+        {
+            std::lock_guard lock(activeMutex_);
+            for (const auto& weak : activeClients_) {
+                if (auto client = weak.lock())
+                    clients.push_back(std::move(client));
+            }
+        }
+        {
+            std::lock_guard lock(poolMutex_);
+            while (!idleClients_.empty()) {
+                clients.push_back(std::move(idleClients_.front()));
+                idleClients_.pop_front();
+            }
+        }
+        poolCv_.notify_all();
+
+        for (auto& client : clients) {
+            try {
+                client->stop();
+            } catch (...) {
+            }
+        }
+    }
+
+    class ClientLease final {
+    public:
+        ClientLease() = default;
+
+        ClientLease(
+            std::shared_ptr<httplib::Client> client,
+            std::function<void(std::shared_ptr<httplib::Client>, bool)> release)
+            : client_(std::move(client))
+            , release_(std::move(release))
+        {
+        }
+
+        ~ClientLease() { release(); }
+
+        ClientLease(const ClientLease&) = delete;
+        ClientLease& operator=(const ClientLease&) = delete;
+
+        ClientLease(ClientLease&& other) noexcept
+            : client_(std::move(other.client_))
+            , release_(std::move(other.release_))
+            , reusable_(other.reusable_)
+        {
+            other.reusable_ = false;
+        }
+
+        ClientLease& operator=(ClientLease&& other) noexcept
+        {
+            if (this == &other)
+                return *this;
+            release();
+            client_ = std::move(other.client_);
+            release_ = std::move(other.release_);
+            reusable_ = other.reusable_;
+            other.reusable_ = false;
+            return *this;
+        }
+
+        [[nodiscard]] httplib::Client& client() noexcept { return *client_; }
+        void discard() noexcept { reusable_ = false; }
+
+    private:
+        void release() noexcept
+        {
+            if (!client_ || !release_)
+                return;
+            try {
+                release_(std::move(client_), reusable_);
+            } catch (...) {
+            }
+            release_ = {};
+            reusable_ = false;
+        }
+
+        std::shared_ptr<httplib::Client> client_;
+        std::function<void(std::shared_ptr<httplib::Client>, bool)> release_;
+        bool reusable_ { true };
+    };
+
+    Result<ClientLease> acquireClient()
+    {
+        if (!cfg_.keepAlive_) {
+            auto client = createClient();
+            if (!client.isOk())
+                return client.status();
+            registerActiveClient(*client);
+            if (stop_.load()) {
+                try {
+                    (*client)->stop();
+                } catch (...) {
+                }
+                unregisterActiveClient(*client);
+                return Status::cancelled("HTTP client is closing");
+            }
+            return ClientLease(std::move(*client), [this](std::shared_ptr<httplib::Client> c, bool reusable) {
+                if (!reusable) {
+                    try {
+                        c->stop();
+                    } catch (...) {
+                    }
+                }
+                unregisterActiveClient(c);
+            });
+        }
+
+        std::shared_ptr<httplib::Client> client;
+        {
+            std::unique_lock lock(poolMutex_);
+            poolCv_.wait(lock, [this] {
+                return stop_.load()
+                    || !idleClients_.empty()
+                    || leasedClients_ < cfg_.connectionPoolSize_;
+            });
+
+            if (stop_.load())
+                return Status::cancelled("HTTP client is closing");
+
+            if (!idleClients_.empty()) {
+                client = std::move(idleClients_.front());
+                idleClients_.pop_front();
+            } else {
+                auto created = createClient();
+                if (!created.isOk())
+                    return created.status();
+                client = std::move(*created);
+            }
+            ++leasedClients_;
+        }
+
+        registerActiveClient(client);
+        if (stop_.load()) {
+            releasePooledClient(client, false);
+            return Status::cancelled("HTTP client is closing");
+        }
+        return ClientLease(std::move(client), [this](std::shared_ptr<httplib::Client> c, bool reusable) {
+            releasePooledClient(std::move(c), reusable);
+        });
+    }
+
+    Result<std::shared_ptr<httplib::Client>> createClient()
+    {
+        try {
+            auto client = std::make_shared<httplib::Client>(originBase_);
+            configureClient(*client, cfg_);
+            return client;
+        } catch (const std::bad_alloc&) {
+            return Status::resourceExhausted("failed to allocate HTTP client");
+        } catch (const std::exception& ex) {
+            return Status::internal(std::string("failed to configure HTTP client: ") + ex.what());
+        } catch (...) {
+            return Status::unknown("failed to configure HTTP client");
+        }
+    }
+
+    void releasePooledClient(std::shared_ptr<httplib::Client> client, bool reusable) noexcept
+    {
+        unregisterActiveClient(client);
+        if (!reusable) {
+            try {
+                client->stop();
+            } catch (...) {
+            }
+        }
+
+        {
+            std::lock_guard lock(poolMutex_);
+            if (leasedClients_ > 0)
+                --leasedClients_;
+            if (reusable && !stop_.load() && idleClients_.size() < cfg_.connectionPoolSize_) {
+                idleClients_.push_back(std::move(client));
+            }
+        }
+        poolCv_.notify_one();
+    }
+
+    [[nodiscard]] bool waitBeforeRetry(Clock::Duration delay)
+    {
+        if (delay <= Clock::Duration::zero())
+            return !stop_.load();
+        std::unique_lock lock(mutex_);
+        return !workCv_.wait_for(lock, delay, [this] { return stop_.load(); });
     }
 
     void drainStopped(std::unique_lock<std::mutex>& lk)
@@ -414,287 +362,633 @@ public:
             PendingJob job = std::move(queue_.front());
             queue_.pop_front();
             lk.unlock();
-            auto res = std::make_shared<HttpCallResult>();
-            res->error_ = HttpClientErr::Stopped;
-            res->errorMessage_ = "HttpClient is stopped";
-            safeCallback(std::move(job.cb), std::move(res));
+            invokeCallback(std::move(job.cb), Status::failedPrecondition("HttpClient is stopped"));
             lk.lock();
         }
     }
 
-    void awaitToken(std::unique_lock<std::mutex>& lk)
+    void awaitAuthorization(std::unique_lock<std::mutex>& lk)
     {
-        if (!tokenProvider_->gate().pause)
+        if (!authorizationGate().paused_)
             return;
         workCv_.wait(lk, [this] {
-            return stop_.load() || !tokenProvider_->gate().pause;
+            return stop_.load() || !authorizationGate().paused_;
         });
     }
 
-    /// Invoked with `mutex_` not held (worker has released `lk` before calling).
+    [[nodiscard]] AuthorizationGate authorizationGate() const
+    {
+        if (!refreshableAuthorization_)
+            return {};
+        return refreshableAuthorization_->gate();
+    }
+
+    void requestAuthorizationRefresh()
+    {
+        if (refreshableAuthorization_)
+            refreshableAuthorization_->requestRefresh();
+    }
+
     void dispatchOneJobUnlocked(PendingJob job)
     {
-        std::shared_ptr<HttpCallResult> res;
-        if (!job.spec) {
-            res = std::make_shared<HttpCallResult>();
-            res->error_ = HttpClientErr::Unknown;
-            res->errorMessage_ = "request: HttpRequestSpec is null";
-            BW_LOG_WARN("HttpClient", "queued job missing HttpRequestSpec");
-        } else {
-            res = execute(*job.spec);
-            if (!res->isOk()) {
-                BW_LOG_WARN("HttpClient", "{} {} failed err={} {}",
-                    job.spec->method_, job.spec->pathAndQuery_,
-                    static_cast<int>(res->error_), res->errorMessage_);
-            }
+        auto result = execute(job.request);
+        if (!result.isOk()) {
+            logTo(logger_,
+                LogLevel::Warn,
+                "HttpClient",
+                "{} {} failed: {}",
+                __FILE__,
+                __LINE__,
+                httpMethodName(job.request.method_),
+                job.request.pathAndQuery_,
+                result.status().toString());
         }
-        safeCallback(std::move(job.cb), std::move(res));
+        invokeCallback(std::move(job.cb), std::move(result));
     }
 
     void workerLoop()
     {
-        std::unique_lock<std::mutex> lk(mutex_);
-        while (!stop_.load()) {
-            const auto deadline = tokenProvider_->gate().wakeAt;
-            if (!deadline.has_value()) {
-                workCv_.wait(lk, [this] {
-                    return stop_.load() || !queue_.empty();
-                });
-            } else {
-                workCv_.wait_until(lk, *deadline, [this] {
-                    return stop_.load() || !queue_.empty();
-                });
-            }
+        {
+            std::unique_lock<std::mutex> lk(mutex_);
+            while (!stop_.load()) {
+                const auto deadline = authorizationGate().resumeAt_;
+                if (!deadline.has_value()) {
+                    workCv_.wait(lk, [this] {
+                        return stop_.load() || !queue_.empty();
+                    });
+                } else {
+                    workCv_.wait_until(lk, *deadline, [this] {
+                        return stop_.load() || !queue_.empty();
+                    });
+                }
 
-            if (stop_.load()) {
-                drainStopped(lk);
-                break;
-            }
-
-            if (tokenProvider_->gate().pause) {
-                lk.unlock();
-                tokenProvider_->renewNotify();
-                lk.lock();
                 if (stop_.load()) {
                     drainStopped(lk);
                     break;
                 }
-                // `onRenew` often enqueues token refresh on this same client; run queued work while still
-                // paused so `apply` can clear the gate before `awaitToken` would otherwise block forever.
-                while (!stop_.load() && !queue_.empty() && tokenProvider_->gate().pause) {
+
+                if (authorizationGate().paused_) {
+                    lk.unlock();
+                    requestAuthorizationRefresh();
+                    lk.lock();
+                    if (stop_.load()) {
+                        drainStopped(lk);
+                        break;
+                    }
+                    awaitAuthorization(lk);
+                }
+
+                if (stop_.load()) {
+                    drainStopped(lk);
+                    break;
+                }
+
+                while (!queue_.empty()
+                    && !stop_.load()
+                    && !authorizationGate().paused_) {
                     PendingJob job = std::move(queue_.front());
                     queue_.pop_front();
                     lk.unlock();
                     dispatchOneJobUnlocked(std::move(job));
                     lk.lock();
                 }
-                awaitToken(lk);
+            }
+        }
+
+        {
+            std::lock_guard lock(mutex_);
+            workerDone_ = true;
+        }
+        workerDoneCv_.notify_all();
+    }
+
+    HttpResult execute(const HttpRequest& requestIn)
+    {
+        if (!startupStatus_.isOk())
+            return startupStatus_;
+        if (stop_.load())
+            return Status::cancelled("HTTP client is closing");
+
+        HttpRequest request = requestIn;
+        if (auto status = validateRequest(request, cfg_.requestLimits_); !status.isOk())
+            return status;
+
+        if (auto status = authorizationProvider_->authorize(request); !status.isOk())
+            return status;
+        if (auto status = validateRequest(request, cfg_.requestLimits_); !status.isOk())
+            return status;
+
+        if (!httpMethodAllowsBody(request.method_) && !request.body_.empty())
+            return Status::invalidArgument("HTTP request method does not allow a body");
+
+        const std::string path = normalizePath(request.pathAndQuery_);
+        const std::string fullUrl = originBase_ + path;
+        HttpObservation observation(
+            cfg_.metrics_,
+            cfg_.traceSink_,
+            request.method_,
+            cfg_.host_,
+            cfg_.port_,
+            redactor_.redact(fullUrl));
+
+        auto fail = [&](Status status) -> HttpResult {
+            observation.error(status);
+            return status;
+        };
+        auto finishResponse = [&](HttpResult response) -> HttpResult {
+            if (response.isOk())
+                observation.response(response->statusCode_, response->body_.size());
+            else
+                observation.error(response.status());
+            return response;
+        };
+
+        const auto retryPolicy = retryPolicyFromHttp(cfg_.retryPolicy_);
+        const auto maxAttempts = retryPolicy.maxAttempts();
+
+#ifndef CPPHTTPLIB_SSL_ENABLED
+        if (cfg_.useTls_) {
+            return fail(Status::failedPrecondition("HTTPS requested but HTTP client was built without OpenSSL support"));
+        }
+#endif
+
+        for (std::uint32_t attempt = 1; attempt <= maxAttempts; ++attempt) {
+            if (stop_.load())
+                return fail(Status::cancelled("HTTP client is closing"));
+
+            if (cfg_.rateLimiter_) {
+                const auto rate = cfg_.rateLimiter_->acquire();
+                if (!rate.allowed_)
+                    return fail(rate.status_);
             }
 
+            if (cfg_.circuitBreaker_) {
+                const auto circuit = cfg_.circuitBreaker_->acquire();
+                if (!circuit.allowed_)
+                    return fail(circuit.status_);
+            }
+
+            auto hdr = buildRequestHeaders(cfg_, request);
+
+            logTo(logger_,
+                LogLevel::Info,
+                "HttpClient",
+                "HTTP request attempt={}/{} {} {}\nrequest headers:\n{}request body:\n{}",
+                __FILE__,
+                __LINE__,
+                attempt,
+                maxAttempts,
+                httpMethodName(request.method_),
+                redactor_.redact(fullUrl),
+                formatHeadersForLog(hdr, cfg_.logOptions_, redactor_),
+                formatBodyForLog(request.body_, cfg_.logOptions_, redactor_));
+
+            auto leaseResult = acquireClient();
+            if (!leaseResult.isOk())
+                return fail(leaseResult.status());
+
+            httplib::Result r;
+            {
+                auto lease = std::move(*leaseResult);
+                r = performRequest(lease.client(), request.method_, path, hdr, request);
+                if (!r)
+                    lease.discard();
+            }
+
+            logTo(logger_,
+                LogLevel::Info,
+                "HttpClient",
+                "HTTP response attempt={}/{} {} result={} error={}\n"
+                "response headers:\n{}response body:\n{}",
+                __FILE__,
+                __LINE__,
+                attempt,
+                maxAttempts,
+                redactor_.redact(fullUrl),
+                r ? static_cast<int>(r->status) : 0,
+                httplib::to_string(r.error()),
+                r ? formatHeadersForLog(r->headers, cfg_.logOptions_, redactor_) : std::string(),
+                r ? formatBodyForLog(r->body, cfg_.logOptions_, redactor_) : std::string());
+
+            if (!r) {
+                const auto status = stop_.load()
+                    ? Status::cancelled("HTTP request cancelled")
+                    : statusFromHttplibResultFailure(r.error(), cfg_.maxResponseBodyBytes_);
+                if (cfg_.circuitBreaker_)
+                    cfg_.circuitBreaker_->recordFailure();
+                const auto decision = retryPolicy.decide(status, attempt);
+                if (!decision.isOk())
+                    return fail(decision.status());
+                if (!decision->retry_)
+                    return fail(status);
+                if (!waitBeforeRetry(decision->delay_))
+                    return fail(Status::cancelled("HTTP client is closing"));
+                continue;
+            }
+
+            if (r->status <= 0 && r->body.empty()) {
+                const auto status = Status::unavailable("empty HTTP response");
+                if (cfg_.circuitBreaker_)
+                    cfg_.circuitBreaker_->recordFailure();
+                const auto decision = retryPolicy.decide(status, attempt);
+                if (!decision.isOk())
+                    return fail(decision.status());
+                if (!decision->retry_)
+                    return fail(status);
+                if (!waitBeforeRetry(decision->delay_))
+                    return fail(Status::cancelled("HTTP client is closing"));
+                continue;
+            }
+
+            auto response = buildHttpResponse(*r, cfg_.maxResponseBodyBytes_);
+            if (!response.isOk()) {
+                if (cfg_.circuitBreaker_)
+                    cfg_.circuitBreaker_->recordFailure();
+                return fail(response.status());
+            }
+
+            const int code = response->statusCode_;
+            if (cfg_.circuitBreaker_) {
+                if (circuitFailureStatus(code))
+                    cfg_.circuitBreaker_->recordFailure();
+                else
+                    cfg_.circuitBreaker_->recordSuccess();
+            }
+
+            if (!containsHttpRetryCode(cfg_.retryPolicy_, code))
+                return finishResponse(std::move(response));
+
+            const auto status = statusForHttpRetry(code);
+            const auto decision = retryPolicy.decide(status, attempt);
+            if (!decision.isOk())
+                return fail(decision.status());
+            if (!decision->retry_)
+                return finishResponse(std::move(response));
+            if (!waitBeforeRetry(decision->delay_))
+                return fail(Status::cancelled("HTTP client is closing"));
+        }
+        return fail(Status::unknown("HTTP request did not complete"));
+    }
+
+    HttpResult executeStreaming(
+        const HttpRequest& requestIn,
+        HttpBodyChunkCallback callback,
+        HttpStreamOptions options)
+    {
+        if (!callback)
+            return Status::invalidArgument("HTTP stream callback is required");
+        if (auto status = options.validate(); !status.isOk())
+            return status;
+        if (!startupStatus_.isOk())
+            return startupStatus_;
+        if (stop_.load())
+            return Status::cancelled("HTTP client is closing");
+
+        HttpRequest request = requestIn;
+        if (auto status = validateRequest(request, cfg_.requestLimits_); !status.isOk())
+            return status;
+
+        if (auto status = authorizationProvider_->authorize(request); !status.isOk())
+            return status;
+        if (auto status = validateRequest(request, cfg_.requestLimits_); !status.isOk())
+            return status;
+
+        if (!httpMethodAllowsBody(request.method_) && !request.body_.empty())
+            return Status::invalidArgument("HTTP request method does not allow a body");
+
+        const std::string path = normalizePath(request.pathAndQuery_);
+        const std::string fullUrl = originBase_ + path;
+        HttpObservation observation(
+            cfg_.metrics_,
+            cfg_.traceSink_,
+            request.method_,
+            cfg_.host_,
+            cfg_.port_,
+            redactor_.redact(fullUrl));
+
+        auto fail = [&](Status status) -> HttpResult {
+            observation.error(status);
+            return status;
+        };
+
+#ifndef CPPHTTPLIB_SSL_ENABLED
+        if (cfg_.useTls_) {
+            return fail(Status::failedPrecondition("HTTPS requested but HTTP client was built without OpenSSL support"));
+        }
+#endif
+
+        if (cfg_.rateLimiter_) {
+            const auto rate = cfg_.rateLimiter_->acquire();
+            if (!rate.allowed_)
+                return fail(rate.status_);
+        }
+
+        if (cfg_.circuitBreaker_) {
+            const auto circuit = cfg_.circuitBreaker_->acquire();
+            if (!circuit.allowed_)
+                return fail(circuit.status_);
+        }
+
+        auto clientResult = createClient();
+        if (!clientResult.isOk())
+            return fail(clientResult.status());
+
+        auto client = std::move(*clientResult);
+        registerActiveClient(client);
+        struct ActiveClientGuard {
+            Impl* self_ {};
+            std::shared_ptr<httplib::Client> client_;
+            ~ActiveClientGuard()
+            {
+                if (self_ && client_)
+                    self_->unregisterActiveClient(client_);
+            }
+        } guard { this, client };
+
+        if (stop_.load()) {
+            try {
+                client->stop();
+            } catch (...) {
+            }
+            return fail(Status::cancelled("HTTP client is closing"));
+        }
+
+        const auto hdr = buildRequestHeaders(cfg_, request);
+        logTo(logger_,
+            LogLevel::Info,
+            "HttpClient",
+            "HTTP stream request {} {}\nrequest headers:\n{}request body:\n{}",
+            __FILE__,
+            __LINE__,
+            httpMethodName(request.method_),
+            redactor_.redact(fullUrl),
+            formatHeadersForLog(hdr, cfg_.logOptions_, redactor_),
+            formatBodyForLog(request.body_, cfg_.logOptions_, redactor_));
+
+        auto stream = performStreamingRequest(*client, request.method_, path, hdr, request, options);
+        if (!stream) {
+            const auto status = stop_.load()
+                ? Status::cancelled("HTTP request cancelled")
+                : statusFromHttplibError(stream.error());
+            if (cfg_.circuitBreaker_)
+                cfg_.circuitBreaker_->recordFailure();
+            return fail(status);
+        }
+
+        auto response = buildStreamingHttpResponse(stream, cfg_.maxResponseBodyBytes_);
+        if (!response.isOk()) {
+            if (cfg_.circuitBreaker_)
+                cfg_.circuitBreaker_->recordFailure();
+            return fail(response.status());
+        }
+
+        std::size_t responseBytes = 0;
+        Status streamStatus = Status::ok();
+        while (stream.next()) {
             if (stop_.load()) {
-                drainStopped(lk);
+                streamStatus = Status::cancelled("HTTP client is closing");
                 break;
             }
 
-            while (!queue_.empty() && !stop_.load() && !tokenProvider_->gate().pause) {
-                PendingJob job = std::move(queue_.front());
-                queue_.pop_front();
-                lk.unlock();
-                dispatchOneJobUnlocked(std::move(job));
-                lk.lock();
+            const std::size_t chunkSize = stream.size();
+            if (cfg_.maxResponseBodyBytes_ > 0
+                && (chunkSize > cfg_.maxResponseBodyBytes_
+                    || responseBytes > cfg_.maxResponseBodyBytes_ - chunkSize)) {
+                streamStatus = Status::resourceExhausted("HTTP response body exceeds maxResponseBodyBytes");
+                break;
             }
-        }
-    }
+            responseBytes += chunkSize;
 
-    std::shared_ptr<HttpCallResult> execute(const HttpRequestSpec& reqIn)
-    {
-        HttpRequestSpec spec = reqIn;
-        auto out = std::make_shared<HttpCallResult>();
+            try {
+                streamStatus = callback(std::string_view(stream.data(), chunkSize));
+            } catch (const std::exception& ex) {
+                streamStatus = Status::unknown(std::string("HTTP stream callback failed: ") + ex.what());
+            } catch (...) {
+                streamStatus = Status::unknown("HTTP stream callback failed");
+            }
 
-        const auto bearer = tokenProvider_->accessToken();
-        if (bearer.has_value() && !requestHasAuthorizationHeader(spec)) {
-            spec.headers_.emplace_back("Authorization",
-                std::string("Bearer ") + *bearer);
-        }
-
-        const std::string path = normalizePath(spec.pathAndQuery_);
-        const std::string fullUrl = originBase_ + path;
-
-        const int maxAttempts = cfg_.retryMaxAttempts_.has_value()
-            ? static_cast<int>(*cfg_.retryMaxAttempts_) + 1
-            : 1;
-        std::unordered_set<int> retryCodes;
-        for (int c : cfg_.retryHttpCodes_)
-            retryCodes.insert(c);
-
-        const std::string methodUpper = toUpperMethod(spec.method_);
-        if (methodUpper != "GET" && methodUpper != "HEAD" && methodUpper != "POST" && methodUpper != "PUT" && methodUpper != "DELETE" && methodUpper != "OPTIONS" && methodUpper != "PATCH") {
-            out->error_ = HttpClientErr::Protocol;
-            out->errorMessage_ = "unsupported HTTP method for libcpr: " + spec.method_;
-            return out;
+            if (!streamStatus.isOk())
+                break;
         }
 
-        for (int attempt = 0; attempt < maxAttempts; ++attempt) {
-            cpr::Session session;
-            session.SetUrl(cpr::Url { fullUrl });
-
-            if (cfg_.tls_) {
-                session.SetSslOptions(buildSslOptions(cfg_.tlsParams_));
+        if (!streamStatus.isOk()) {
+            try {
+                client->stop();
+            } catch (...) {
             }
-
-            cpr::Header hdr;
-            if (!cfg_.userAgent_.empty()) {
-                hdr["User-Agent"] = cfg_.userAgent_;
-            }
-            for (const auto& kv : spec.headers_) {
-                if (icmpAscii(kv.first, "host"))
-                    continue;
-                hdr[kv.first] = kv.second;
-            }
-            if (!spec.body_.empty() && spec.contentType_.has_value()) {
-                hdr["Content-Type"] = *spec.contentType_;
-            }
-            session.SetHeader(hdr);
-
-            BW_LOG_INFO("HttpClient",
-                "HTTP request attempt={}/{} {} {}\nrequest headers:\n{}request body:\n{}",
-                attempt + 1,
-                maxAttempts,
-                methodUpper,
-                fullUrl,
-                formatHeadersForLog(hdr),
-                spec.body_);
-
-            const cpr::Response r = performCprRequest(session, methodUpper, spec);
-
-            BW_LOG_INFO("HttpClient",
-                "HTTP response attempt={}/{} {} status={} cpr_error.code={} cpr_error.message={}\n"
-                "response headers:\n{}response body:\n{}",
-                attempt + 1,
-                maxAttempts,
-                fullUrl,
-                static_cast<int>(r.status_code),
-                static_cast<int>(r.error.code),
-                r.error.message,
-                formatHeadersForLog(r.header),
-                r.text);
-
-            if (r.error) {
-                out->error_ = mapCprError(r.error);
-                out->errorMessage_ = r.error.message.empty() ? std::string("cpr error") : r.error.message;
-                out->response_.reset();
-                return out;
-            }
-
-            if (r.status_code == 0 && r.text.empty()) {
-                out->error_ = HttpClientErr::EmptyResponse;
-                out->errorMessage_ = "empty HTTP response";
-                out->response_.reset();
-                return out;
-            }
-
-            applyCprResponse(r, cfg_.maxResponseBodyBytes_, out);
-            if (!out->isOk())
-                return out;
-
-            if (!cfg_.retryMaxAttempts_.has_value())
-                return out;
-            const int code = out->response_ ? out->response_->statusCode_ : 0;
-            if (retryCodes.count(code) == 0 || attempt + 1 >= maxAttempts)
-                return out;
-            out->response_.reset();
-            out->error_ = HttpClientErr::Ok;
-            out->errorMessage_.clear();
-            std::this_thread::sleep_for(cfg_.retryDelay_);
+            if (cfg_.circuitBreaker_)
+                cfg_.circuitBreaker_->recordFailure();
+            return fail(std::move(streamStatus));
         }
-        return out;
+
+        if (stream.has_read_error()) {
+            const auto status = statusFromHttplibError(stream.read_error());
+            if (cfg_.circuitBreaker_)
+                cfg_.circuitBreaker_->recordFailure();
+            return fail(status);
+        }
+
+        const int code = response->statusCode_;
+        if (cfg_.circuitBreaker_) {
+            if (circuitFailureStatus(code))
+                cfg_.circuitBreaker_->recordFailure();
+            else
+                cfg_.circuitBreaker_->recordSuccess();
+        }
+
+        observation.response(code, responseBytes);
+        logTo(logger_,
+            LogLevel::Info,
+            "HttpClient",
+            "HTTP stream response {} status={} bytes={}\nresponse headers:\n{}",
+            __FILE__,
+            __LINE__,
+            redactor_.redact(fullUrl),
+            code,
+            responseBytes,
+            formatHeadersForLog(stream.headers(), cfg_.logOptions_, redactor_));
+        return response;
     }
 
     HttpClientConfig cfg_;
     std::mutex mutex_;
     std::condition_variable workCv_;
+    std::condition_variable workerDoneCv_;
     std::atomic<bool> stop_ { false };
     std::thread worker_;
     std::deque<PendingJob> queue_;
-    std::shared_ptr<IOAuth2TokenProvider> tokenProvider_;
+    bool workerDone_ { false };
+    std::mutex activeMutex_;
+    std::vector<std::weak_ptr<httplib::Client>> activeClients_;
+    std::mutex poolMutex_;
+    std::condition_variable poolCv_;
+    std::deque<std::shared_ptr<httplib::Client>> idleClients_;
+    std::size_t leasedClients_ { 0 };
+    std::shared_ptr<IAuthorizationProvider> authorizationProvider_;
+    std::shared_ptr<IRefreshableAuthorization> refreshableAuthorization_;
+    std::shared_ptr<ILogger> logger_;
     std::string originBase_;
+    Redactor redactor_;
+    Status startupStatus_ { Status::ok() };
 };
 
-HttpClient::HttpClient(HttpClientConfig config)
-    : impl_(std::make_unique<Impl>(std::move(config), nullptr))
+HttpClient::HttpClient(HttpClientConfig config, std::shared_ptr<ILogger> logger)
 {
+    auto impl = std::make_shared<Impl>(std::move(config), nullptr, std::move(logger));
+    impl->start();
+    std::lock_guard lock(mutex_);
+    impl_ = std::move(impl);
 }
 
 HttpClient::HttpClient(HttpClientConfig config,
-    std::shared_ptr<IOAuth2TokenProvider> oauth2TokenProvider)
-    : impl_(std::make_unique<Impl>(std::move(config),
-          std::move(oauth2TokenProvider)))
+    std::shared_ptr<IAuthorizationProvider> authorizationProvider,
+    std::shared_ptr<ILogger> logger)
 {
+    auto impl = std::make_shared<Impl>(
+        std::move(config),
+        std::move(authorizationProvider),
+        std::move(logger));
+    impl->start();
+    std::lock_guard lock(mutex_);
+    impl_ = std::move(impl);
 }
 
-HttpClient::~HttpClient() { HttpClient::shutdown(); }
+HttpClient::~HttpClient() { (void)HttpClient::close(); }
 
-void HttpClient::shutdown() noexcept
+Status HttpClient::close()
 {
-    if (impl_)
-        impl_->shutdown();
-    impl_.reset();
+    std::shared_ptr<Impl> impl;
+    {
+        std::lock_guard lock(mutex_);
+        impl = std::move(impl_);
+        impl_.reset();
+    }
+    if (impl)
+        return impl->close();
+    return Status::ok();
 }
 
-void HttpClient::request(std::shared_ptr<HttpRequestSpec> spec,
-    HttpAsyncCallback cb)
+bool HttpClient::isClosed() const noexcept
 {
-    if (!spec) {
-        auto res = std::make_shared<HttpCallResult>();
-        res->error_ = HttpClientErr::Unknown;
-        res->errorMessage_ = "request: HttpRequestSpec is null";
-        safeCallback(std::move(cb), std::move(res));
-        return;
+    std::lock_guard lock(mutex_);
+    return !impl_ || impl_->isClosed();
+}
+
+HttpResult HttpClient::send(HttpRequest request)
+{
+    std::shared_ptr<Impl> impl;
+    {
+        std::lock_guard lock(mutex_);
+        impl = impl_;
+    }
+    if (!impl)
+        return Status::failedPrecondition("HttpClient is stopped");
+    if (!impl->startupStatus().isOk())
+        return impl->startupStatus();
+    if (impl->stop_.load())
+        return Status::failedPrecondition("HttpClient is stopped");
+
+    if (impl->authorizationGate().paused_) {
+        impl->requestAuthorizationRefresh();
+        return Status::unauthenticated("authorization renewal required before sending HTTP request");
     }
 
-    if (!impl_) {
-        auto res = std::make_shared<HttpCallResult>();
-        res->error_ = HttpClientErr::Stopped;
-        res->errorMessage_ = "HttpClient is stopped";
-        safeCallback(std::move(cb), std::move(res));
-        return;
+    return impl->execute(request);
+}
+
+HttpResult HttpClient::sendStreaming(
+    HttpRequest request,
+    HttpBodyChunkCallback callback,
+    HttpStreamOptions options)
+{
+    std::shared_ptr<Impl> impl;
+    {
+        std::lock_guard lock(mutex_);
+        impl = impl_;
+    }
+    if (!impl)
+        return Status::failedPrecondition("HttpClient is stopped");
+    if (!impl->startupStatus().isOk())
+        return impl->startupStatus();
+    if (impl->stop_.load())
+        return Status::failedPrecondition("HttpClient is stopped");
+
+    if (impl->authorizationGate().paused_) {
+        impl->requestAuthorizationRefresh();
+        return Status::unauthenticated("authorization renewal required before streaming HTTP request");
     }
 
-    std::unique_lock<std::mutex> lk(impl_->mutex_);
-    if (impl_->stop_.load()) {
-        lk.unlock();
-        auto res = std::make_shared<HttpCallResult>();
-        res->error_ = HttpClientErr::Stopped;
-        res->errorMessage_ = "HttpClient is stopped";
-        safeCallback(std::move(cb), std::move(res));
-        return;
-    }
+    return impl->executeStreaming(request, std::move(callback), options);
+}
 
-    if (impl_->cfg_.maxPendingRequests_ > 0 && impl_->queue_.size() >= impl_->cfg_.maxPendingRequests_) {
-        BW_LOG_WARN(
+HttpResult HttpClient::sendSse(
+    HttpRequest request,
+    ServerSentEventCallback callback,
+    HttpStreamOptions options)
+{
+    if (!callback)
+        return Status::invalidArgument("SSE callback is required");
+    if (!request.header("accept").has_value())
+        request.setHeader("Accept", "text/event-stream");
+
+    SseParser parser;
+    auto response = sendStreaming(
+        std::move(request),
+        [&](std::string_view chunk) {
+            return parser.feed(chunk, callback);
+        },
+        options);
+    if (!response.isOk())
+        return response;
+
+    if (auto status = parser.finish(callback); !status.isOk())
+        return status;
+    return response;
+}
+
+Status HttpClient::sendAsync(HttpRequest request, HttpCallback cb)
+{
+    std::shared_ptr<Impl> impl;
+    {
+        std::lock_guard lock(mutex_);
+        impl = impl_;
+    }
+    if (!impl)
+        return Status::failedPrecondition("HttpClient is stopped");
+    if (!impl->startupStatus().isOk())
+        return impl->startupStatus();
+
+    std::unique_lock<std::mutex> lk(impl->mutex_);
+    if (impl->stop_.load())
+        return Status::failedPrecondition("HttpClient is stopped");
+
+    if (impl->cfg_.maxPendingRequests_ > 0 && impl->queue_.size() >= impl->cfg_.maxPendingRequests_) {
+        logTo(impl->logger_,
+            LogLevel::Warn,
             "HttpClient",
             "request queue full (maxPendingRequests_={}): {} {}",
-            impl_->cfg_.maxPendingRequests_, spec->method_, spec->pathAndQuery_);
-        lk.unlock();
-        auto res = std::make_shared<HttpCallResult>();
-        res->error_ = HttpClientErr::QueueFull;
-        res->errorMessage_ = "pending request queue is full (see maxPendingRequests_)";
-        safeCallback(std::move(cb), std::move(res));
-        return;
+            __FILE__,
+            __LINE__,
+            impl->cfg_.maxPendingRequests_,
+            httpMethodName(request.method_),
+            request.pathAndQuery_);
+        return Status::resourceExhausted("pending HTTP request queue is full");
     }
 
     PendingJob job;
-    job.spec = std::move(spec);
+    job.request = std::move(request);
     job.cb = std::move(cb);
-    impl_->queue_.push_back(std::move(job));
-    impl_->workCv_.notify_one();
+    impl->queue_.push_back(std::move(job));
+    impl->workCv_.notify_one();
+    return Status::ok();
 }
 
-std::shared_ptr<IOAuth2TokenProvider> HttpClient::oauth2TokenProvider() const
+std::shared_ptr<IAuthorizationProvider> HttpClient::authorizationProvider() const
 {
+    std::lock_guard lock(mutex_);
     if (!impl_)
         return nullptr;
-    return impl_->tokenProvider_;
+    return impl_->authorizationProvider_;
 }
 
 } // namespace lc

@@ -1,0 +1,10 @@
+{
+    "arc.privacyMode": "current_diff_only",
+    "arc.workspaceContext.enabled": true,
+    "arc.instrumentation.enabled": false,
+    "arc.learningFocus": [
+        "Reliability",
+        "Architecture & Design"
+    ],
+    "arc.modelProviderMode": "no_cloud_processing"
+}

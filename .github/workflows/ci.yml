@@ -1,0 +1,305 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-build-test:
+    name: Linux ${{ matrix.compiler }} ${{ matrix.build_type }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: gcc
+            build_type: Debug
+            cc: gcc-14
+            cxx: g++-14
+          - compiler: gcc
+            build_type: Release
+            cc: gcc-14
+            cxx: g++-14
+          - compiler: clang
+            build_type: Debug
+            cc: clang-18
+            cxx: clang++-18
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            g++-14 \
+            gcc-14 \
+            clang-18 \
+            libssl-dev \
+            zlib1g-dev
+
+      - name: Configure
+        run: |
+          cmake -S . -B build/${{ matrix.compiler }}-${{ matrix.build_type }} \
+            -G "Unix Makefiles" \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+            -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+            -DLANGGRAPH_CPP_BUILD_TESTS=ON \
+            -DLANGGRAPH_CPP_BUILD_EXAMPLES=ON \
+            -DLANGGRAPH_CPP_WITH_SQLITE=ON \
+            -DLANGGRAPH_CPP_WITH_NETWORK=ON
+
+      - name: Build
+        run: cmake --build build/${{ matrix.compiler }}-${{ matrix.build_type }} --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build/${{ matrix.compiler }}-${{ matrix.build_type }} --output-on-failure
+
+      - name: Dependency policy
+        if: matrix.compiler == 'gcc' && matrix.build_type == 'Debug'
+        run: scripts/check-dependency-policy.sh
+
+      - name: Example smoke
+        if: matrix.compiler == 'gcc' && matrix.build_type == 'Debug'
+        run: BUILD_DIR=build/${{ matrix.compiler }}-${{ matrix.build_type }} scripts/run-examples.sh
+
+      - name: Quality report
+        if: matrix.compiler == 'gcc' && matrix.build_type == 'Debug'
+        run: BUILD_DIR=build/${{ matrix.compiler }}-${{ matrix.build_type }} scripts/generate-quality-report.sh --full
+
+  linux-sanitizers:
+    name: Linux clang ${{ matrix.sanitizer }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sanitizer: asan-ubsan
+            cxx_flags: -fsanitize=address,undefined -fno-omit-frame-pointer
+            c_flags: -fsanitize=address,undefined -fno-omit-frame-pointer
+            linker_flags: -fsanitize=address,undefined
+          - sanitizer: tsan
+            cxx_flags: -fsanitize=thread -fno-omit-frame-pointer
+            c_flags: -fsanitize=thread -fno-omit-frame-pointer
+            linker_flags: -fsanitize=thread
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            clang-18 \
+            libclang-rt-18-dev \
+            libssl-dev \
+            zlib1g-dev
+
+      - name: Configure
+        run: |
+          cmake -S . -B build/${{ matrix.sanitizer }} \
+            -G "Unix Makefiles" \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=clang-18 \
+            -DCMAKE_CXX_COMPILER=clang++-18 \
+            -DCMAKE_C_FLAGS="${{ matrix.c_flags }}" \
+            -DCMAKE_CXX_FLAGS="${{ matrix.cxx_flags }}" \
+            -DCMAKE_EXE_LINKER_FLAGS="${{ matrix.linker_flags }}" \
+            -DCMAKE_SHARED_LINKER_FLAGS="${{ matrix.linker_flags }}" \
+            -DLANGGRAPH_CPP_BUILD_TESTS=ON \
+            -DLANGGRAPH_CPP_BUILD_EXAMPLES=ON \
+            -DLANGGRAPH_CPP_WITH_SQLITE=ON \
+            -DLANGGRAPH_CPP_WITH_NETWORK=ON
+
+      - name: Build
+        run: cmake --build build/${{ matrix.sanitizer }} --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build/${{ matrix.sanitizer }} --output-on-failure
+
+      - name: TSAN repeat stress
+        if: matrix.sanitizer == 'tsan'
+        run: |
+          ctest --test-dir build/${{ matrix.sanitizer }} \
+            -L tsan_repeat \
+            --repeat until-fail:20 \
+            --output-on-failure
+
+  linux-fuzzer-harnesses:
+    name: Linux clang libFuzzer harnesses
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            clang-18 \
+            libclang-rt-18-dev \
+            libssl-dev \
+            zlib1g-dev
+
+      - name: Configure
+        run: |
+          cmake -S . -B build/libfuzzer \
+            -G "Unix Makefiles" \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=clang-18 \
+            -DCMAKE_CXX_COMPILER=clang++-18 \
+            -DLANGGRAPH_CPP_BUILD_FUZZERS=ON \
+            -DLANGGRAPH_CPP_BUILD_TESTS=OFF \
+            -DLANGGRAPH_CPP_BUILD_EXAMPLES=OFF \
+            -DLANGGRAPH_CPP_WITH_SQLITE=ON \
+            -DLANGGRAPH_CPP_WITH_NETWORK=ON
+
+      - name: Build harnesses
+        run: cmake --build build/libfuzzer --parallel 2
+
+      - name: Smoke harnesses
+        run: |
+          for harness in \
+            langgraph_cpp_json_schema_fuzzer \
+            langgraph_cpp_state_reducer_fuzzer \
+            langgraph_cpp_checkpoint_codec_fuzzer \
+            langgraph_cpp_content_envelope_fuzzer \
+            langgraph_cpp_sse_parser_fuzzer \
+            langgraph_cpp_message_tool_json_fuzzer \
+            langgraph_cpp_graph_namespace_fuzzer \
+            langgraph_cpp_run_config_fuzzer
+          do
+            "build/libfuzzer/fuzz/${harness}" -runs=32
+          done
+
+  python-langgraph-conformance:
+    name: Python LangGraph conformance
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            g++-14 \
+            gcc-14 \
+            libssl-dev \
+            zlib1g-dev \
+            python3 \
+            python3-venv \
+            python3-pip
+
+      - name: Install upstream LangGraph
+        run: |
+          python3 -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip langgraph
+
+      - name: Configure
+        run: |
+          cmake -S . -B build/python-conformance \
+            -G "Unix Makefiles" \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=gcc-14 \
+            -DCMAKE_CXX_COMPILER=g++-14 \
+            -DLANGGRAPH_CPP_BUILD_TESTS=ON \
+            -DLANGGRAPH_CPP_BUILD_EXAMPLES=OFF \
+            -DLANGGRAPH_CPP_ENABLE_PYTHON_LANGGRAPH_CONFORMANCE=ON \
+            -DPython3_EXECUTABLE="$PWD/.venv/bin/python" \
+            -DLANGGRAPH_CPP_WITH_SQLITE=ON \
+            -DLANGGRAPH_CPP_WITH_NETWORK=ON
+
+      - name: Build conformance probe
+        run: cmake --build build/python-conformance --target langgraph_cpp_langgraph_conformance_probe --parallel 2
+
+      - name: Run conformance
+        run: |
+          ctest --test-dir build/python-conformance \
+            -L langgraph_conformance \
+            --output-on-failure
+
+  clang-tidy:
+    name: clang-tidy
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            clang-18 \
+            clang-tidy-18 \
+            libssl-dev \
+            zlib1g-dev
+
+      - name: Configure
+        run: |
+          cmake -S . -B build/clang-tidy \
+            -G "Unix Makefiles" \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=clang-18 \
+            -DCMAKE_CXX_COMPILER=clang++-18 \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DLANGGRAPH_CPP_BUILD_TESTS=ON \
+            -DLANGGRAPH_CPP_BUILD_EXAMPLES=ON \
+            -DLANGGRAPH_CPP_WITH_SQLITE=ON \
+            -DLANGGRAPH_CPP_WITH_NETWORK=ON
+
+      - name: clang-tidy
+        run: |
+          run-clang-tidy-18 \
+            -p build/clang-tidy \
+            -clang-tidy-binary clang-tidy-18 \
+            "-checks=clang-diagnostic-*,clang-analyzer-*,-clang-analyzer-optin.core.EnumCastOutOfRange,-clang-diagnostic-missing-designated-field-initializers,-clang-analyzer-unix.BlockInCriticalSection" \
+            "^(?!.*third_party).*" \
+            -quiet
+
+  macos-smoke:
+    name: macOS AppleClang smoke
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure
+        run: cmake --preset unix-debug
+
+      - name: Build
+        run: cmake --build --preset unix-debug --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build/unix-debug --output-on-failure

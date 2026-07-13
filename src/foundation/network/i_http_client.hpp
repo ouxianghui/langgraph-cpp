@@ -2,49 +2,48 @@
 
 #include "foundation/network/http_client_types.hpp"
 
-#include <chrono>
 #include <memory>
-#include <string>
 
 namespace lc {
 
-class IOAuth2TokenProvider;
+class IAuthorizationProvider;
 
-/// Abstract asynchronous HTTP(S) client with optional bearer token lifecycle.
+/// Minimal HTTP(S) client abstraction for cloud LLM APIs and local services.
 ///
-/// `request` returns immediately; `HttpAsyncCallback` receives `std::shared_ptr<HttpCallResult>`
-/// on an internal worker thread after the transport call completes (do not block inside the callback).
-/// Exceptions thrown from the callback are caught and discarded so the worker thread keeps running.
-///
-/// `requestSpec` must be non-null; if null, the completion callback receives `HttpClientErr::Unknown`
-/// synchronously. The client keeps the `shared_ptr` until the request finishes so the payload stays
-/// valid while queued.
-///
-/// When `HttpClientConfig::maxPendingRequests_` is non-zero and the queue is full, the completion
-/// callback receives `HttpClientErr::QueueFull` synchronously before returning from `request`.
-///
-/// When `monitorLastReadIdle_` and/or `monitorLastWriteIdle_` are set, pooled connections may be
-/// closed when idle budgets are exceeded; failures may map to `HttpClientErr::Timeout` where
-/// distinguishable.
-///
-/// For HTTPS, `HttpClientConfig::tlsParams_` carries TLS minimum version, peer verification, and
-/// optional CA bundle / CApath (shared with `WebsocketClientConfig::tlsParams_`).
-///
-/// OAuth2 tokens and hooks live on **`oauth2TokenProvider()`** (`apply`, `onRenew`, `gate`, etc.).
-/// Inject a custom provider via **`HttpClient(config, shared_ptr<IOAuth2TokenProvider>)`** (no runtime
-/// setter: swapping providers while the worker is running is unsafe without draining the queue).
-/// When the renew window is reached, dispatch pauses until updated credentials clear deferral.
+/// The synchronous and asynchronous APIs share the same request/response/error model:
+/// `Result<HttpResponse>`. Transport failures, timeouts, queue pressure, and lifecycle errors are
+/// returned as `Status`; HTTP 4xx/5xx responses are valid `HttpResponse` values so callers can decide
+/// how to handle provider-specific error bodies.
 class IHttpClient {
 public:
     virtual ~IHttpClient() = default;
 
-    virtual void request(std::shared_ptr<HttpRequestSpec> requestSpec, HttpAsyncCallback callback) = 0;
+    [[nodiscard]] virtual HttpResult send(HttpRequest request) = 0;
 
-    /// Shared credential supplier used for Bearer injection and proactive-renew handling. Never null for a
-    /// live `HttpClient`; may be null after `shutdown`.
-    [[nodiscard]] virtual std::shared_ptr<IOAuth2TokenProvider> oauth2TokenProvider() const = 0;
+    [[nodiscard]] virtual Status sendAsync(HttpRequest request, HttpCallback callback) = 0;
 
-    virtual void shutdown() noexcept = 0;
+    /// Streams response body chunks to `callback` and returns response status/headers when the
+    /// stream ends. The returned `HttpResponse::body_` is intentionally empty. Streaming requests
+    /// use a dedicated long-lived connection and are not transparently retried after bytes arrive.
+    [[nodiscard]] virtual HttpResult sendStreaming(
+        HttpRequest request,
+        HttpBodyChunkCallback callback,
+        HttpStreamOptions options = {})
+        = 0;
+
+    /// Parses a `text/event-stream` response and invokes `callback` for each SSE event. SSE uses
+    /// the same dedicated streaming connection semantics as `sendStreaming`.
+    [[nodiscard]] virtual HttpResult sendSse(
+        HttpRequest request,
+        ServerSentEventCallback callback,
+        HttpStreamOptions options = {})
+        = 0;
+
+    [[nodiscard]] virtual std::shared_ptr<IAuthorizationProvider> authorizationProvider() const = 0;
+
+    [[nodiscard]] virtual Status close() = 0;
+    
+    [[nodiscard]] virtual bool isClosed() const noexcept = 0;
 };
 
 } // namespace lc

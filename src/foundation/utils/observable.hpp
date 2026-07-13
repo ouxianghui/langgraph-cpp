@@ -55,10 +55,10 @@ struct NotificationOptions {
 class ObserverToken {
 public:
     ObserverToken()
-        : id(nextId.fetch_add(1, std::memory_order_relaxed))
+        : id_(nextId.fetch_add(1, std::memory_order_relaxed))
     {
-        if (id == 0) {
-            id = nextId.fetch_add(1, std::memory_order_relaxed);
+        if (id_ == 0) {
+            id_ = nextId.fetch_add(1, std::memory_order_relaxed);
         }
     }
 
@@ -67,12 +67,12 @@ public:
     ObserverToken(ObserverToken&&) = default;
     ObserverToken& operator=(ObserverToken&&) = default;
 
-    bool operator==(const ObserverToken& other) const { return id == other.id; }
+    bool operator==(const ObserverToken& other) const { return id_ == other.id_; }
 
-    [[nodiscard]] std::size_t getId() const { return id; }
+    [[nodiscard]] std::size_t id() const { return id_; }
 
 private:
-    std::size_t id;
+    std::size_t id_;
     static std::atomic<std::size_t> nextId;
 };
 
@@ -89,7 +89,10 @@ public:
     using CallbackType = std::function<void(const ObserverPtr&)>;
     using PredicateType = std::function<bool(const ObserverPtr&)>;
 
-    Observable() = default;
+    explicit Observable(std::shared_ptr<ILogger> logger = Logger::defaultLogger())
+        : logger_(std::move(logger))
+    {
+    }
 
     Observable(const Observable&) = delete;
     Observable& operator=(const Observable&) = delete;
@@ -108,7 +111,7 @@ public:
         }
         std::unique_lock<std::shared_mutex> lock(mutex_);
         if (!contains_(observer)) {
-            StrongSlot sref { observer, deliveryThread, priority, token ? token->getId() : 0 };
+            StrongSlot sref { observer, deliveryThread, priority, token ? token->id() : 0 };
             insertByPriority_(sref);
         }
     }
@@ -127,7 +130,7 @@ public:
         }
         std::unique_lock<std::shared_mutex> lock(mutex_);
         if (!contains_(observer)) {
-            WeakSlot wref { observer, deliveryThread, priority, token ? token->getId() : 0 };
+            WeakSlot wref { observer, deliveryThread, priority, token ? token->id() : 0 };
             insertByPriority_(wref);
         }
     }
@@ -152,7 +155,7 @@ public:
             } else if (val.type() == typeid(StrongSlot)) {
                 tokenId = std::any_cast<StrongSlot>(val).tokenId;
             }
-            return tokenId == token.getId();
+            return tokenId == token.id();
         });
         return sizeBefore > observers_.size();
     }
@@ -283,9 +286,13 @@ public:
         }
     }
 
-    void setDebug(bool enable) { debug_ = enable; }
+    void setDebug(bool enabled) { debug_ = enabled; }
 
-    [[nodiscard]] bool isDebugEnabled() const { return debug_; }
+    [[nodiscard]] bool debug() const { return debug_; }
+
+    void setLogger(std::shared_ptr<ILogger> value) { logger_ = std::move(value); }
+
+    [[nodiscard]] std::shared_ptr<ILogger> logger() const { return logger_; }
 
     [[nodiscard]] std::string describeObservers() const
     {
@@ -322,19 +329,19 @@ public:
         return ss.str();
     }
 
-    [[nodiscard]] std::size_t sweepExpiredWeakRefs()
+    [[nodiscard]] std::size_t sweepExpiredWeakObservers()
     {
         std::unique_lock<std::shared_mutex> lock(mutex_);
         return eraseExpiredWeakSlots_();
     }
 
-    void safeShutdown()
+    void close()
     {
         clearObservers();
-        logTrace_("Observable safeShutdown: observers cleared");
+        logTrace_("Observable close: observers cleared");
     }
 
-    [[nodiscard]] bool hasExpiredWeakRefs() const
+    [[nodiscard]] bool hasExpiredWeakObservers() const
     {
         std::shared_lock<std::shared_mutex> lock(mutex_);
         for (const auto& ref : observers_) {
@@ -348,12 +355,7 @@ public:
         return false;
     }
 
-    void reserveCapacity(std::size_t) const
-    {
-        // std::list has no reserve; hook kept for API compatibility.
-    }
-
-    [[nodiscard]] std::string getStatistics() const
+    [[nodiscard]] std::string statistics() const
     {
         const std::size_t n = observerCount();
         std::ostringstream ss;
@@ -469,7 +471,7 @@ protected:
             run();
             return;
         }
-        if (deliveryThread->isExecutorThread()) {
+        if (deliveryThread->isCurrentThread()) {
             run();
             return;
         }
@@ -485,7 +487,14 @@ protected:
             : [this](const std::exception& ex, const std::string& context) {
                   if (debug_) {
                       try {
-                          BW_LOG_DEBUG(kObservableLog, "notify error: {} ({})", ex.what(), context);
+                          logTo(logger_,
+                              LogLevel::Debug,
+                              kObservableLog,
+                              "notify error: {} ({})",
+                              __FILE__,
+                              __LINE__,
+                              ex.what(),
+                              context);
                       } catch (...) {
                       }
                   }
@@ -554,7 +563,13 @@ protected:
         }
         if (debug_ && notified > 0) {
             try {
-                BW_LOG_DEBUG(kObservableLog, "notified {} observer(s)", notified);
+                logTo(logger_,
+                    LogLevel::Debug,
+                    kObservableLog,
+                    "notified {} observer(s)",
+                    __FILE__,
+                    __LINE__,
+                    notified);
             } catch (...) {
             }
         }
@@ -566,7 +581,7 @@ protected:
             return;
         }
         try {
-            BW_LOG_DEBUG(kObservableLog, "{}", message);
+            logTo(logger_, LogLevel::Debug, kObservableLog, "{}", __FILE__, __LINE__, message);
         } catch (...) {
         }
     }
@@ -588,6 +603,7 @@ private:
 
     mutable std::shared_mutex mutex_;
     std::list<std::any> observers_;
+    std::shared_ptr<ILogger> logger_;
     bool debug_ = false;
 };
 

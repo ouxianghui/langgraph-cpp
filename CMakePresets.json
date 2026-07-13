@@ -1,0 +1,194 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 24,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "23",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+        "CMAKE_CXX_EXTENSIONS": "OFF",
+        "LANGGRAPH_CPP_BUILD_TESTS": "ON",
+        "LANGGRAPH_CPP_BUILD_EXAMPLES": "ON",
+        "LANGGRAPH_CPP_WITH_NETWORK": "ON"
+      }
+    },
+    {
+      "name": "unix-debug",
+      "displayName": "Unix Debug",
+      "inherits": "base",
+      "condition": {
+        "type": "anyOf",
+        "conditions": [
+          {
+            "type": "equals",
+            "lhs": "${hostSystemName}",
+            "rhs": "Linux"
+          },
+          {
+            "type": "equals",
+            "lhs": "${hostSystemName}",
+            "rhs": "Darwin"
+          }
+        ]
+      },
+      "generator": "Unix Makefiles",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "unix-release",
+      "displayName": "Unix Release",
+      "inherits": "unix-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "unix-debug-conformance",
+      "displayName": "Unix Debug + Python LangGraph Conformance",
+      "inherits": "unix-debug",
+      "cacheVariables": {
+        "LANGGRAPH_CPP_ENABLE_PYTHON_LANGGRAPH_CONFORMANCE": "ON"
+      }
+    },
+    {
+      "name": "unix-fuzz",
+      "displayName": "Unix libFuzzer Harnesses",
+      "inherits": "unix-debug",
+      "cacheVariables": {
+        "LANGGRAPH_CPP_BUILD_FUZZERS": "ON",
+        "LANGGRAPH_CPP_BUILD_TESTS": "OFF",
+        "LANGGRAPH_CPP_BUILD_EXAMPLES": "OFF"
+      }
+    },
+    {
+      "name": "xcode",
+      "displayName": "Xcode",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "generator": "Xcode",
+      "cacheVariables": {
+        "CMAKE_XCODE_GENERATE_SCHEME": "ON",
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo",
+        "CMAKE_OSX_SYSROOT": "macosx",
+        "CMAKE_XCODE_ATTRIBUTE_SYMROOT": "${sourceDir}/build/xcode-products",
+        "CMAKE_XCODE_ATTRIBUTE_OBJROOT": "${sourceDir}/build/xcode-objects",
+        "CMAKE_XCODE_ATTRIBUTE_DERIVED_FILE_DIR": "${sourceDir}/build/xcode-derived-files",
+        "CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED": "NO",
+        "CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED": "NO",
+        "CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY": "",
+        "CMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT": "dwarf",
+        "CMAKE_XCODE_ATTRIBUTE_ENABLE_TESTABILITY": "YES",
+        "CMAKE_XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS": "YES",
+        "CMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH": "YES"
+      }
+    },
+    {
+      "name": "windows-msvc",
+      "displayName": "Windows MSVC",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64"
+    },
+    {
+      "name": "windows-ninja",
+      "displayName": "Windows Ninja",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "unix-debug",
+      "configurePreset": "unix-debug"
+    },
+    {
+      "name": "unix-release",
+      "configurePreset": "unix-release"
+    },
+    {
+      "name": "unix-debug-conformance",
+      "configurePreset": "unix-debug-conformance"
+    },
+    {
+      "name": "unix-fuzz",
+      "configurePreset": "unix-fuzz"
+    },
+    {
+      "name": "xcode-debug",
+      "configurePreset": "xcode",
+      "configuration": "Debug"
+    },
+    {
+      "name": "xcode-release",
+      "configurePreset": "xcode",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-msvc",
+      "configurePreset": "windows-msvc",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-ninja",
+      "configurePreset": "windows-ninja"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "unix-debug",
+      "configurePreset": "unix-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "unix-debug-conformance",
+      "configurePreset": "unix-debug-conformance",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-msvc",
+      "configurePreset": "windows-msvc",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "xcode-debug",
+      "configurePreset": "xcode",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

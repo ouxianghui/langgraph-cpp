@@ -1,5 +1,7 @@
 #pragma once
 
+#include "foundation/status/status.hpp"
+
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -8,6 +10,12 @@
 #include <source_location>
 
 namespace lc {
+
+/// Internal substrate for concurrent executor implementations.
+///
+/// Runtime and graph code should use `IExecutor` / `ConcurrentExecutor`. `IThreadPool` remains a
+/// low-level worker-pool contract for adapters, tests, and components that explicitly need pool
+/// ownership.
 
 /// Relaxed counters for logs / metrics (not synchronized with each other as a single snapshot).
 struct ThreadPoolStats {
@@ -27,9 +35,9 @@ struct ThreadPoolStats {
 /// choose their own scheduling backend.
 ///
 /// **Contracts**
-/// - `submit` is thread-safe. After `shutdown(timeout)`, `submit` returns `false` and does not run the task.
-/// - `shutdown(timeout)`: calling from a task on the same pool uses a deferred
-///   `thread_pool::join()` on a helper thread (best-effort). Destroying `ThreadPool` from a pool
+/// - `submit` is thread-safe. After `shutdown(timeout)`, `submit` returns `FailedPrecondition` and does not run the task.
+/// - `shutdown(timeout)`: calling from a task on the same pool uses deferred worker joining on a
+///   helper thread (best-effort). Destroying `ThreadPool` from a pool
 ///   worker schedules full teardown on a separate thread so the destructor can return without
 ///   joining the pool on the worker stack; do not use the `ThreadPool*` after `delete` returns.
 /// - `waitIdle(timeout)`: must not be called from a pool worker thread (deadlock guard:
@@ -47,23 +55,26 @@ protected:
     IThreadPool() = default;
 
 public:
-    /// Enqueue `task` on a pool thread. Returns `false` if the pool is not accepting work or the
-    /// bounded queue is full (implementation-defined backpressure).
+    /// Enqueue `task` on a pool thread. Returns an error if the pool is not accepting work or the
+    /// bounded queue is full.
     /// \param from Call site for tracing (defaults to `std::source_location::current()`).
-    [[nodiscard]] virtual bool submit(std::function<void()> task,
+    [[nodiscard]] virtual Status submit(std::function<void()> task,
         std::source_location from = std::source_location::current()) = 0;
 
     /// Block until all work that was successfully `submit`ted has finished executing, or until `timeout`.
-    /// Returns `false` on timeout or when called from a worker thread of this pool (guard).
-    [[nodiscard]] virtual bool waitIdle(std::chrono::steady_clock::duration timeout) = 0;
+    /// Returns `DeadlineExceeded` on timeout or `FailedPrecondition` when called from a worker thread.
+    [[nodiscard]] virtual Status waitIdle(std::chrono::steady_clock::duration timeout) = 0;
 
     /// Stop accepting new work, wait up to `waitIdleTimeout` for in-flight `submit` work, then join
-    /// threads. Returns `false` if the idle wait timed out or
+    /// threads. Returns `DeadlineExceeded` if the idle wait timed out or `FailedPrecondition` if
     /// shutdown was initiated from a worker thread (deferred join). Join itself may still block
     /// until the implementation finishes tearing down workers.
-    [[nodiscard]] virtual bool shutdown(std::chrono::steady_clock::duration waitIdleTimeout) noexcept = 0;
+    [[nodiscard]] virtual Status shutdown(std::chrono::steady_clock::duration waitIdleTimeout) = 0;
 
     [[nodiscard]] virtual bool isRunning() const noexcept = 0;
+
+    /// True when the current thread is executing a task submitted to this pool.
+    [[nodiscard]] virtual bool isWorkerThread() const noexcept = 0;
 
     [[nodiscard]] virtual std::size_t threadCount() const noexcept = 0;
 
