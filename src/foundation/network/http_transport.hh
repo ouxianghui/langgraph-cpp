@@ -6,6 +6,7 @@
 
 #include <httplib.h>
 
+#include <chrono>
 #include <cstddef>
 #include <string>
 
@@ -45,5 +46,10 @@ namespace lc::http_client_detail {
     const HttpRequest& request,
     const HttpStreamOptions& options);
 void configureClient(httplib::Client& client, const HttpClientConfig& cfg);
+void configureClientTimeouts(
+    httplib::Client& client,
+    std::chrono::milliseconds connectTimeout,
+    std::chrono::milliseconds readTimeout,
+    std::chrono::milliseconds writeTimeout);
 
 } // namespace lc::http_client_detail

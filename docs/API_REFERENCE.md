@@ -153,6 +153,7 @@
 常用 foundation 类型通过公共聚合头可达：
 
 - cancellation：`CancellationToken`
+- HTTP：`IHttpClient`、`HttpClientConfig`、`HttpRequest`、`HttpRequestOptions`
 - executor：`InlineExecutor`、`ConcurrentExecutor`
 - event：`RuntimeEvent`
 - JSON schema：`JsonSchema`

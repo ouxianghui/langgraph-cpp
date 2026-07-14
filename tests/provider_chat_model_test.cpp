@@ -2,6 +2,7 @@
 #include "langgraph/model/provider_chat_model.hpp"
 
 #include <cassert>
+#include <chrono>
 #include <memory>
 #include <optional>
 #include <string>
@@ -9,6 +10,8 @@
 #include <vector>
 
 namespace {
+
+using namespace std::chrono_literals;
 
 class FakeHttpClient final : public lc::IHttpClient {
 public:
@@ -18,40 +21,51 @@ public:
     };
     std::vector<lc::ServerSentEvent> events_;
     lc::HttpRequest lastRequest_;
+    lc::HttpRequestOptions lastOptions_;
     int sendCalls_ { 0 };
     int streamCalls_ { 0 };
     bool closed_ { false };
 
-    [[nodiscard]] lc::HttpResult send(lc::HttpRequest request) override
+    [[nodiscard]] lc::HttpResult send(
+        lc::HttpRequest request,
+        lc::HttpRequestOptions options) override
     {
         ++sendCalls_;
         lastRequest_ = std::move(request);
+        lastOptions_ = std::move(options);
         return response_;
     }
 
-    [[nodiscard]] lc::Status sendAsync(lc::HttpRequest request, lc::HttpCallback callback) override
+    [[nodiscard]] lc::Status sendAsync(
+        lc::HttpRequest request,
+        lc::HttpRequestOptions options,
+        lc::HttpCallback callback) override
     {
-        auto response = send(std::move(request));
+        auto response = send(std::move(request), std::move(options));
         callback(std::move(response));
         return lc::Status::ok();
     }
 
     [[nodiscard]] lc::HttpResult sendStreaming(
         lc::HttpRequest request,
+        lc::HttpRequestOptions options,
         lc::HttpBodyChunkCallback,
         lc::HttpStreamOptions = {}) override
     {
         lastRequest_ = std::move(request);
+        lastOptions_ = std::move(options);
         return response_;
     }
 
     [[nodiscard]] lc::HttpResult sendSse(
         lc::HttpRequest request,
+        lc::HttpRequestOptions options,
         lc::ServerSentEventCallback callback,
         lc::HttpStreamOptions = {}) override
     {
         ++streamCalls_;
         lastRequest_ = std::move(request);
+        lastOptions_ = std::move(options);
         for (const auto& event : events_) {
             auto status = callback(event);
             if (!status.isOk())
@@ -92,6 +106,12 @@ void testOpenAICompatibleInvokeTrimsPrompt()
 
     auto options = lc::ProviderChatModelOptions::openAICompatible(http, "edge-model", "secret-token");
     options.prompt_.maxMessages_ = 2;
+    options.requestOptions_.timeout_ = 150ms;
+    options.requestOptions_.retryPolicy_ = lc::HttpRetryPolicy {
+        .maxRetries_ = 2,
+        .delay_ = 5ms,
+        .statusCodes_ = { 429, 503 },
+    };
     options.extraRequestFields_ = { { "temperature", 0.2 } };
     lc::ProviderChatModel model(std::move(options));
 
@@ -104,6 +124,9 @@ void testOpenAICompatibleInvokeTrimsPrompt()
     assert(response->content_ == "trimmed");
     assert(http->sendCalls_ == 1);
     assert(http->lastRequest_.pathAndQuery_ == "/v1/chat/completions");
+    assert(http->lastOptions_.timeout_ == 150ms);
+    assert(http->lastOptions_.retryPolicy_.has_value());
+    assert(http->lastOptions_.retryPolicy_->maxRetries_ == 2);
     assert(headerValue(http->lastRequest_, "authorization") == "Bearer secret-token");
 
     auto body = nlohmann::json::parse(http->lastRequest_.body_);

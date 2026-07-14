@@ -18,15 +18,23 @@ class IHttpClient {
 public:
     virtual ~IHttpClient() = default;
 
-    [[nodiscard]] virtual HttpResult send(HttpRequest request) = 0;
+    [[nodiscard]] virtual HttpResult send(
+        HttpRequest request,
+        HttpRequestOptions options)
+        = 0;
 
-    [[nodiscard]] virtual Status sendAsync(HttpRequest request, HttpCallback callback) = 0;
+    [[nodiscard]] virtual Status sendAsync(
+        HttpRequest request,
+        HttpRequestOptions options,
+        HttpCallback callback)
+        = 0;
 
     /// Streams response body chunks to `callback` and returns response status/headers when the
     /// stream ends. The returned `HttpResponse::body_` is intentionally empty. Streaming requests
     /// use a dedicated long-lived connection and are not transparently retried after bytes arrive.
     [[nodiscard]] virtual HttpResult sendStreaming(
         HttpRequest request,
+        HttpRequestOptions requestOptions,
         HttpBodyChunkCallback callback,
         HttpStreamOptions options = {})
         = 0;
@@ -35,6 +43,7 @@ public:
     /// the same dedicated streaming connection semantics as `sendStreaming`.
     [[nodiscard]] virtual HttpResult sendSse(
         HttpRequest request,
+        HttpRequestOptions requestOptions,
         ServerSentEventCallback callback,
         HttpStreamOptions options = {})
         = 0;

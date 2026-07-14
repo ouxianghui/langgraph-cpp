@@ -765,7 +765,7 @@ Result<BaseMessage> ProviderChatModel::invoke(const std::vector<BaseMessage>& me
     if (!request.isOk())
         return request.status();
 
-    auto response = options_.httpClient_->send(std::move(*request));
+    auto response = options_.httpClient_->send(std::move(*request), options_.requestOptions_);
     if (!response.isOk())
         return response.status();
     return parseResponse(*response);
@@ -791,6 +791,7 @@ Result<BaseMessage> ProviderChatModel::stream(
     Status callbackStatus = Status::ok();
     auto response = options_.httpClient_->sendSse(
         std::move(*request),
+        options_.requestOptions_,
         [&](const ServerSentEvent& event) -> Status {
             if (event.data_ == "[DONE]")
                 return Status::ok();

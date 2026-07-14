@@ -251,15 +251,7 @@ void configureClient(httplib::Client& client, const HttpClientConfig& cfg)
         client.set_payload_max_length(cfg.maxResponseBodyBytes_);
     }
 
-    if (cfg.connectTimeout_ > std::chrono::milliseconds::zero()) {
-        client.set_connection_timeout(cfg.connectTimeout_);
-    }
-    if (cfg.readTimeout_ > std::chrono::milliseconds::zero()) {
-        client.set_read_timeout(cfg.readTimeout_);
-    }
-    if (cfg.writeTimeout_ > std::chrono::milliseconds::zero()) {
-        client.set_write_timeout(cfg.writeTimeout_);
-    }
+    configureClientTimeouts(client, cfg.connectTimeout_, cfg.readTimeout_, cfg.writeTimeout_);
 
 #ifdef CPPHTTPLIB_SSL_ENABLED
     if (cfg.useTls_) {
@@ -281,6 +273,28 @@ void configureClient(httplib::Client& client, const HttpClientConfig& cfg)
 #else
     (void)cfg;
 #endif
+}
+
+void configureClientTimeouts(
+    httplib::Client& client,
+    std::chrono::milliseconds connectTimeout,
+    std::chrono::milliseconds readTimeout,
+    std::chrono::milliseconds writeTimeout)
+{
+    if (connectTimeout > std::chrono::milliseconds::zero())
+        client.set_connection_timeout(connectTimeout);
+    else
+        client.set_connection_timeout(CPPHTTPLIB_CONNECTION_TIMEOUT_SECOND, CPPHTTPLIB_CONNECTION_TIMEOUT_USECOND);
+
+    if (readTimeout > std::chrono::milliseconds::zero())
+        client.set_read_timeout(readTimeout);
+    else
+        client.set_read_timeout(CPPHTTPLIB_CLIENT_READ_TIMEOUT_SECOND, CPPHTTPLIB_CLIENT_READ_TIMEOUT_USECOND);
+
+    if (writeTimeout > std::chrono::milliseconds::zero())
+        client.set_write_timeout(writeTimeout);
+    else
+        client.set_write_timeout(CPPHTTPLIB_CLIENT_WRITE_TIMEOUT_SECOND, CPPHTTPLIB_CLIENT_WRITE_TIMEOUT_USECOND);
 }
 
 } // namespace lc::http_client_detail

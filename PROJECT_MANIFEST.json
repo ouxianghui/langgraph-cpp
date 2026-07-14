@@ -11,7 +11,7 @@
     "official_upstream_port": false
   },
   "contracts": {
-    "api_contract_version": 23,
+    "api_contract_version": 24,
     "schema_contract_version": 1,
     "checkpoint_json_schema_version": 3,
     "content_envelope_version": 1,

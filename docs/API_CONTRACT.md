@@ -1,6 +1,6 @@
 # API 与 Schema 合同
 
-`langgraph-cpp` 用显式版本号跟踪 edge-runtime 的源码 API 合同和持久化 schema 合同。当前 API 合同版本是 `23`；持久化 schema 合同版本仍是 `1`。
+`langgraph-cpp` 用显式版本号跟踪 edge-runtime 的源码 API 合同和持久化 schema 合同。当前 API 合同版本是 `24`；持久化 schema 合同版本仍是 `1`。
 
 这是源码兼容和数据兼容承诺，不是 ABI 承诺。跨版本升级时，调用方仍应预期需要重新从源码构建。`1.0` 前可以演进，但不能含糊：破坏性变更必须提升合同版本、删除旧接口、同步测试和文档。
 
@@ -12,9 +12,18 @@
 - checkpointer、store、message、model、tool 和 edge adapter 接口；
 - runtime surface 必需的 foundation 值类型和服务接口，例如 `Status`、`Result<T>`、storage、serialization、resource limits、cancellation、executor 和 event 类型。
 
-在 API 合同版本 `23` 内，变更应尽量保持 additive 和源码兼容。删除公共名称、改变必填字段、改变默认 runtime 语义，或改变可恢复错误码，都需要显式提升 API 合同版本。
+在 API 合同版本 `24` 内，变更应尽量保持 additive 和源码兼容。删除公共名称、改变必填字段、改变默认 runtime 语义，或改变可恢复错误码，都需要显式提升 API 合同版本。
 
-## 2. API 合同版本 `23`
+## 2. API 合同版本 `24`
+
+版本 `24` 将 HTTP request 执行策略从隐式 client-only 配置改为显式 per-request contract。
+
+- 新增 `HttpRequestOptions`，用于表达 request-level `timeout_`、`deadline_` 和 buffered request `retryPolicy_` override。
+- `IHttpClient::send()`、`sendAsync()`、`sendStreaming()` 和 `sendSse()` 均要求调用方显式传入 `HttpRequestOptions`；旧的无 options 方法签名已移除。
+- `HttpClientConfig` 仍提供默认 connect/read/write timeout 和 retry policy；单次请求的 options 会覆盖 retry policy，并用 timeout/deadline 截断连接池等待、retry delay 和底层 transport timeout。
+- `ProviderChatModelOptions` 新增 `requestOptions_`，provider invoke/stream 会把 request budget 传入注入的 `IHttpClient`。
+
+## 3. API 合同版本 `23`
 
 版本 `23` 进一步简化 request-auth API。
 
@@ -25,10 +34,12 @@
 
 版本 `23` 还规定：历史 `CompiledStateGraph::replay()` 如果写入新 checkpoint，新 checkpoint 会接在该 thread 和 checkpoint namespace 当前 latest step 之后。这保留 time-travel 历史，同时让 replay 后再次 interrupt 的分支可以继续通过普通 `resume(thread_id)` 路径恢复。
 
-## 3. 近期 API 合同变更摘要
+## 4. 近期 API 合同变更摘要
 
 | 版本 | 主题 | 当前合同 |
 | --- | --- | --- |
+| `24` | HTTP request options | `IHttpClient` 所有 request entrypoint 显式接收 `HttpRequestOptions`；旧无 options 签名移除。 |
+| `23` | OAuth request auth | `IAuthorizationProvider` 只负责 `authorize(HttpRequest&)`；可刷新凭证通过 `IRefreshableAuthorization` 暴露 readiness/refresh gate。 |
 | `22` | HTTP request auth | HTTP client 使用 provider-neutral `IAuthorizationProvider`；旧 `IOAuthTokenProvider` 和 `oauthTokenProvider()` 不再公开。 |
 | `21` | Store | `BaseStore::batch()` 是核心虚接口；`abatch()` 是 async facade；便捷方法包括 `put`、`get`、`search`、`deleteItem`、`listNamespaces`。 |
 | `20` | Stream / RunnableConfig / content blocks | stream projection 更接近 LangGraph v2/v3；新增 `StreamProtocolVersion`；message/model stream 支持 LangChain-style content blocks；`RunnableConfig` 保留 tags、metadata、callbacks 和任意 `configurable` 字段。 |
@@ -51,13 +62,13 @@
 | `3` | Checkpoint tuple | checkpoint reads 使用 `get(CheckpointQuery)` / `list(CheckpointListOptions)`，并返回 `CheckpointTuple`。 |
 | `2` | Builder alias cleanup | 旧 builder alias 集合被移除；版本 `8` 进一步明确 LangGraph-style builder API 是唯一公共 surface。 |
 
-## 4. 持久化 Schema 合同
+## 5. 持久化 Schema 合同
 
 持久化 schema 合同版本是 `1`。当前由测试保护的组件 schema 版本如下：
 
 | Schema | 当前版本 |
 | --- | ---: |
-| API contract | `23` |
+| API contract | `24` |
 | Schema contract | `1` |
 | Checkpoint JSON schema | `3` |
 | Content envelope | `1` |
@@ -65,7 +76,7 @@
 
 除非显式加入 forward-compatible migration，否则 reader 读到未来版本时必须返回 `StatusCode::Unimplemented`。历史版本只在各组件声明的最低支持版本范围内保持支持。
 
-## 5. 稳定性范围
+## 6. 稳定性范围
 
 | 范围 | 当前承诺 |
 | --- | --- |
@@ -75,7 +86,7 @@
 | 私有实现 | `.cpp`、内部 `.hh`、test helpers、未导出的 helper 不冻结。 |
 | Optional adapters | provider、hardware、llama.cpp、future backend adapters 的内部实现不冻结。 |
 
-## 6. 不冻结的内容
+## 7. 不冻结的内容
 
 - C++ ABI 和二进制布局。
 - 私有实现文件、内部 helper 函数和 `.hh` 内部头。
@@ -83,7 +94,7 @@
 - 可选 provider、hardware、llama.cpp adapter 的内部实现细节。
 - 性能特征，除非测试或文档明确声明了约束。
 
-## 7. 变更规则
+## 8. 变更规则
 
 - 新公共 API 优先 additive，不复活旧兼容别名。
 - 如果新名称落地，旧接口应删除，而不是长期双轨兼容。
@@ -119,7 +130,7 @@
 - 新 public API 使用一致的 camelCase 方法命名。
 - 旧接口移除后，不保留“为了兼容”的 duplicate method。
 
-## 8. 验证
+## 9. 验证
 
 默认验证不依赖 Python：
 

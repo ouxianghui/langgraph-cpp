@@ -101,7 +101,7 @@ The current contract is documented in
 [docs/API_CONTRACT.md](docs/API_CONTRACT.md). The guardrails are:
 
 - C++ source API reachable from `include/langgraph_cpp/langgraph.hpp` is
-  governed by API contract version `23`.
+  governed by API contract version `24`.
 - Persisted checkpoint/content/storage schemas are versioned and reject future
   versions by default.
 - ABI, private implementation details, and optional provider/hardware adapters

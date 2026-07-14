@@ -1,6 +1,7 @@
 #pragma once
 
 #include "foundation/status/result.hpp"
+#include "foundation/time/deadline.hpp"
 
 #include <chrono>
 #include <cstdint>
@@ -101,6 +102,18 @@ struct HttpRetryPolicy {
     std::size_t maxRetries_ { 0 };
     std::chrono::milliseconds delay_ { 200 };
     std::vector<int> statusCodes_ { 502, 503, 504 };
+
+    [[nodiscard]] Status validate() const;
+};
+
+struct HttpRequestOptions {
+    /// Optional whole-request budget. Converted to an absolute monotonic deadline when the request is
+    /// accepted, so async queue time counts against the same budget.
+    std::optional<Clock::Duration> timeout_;
+    Deadline deadline_ { Deadline::none() };
+    /// Buffered requests use this retry policy when set; streaming/SSE requests are not
+    /// transparently retried after bytes are requested.
+    std::optional<HttpRetryPolicy> retryPolicy_;
 
     [[nodiscard]] Status validate() const;
 };

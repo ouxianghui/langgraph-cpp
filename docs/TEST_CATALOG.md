@@ -41,7 +41,7 @@
 | `serialization_test.cpp` | state/checkpoint JSON codec。 |
 | `content_envelope_test.cpp` | envelope、checksum、compression/encryption wrapper behavior。 |
 | `json_schema_test.cpp` | JSON Schema builder/compile/validate/error path。 |
-| `http_client_test.cpp` | HTTP config、transport、auth、retry、SSE、stream、redaction-adjacent behavior。 |
+| `http_client_test.cpp` | HTTP config、transport、auth、per-request timeout/deadline/retry options、SSE、stream、redaction-adjacent behavior。 |
 | `redaction_test.cpp` | logger/event/trace/codec redaction。 |
 | `observability_test.cpp` | metrics、trace、event observation。 |
 | `event_test.cpp` | runtime event sink behavior。 |
@@ -109,4 +109,3 @@ ctest --test-dir build/unix-debug -R "graph|compat|checkpoint|store|crash|stream
 ```sh
 ctest --preset unix-debug-conformance -L langgraph_conformance
 ```
-

@@ -121,8 +121,8 @@
   `content_blocks`、多模态 text/image/audio/file/video block JSON 表达、OpenAI-compatible
   tool-call chunk delta，以及 Anthropic `tool_use` / `input_json_delta` streaming
   归一化为 `tool_call_chunk` content block。
-- Provider retry、rate-limit、circuit breaker、TLS、proxy 和 request auth 等策略由注入的
-  `IHttpClient` / `IAuthorizationProvider` 配置承接；厂商完整参数面、
+- Provider retry、per-request timeout/deadline、rate-limit、circuit breaker、TLS、proxy 和
+  request auth 等策略由注入的 `IHttpClient` / `IAuthorizationProvider` 配置承接；厂商完整参数面、
   provider-specific 非标准 content block、完整 reasoning/citation delta 细节和生产密钥/
   token 轮换策略仍属于后续扩展。
 

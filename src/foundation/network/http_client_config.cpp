@@ -156,6 +156,17 @@ Status HttpRetryPolicy::validate() const
     return retryPolicyFromHttp(*this).validate();
 }
 
+Status HttpRequestOptions::validate() const
+{
+    if (timeout_.has_value() && *timeout_ <= Clock::Duration::zero())
+        return Status::invalidArgument("HTTP request timeout must be positive");
+    if (retryPolicy_.has_value()) {
+        if (auto status = retryPolicy_->validate(); !status.isOk())
+            return status;
+    }
+    return Status::ok();
+}
+
 Status HttpLogOptions::validate() const
 {
     if (logBodies_ && maxBodyBytes_ == 0)

@@ -142,6 +142,7 @@ inline bool hasAuthorizationHeader(const HttpRequest& request)
 
 struct PendingJob {
     HttpRequest request;
+    HttpRequestOptions options;
     HttpCallback cb;
 };
 

@@ -4,6 +4,7 @@
 #include "foundation/network/authorization_provider.hpp"
 #include "foundation/network/http_client_common.hh"
 #include "foundation/network/http_observation.hh"
+#include "foundation/network/http_request_options.hh"
 #include "foundation/network/http_transport.hh"
 #include "foundation/rate_limit/circuit_breaker.hpp"
 #include "foundation/rate_limit/rate_limiter.hpp"
@@ -252,8 +253,11 @@ public:
         bool reusable_ { true };
     };
 
-    Result<ClientLease> acquireClient()
+    Result<ClientLease> acquireClient(const Deadline& deadline)
     {
+        if (auto status = requestDeadlineStatus(deadline, SteadyClock::instance()); !status.isOk())
+            return status;
+
         if (!cfg_.keepAlive_) {
             auto client = createClient();
             if (!client.isOk())
@@ -281,11 +285,23 @@ public:
         std::shared_ptr<httplib::Client> client;
         {
             std::unique_lock lock(poolMutex_);
-            poolCv_.wait(lock, [this] {
+            const auto ready = [this] {
                 return stop_.load()
                     || !idleClients_.empty()
                     || leasedClients_ < cfg_.connectionPoolSize_;
-            });
+            };
+            while (!ready()) {
+                if (auto status = requestDeadlineStatus(deadline, SteadyClock::instance()); !status.isOk())
+                    return status;
+                if (deadline.hasDeadline()) {
+                    const auto remaining = deadline.remaining(SteadyClock::instance());
+                    if (remaining <= Clock::Duration::zero())
+                        return Status::deadlineExceeded("HTTP request deadline exceeded");
+                    poolCv_.wait_for(lock, remaining, ready);
+                } else {
+                    poolCv_.wait(lock, ready);
+                }
+            }
 
             if (stop_.load())
                 return Status::cancelled("HTTP client is closing");
@@ -310,6 +326,25 @@ public:
         return ClientLease(std::move(client), [this](std::shared_ptr<httplib::Client> c, bool reusable) {
             releasePooledClient(std::move(c), reusable);
         });
+    }
+
+    void applyRequestTimeouts(httplib::Client& client, const Deadline& deadline) const
+    {
+        if (!deadline.hasDeadline()) {
+            configureClientTimeouts(
+                client,
+                cfg_.connectTimeout_,
+                cfg_.readTimeout_,
+                cfg_.writeTimeout_);
+            return;
+        }
+
+        const auto remaining = deadline.remaining(SteadyClock::instance());
+        configureClientTimeouts(
+            client,
+            capTimeout(cfg_.connectTimeout_, remaining),
+            capTimeout(cfg_.readTimeout_, remaining),
+            capTimeout(cfg_.writeTimeout_, remaining));
     }
 
     Result<std::shared_ptr<httplib::Client>> createClient()
@@ -348,12 +383,24 @@ public:
         poolCv_.notify_one();
     }
 
-    [[nodiscard]] bool waitBeforeRetry(Clock::Duration delay)
+    [[nodiscard]] Status waitBeforeRetry(Clock::Duration delay, const Deadline& deadline)
     {
+        if (stop_.load())
+            return Status::cancelled("HTTP client is closing");
+        if (auto status = requestDeadlineStatus(deadline, SteadyClock::instance()); !status.isOk())
+            return status;
         if (delay <= Clock::Duration::zero())
-            return !stop_.load();
+            return Status::ok();
+
+        auto wait = delay;
+        if (deadline.hasDeadline())
+            wait = std::min(wait, deadline.remaining(SteadyClock::instance()));
+
         std::unique_lock lock(mutex_);
-        return !workCv_.wait_for(lock, delay, [this] { return stop_.load(); });
+        workCv_.wait_for(lock, wait, [this] { return stop_.load(); });
+        if (stop_.load())
+            return Status::cancelled("HTTP client is closing");
+        return requestDeadlineStatus(deadline, SteadyClock::instance());
     }
 
     void drainStopped(std::unique_lock<std::mutex>& lk)
@@ -391,7 +438,7 @@ public:
 
     void dispatchOneJobUnlocked(PendingJob job)
     {
-        auto result = execute(job.request);
+        auto result = execute(job.request, std::move(job.options));
         if (!result.isOk()) {
             logTo(logger_,
                 LogLevel::Warn,
@@ -462,12 +509,16 @@ public:
         workerDoneCv_.notify_all();
     }
 
-    HttpResult execute(const HttpRequest& requestIn)
+    HttpResult execute(const HttpRequest& requestIn, HttpRequestOptions options)
     {
+        if (auto status = options.validate(); !status.isOk())
+            return status;
         if (!startupStatus_.isOk())
             return startupStatus_;
         if (stop_.load())
             return Status::cancelled("HTTP client is closing");
+        if (auto status = requestDeadlineStatus(options.deadline_, SteadyClock::instance()); !status.isOk())
+            return status;
 
         HttpRequest request = requestIn;
         if (auto status = validateRequest(request, cfg_.requestLimits_); !status.isOk())
@@ -503,7 +554,8 @@ public:
             return response;
         };
 
-        const auto retryPolicy = retryPolicyFromHttp(cfg_.retryPolicy_);
+        const auto effectiveRetryPolicy = options.retryPolicy_.value_or(cfg_.retryPolicy_);
+        const auto retryPolicy = retryPolicyFromHttp(effectiveRetryPolicy);
         const auto maxAttempts = retryPolicy.maxAttempts();
 
 #ifndef CPPHTTPLIB_SSL_ENABLED
@@ -515,6 +567,8 @@ public:
         for (std::uint32_t attempt = 1; attempt <= maxAttempts; ++attempt) {
             if (stop_.load())
                 return fail(Status::cancelled("HTTP client is closing"));
+            if (auto status = requestDeadlineStatus(options.deadline_, SteadyClock::instance()); !status.isOk())
+                return fail(status);
 
             if (cfg_.rateLimiter_) {
                 const auto rate = cfg_.rateLimiter_->acquire();
@@ -543,13 +597,16 @@ public:
                 formatHeadersForLog(hdr, cfg_.logOptions_, redactor_),
                 formatBodyForLog(request.body_, cfg_.logOptions_, redactor_));
 
-            auto leaseResult = acquireClient();
+            auto leaseResult = acquireClient(options.deadline_);
             if (!leaseResult.isOk())
                 return fail(leaseResult.status());
+            if (auto status = requestDeadlineStatus(options.deadline_, SteadyClock::instance()); !status.isOk())
+                return fail(status);
 
             httplib::Result r;
             {
                 auto lease = std::move(*leaseResult);
+                applyRequestTimeouts(lease.client(), options.deadline_);
                 r = performRequest(lease.client(), request.method_, path, hdr, request);
                 if (!r)
                     lease.discard();
@@ -581,8 +638,8 @@ public:
                     return fail(decision.status());
                 if (!decision->retry_)
                     return fail(status);
-                if (!waitBeforeRetry(decision->delay_))
-                    return fail(Status::cancelled("HTTP client is closing"));
+                if (auto status = waitBeforeRetry(decision->delay_, options.deadline_); !status.isOk())
+                    return fail(status);
                 continue;
             }
 
@@ -595,8 +652,8 @@ public:
                     return fail(decision.status());
                 if (!decision->retry_)
                     return fail(status);
-                if (!waitBeforeRetry(decision->delay_))
-                    return fail(Status::cancelled("HTTP client is closing"));
+                if (auto status = waitBeforeRetry(decision->delay_, options.deadline_); !status.isOk())
+                    return fail(status);
                 continue;
             }
 
@@ -615,7 +672,7 @@ public:
                     cfg_.circuitBreaker_->recordSuccess();
             }
 
-            if (!containsHttpRetryCode(cfg_.retryPolicy_, code))
+            if (!containsHttpRetryCode(effectiveRetryPolicy, code))
                 return finishResponse(std::move(response));
 
             const auto status = statusForHttpRetry(code);
@@ -624,25 +681,30 @@ public:
                 return fail(decision.status());
             if (!decision->retry_)
                 return finishResponse(std::move(response));
-            if (!waitBeforeRetry(decision->delay_))
-                return fail(Status::cancelled("HTTP client is closing"));
+            if (auto status = waitBeforeRetry(decision->delay_, options.deadline_); !status.isOk())
+                return fail(status);
         }
         return fail(Status::unknown("HTTP request did not complete"));
     }
 
     HttpResult executeStreaming(
         const HttpRequest& requestIn,
+        HttpRequestOptions requestOptions,
         HttpBodyChunkCallback callback,
-        HttpStreamOptions options)
+        HttpStreamOptions streamOptions)
     {
         if (!callback)
             return Status::invalidArgument("HTTP stream callback is required");
-        if (auto status = options.validate(); !status.isOk())
+        if (auto status = requestOptions.validate(); !status.isOk())
+            return status;
+        if (auto status = streamOptions.validate(); !status.isOk())
             return status;
         if (!startupStatus_.isOk())
             return startupStatus_;
         if (stop_.load())
             return Status::cancelled("HTTP client is closing");
+        if (auto status = requestDeadlineStatus(requestOptions.deadline_, SteadyClock::instance()); !status.isOk())
+            return status;
 
         HttpRequest request = requestIn;
         if (auto status = validateRequest(request, cfg_.requestLimits_); !status.isOk())
@@ -712,6 +774,13 @@ public:
             }
             return fail(Status::cancelled("HTTP client is closing"));
         }
+        if (auto status = requestDeadlineStatus(requestOptions.deadline_, SteadyClock::instance()); !status.isOk()) {
+            try {
+                client->stop();
+            } catch (...) {
+            }
+            return fail(status);
+        }
 
         const auto hdr = buildRequestHeaders(cfg_, request);
         logTo(logger_,
@@ -725,7 +794,8 @@ public:
             formatHeadersForLog(hdr, cfg_.logOptions_, redactor_),
             formatBodyForLog(request.body_, cfg_.logOptions_, redactor_));
 
-        auto stream = performStreamingRequest(*client, request.method_, path, hdr, request, options);
+        applyRequestTimeouts(*client, requestOptions.deadline_);
+        auto stream = performStreamingRequest(*client, request.method_, path, hdr, request, streamOptions);
         if (!stream) {
             const auto status = stop_.load()
                 ? Status::cancelled("HTTP request cancelled")
@@ -747,6 +817,11 @@ public:
         while (stream.next()) {
             if (stop_.load()) {
                 streamStatus = Status::cancelled("HTTP client is closing");
+                break;
+            }
+            if (auto status = requestDeadlineStatus(requestOptions.deadline_, SteadyClock::instance());
+                !status.isOk()) {
+                streamStatus = status;
                 break;
             }
 
@@ -874,7 +949,7 @@ bool HttpClient::isClosed() const noexcept
     return !impl_ || impl_->isClosed();
 }
 
-HttpResult HttpClient::send(HttpRequest request)
+HttpResult HttpClient::send(HttpRequest request, HttpRequestOptions options)
 {
     std::shared_ptr<Impl> impl;
     {
@@ -887,19 +962,24 @@ HttpResult HttpClient::send(HttpRequest request)
         return impl->startupStatus();
     if (impl->stop_.load())
         return Status::failedPrecondition("HttpClient is stopped");
+
+    auto normalizedOptions = normalizeRequestOptions(std::move(options), SteadyClock::instance());
+    if (!normalizedOptions.isOk())
+        return normalizedOptions.status();
 
     if (impl->authorizationGate().paused_) {
         impl->requestAuthorizationRefresh();
         return Status::unauthenticated("authorization renewal required before sending HTTP request");
     }
 
-    return impl->execute(request);
+    return impl->execute(request, std::move(*normalizedOptions));
 }
 
 HttpResult HttpClient::sendStreaming(
     HttpRequest request,
+    HttpRequestOptions requestOptions,
     HttpBodyChunkCallback callback,
-    HttpStreamOptions options)
+    HttpStreamOptions streamOptions)
 {
     std::shared_ptr<Impl> impl;
     {
@@ -913,18 +993,27 @@ HttpResult HttpClient::sendStreaming(
     if (impl->stop_.load())
         return Status::failedPrecondition("HttpClient is stopped");
 
+    auto normalizedOptions = normalizeRequestOptions(std::move(requestOptions), SteadyClock::instance());
+    if (!normalizedOptions.isOk())
+        return normalizedOptions.status();
+
     if (impl->authorizationGate().paused_) {
         impl->requestAuthorizationRefresh();
         return Status::unauthenticated("authorization renewal required before streaming HTTP request");
     }
 
-    return impl->executeStreaming(request, std::move(callback), options);
+    return impl->executeStreaming(
+        request,
+        std::move(*normalizedOptions),
+        std::move(callback),
+        streamOptions);
 }
 
 HttpResult HttpClient::sendSse(
     HttpRequest request,
+    HttpRequestOptions requestOptions,
     ServerSentEventCallback callback,
-    HttpStreamOptions options)
+    HttpStreamOptions streamOptions)
 {
     if (!callback)
         return Status::invalidArgument("SSE callback is required");
@@ -934,10 +1023,11 @@ HttpResult HttpClient::sendSse(
     SseParser parser;
     auto response = sendStreaming(
         std::move(request),
+        std::move(requestOptions),
         [&](std::string_view chunk) {
             return parser.feed(chunk, callback);
         },
-        options);
+        streamOptions);
     if (!response.isOk())
         return response;
 
@@ -946,7 +1036,7 @@ HttpResult HttpClient::sendSse(
     return response;
 }
 
-Status HttpClient::sendAsync(HttpRequest request, HttpCallback cb)
+Status HttpClient::sendAsync(HttpRequest request, HttpRequestOptions options, HttpCallback cb)
 {
     std::shared_ptr<Impl> impl;
     {
@@ -957,6 +1047,10 @@ Status HttpClient::sendAsync(HttpRequest request, HttpCallback cb)
         return Status::failedPrecondition("HttpClient is stopped");
     if (!impl->startupStatus().isOk())
         return impl->startupStatus();
+
+    auto normalizedOptions = normalizeRequestOptions(std::move(options), SteadyClock::instance());
+    if (!normalizedOptions.isOk())
+        return normalizedOptions.status();
 
     std::unique_lock<std::mutex> lk(impl->mutex_);
     if (impl->stop_.load())
@@ -977,6 +1071,7 @@ Status HttpClient::sendAsync(HttpRequest request, HttpCallback cb)
 
     PendingJob job;
     job.request = std::move(request);
+    job.options = std::move(*normalizedOptions);
     job.cb = std::move(cb);
     impl->queue_.push_back(std::move(job));
     impl->workCv_.notify_one();

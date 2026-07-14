@@ -173,12 +173,15 @@ private:
 
 class RejectingHttpClient final : public lc::IHttpClient {
 public:
-    [[nodiscard]] lc::HttpResult send(lc::HttpRequest) override
+    [[nodiscard]] lc::HttpResult send(lc::HttpRequest, lc::HttpRequestOptions) override
     {
         return lc::Status::unavailable("injected http transport failure");
     }
 
-    [[nodiscard]] lc::Status sendAsync(lc::HttpRequest, lc::HttpCallback callback) override
+    [[nodiscard]] lc::Status sendAsync(
+        lc::HttpRequest,
+        lc::HttpRequestOptions,
+        lc::HttpCallback callback) override
     {
         callback(lc::Status::unavailable("injected async http transport failure"));
         return lc::Status::unavailable("injected async http transport failure");
@@ -186,6 +189,7 @@ public:
 
     [[nodiscard]] lc::HttpResult sendStreaming(
         lc::HttpRequest,
+        lc::HttpRequestOptions,
         lc::HttpBodyChunkCallback,
         lc::HttpStreamOptions = {}) override
     {
@@ -194,6 +198,7 @@ public:
 
     [[nodiscard]] lc::HttpResult sendSse(
         lc::HttpRequest,
+        lc::HttpRequestOptions,
         lc::ServerSentEventCallback,
         lc::HttpStreamOptions = {}) override
     {

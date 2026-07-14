@@ -26,17 +26,24 @@ public:
 
     ~HttpClient() override;
 
-    [[nodiscard]] HttpResult send(HttpRequest request) override;
+    [[nodiscard]] HttpResult send(
+        HttpRequest request,
+        HttpRequestOptions options) override;
 
-    [[nodiscard]] Status sendAsync(HttpRequest request, HttpCallback callback) override;
+    [[nodiscard]] Status sendAsync(
+        HttpRequest request,
+        HttpRequestOptions options,
+        HttpCallback callback) override;
 
     [[nodiscard]] HttpResult sendStreaming(
         HttpRequest request,
+        HttpRequestOptions requestOptions,
         HttpBodyChunkCallback callback,
         HttpStreamOptions options = {}) override;
 
     [[nodiscard]] HttpResult sendSse(
         HttpRequest request,
+        HttpRequestOptions requestOptions,
         ServerSentEventCallback callback,
         HttpStreamOptions options = {}) override;
 

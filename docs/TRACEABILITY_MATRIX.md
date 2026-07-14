@@ -45,7 +45,7 @@
 | `src/langgraph/checkpoint` | saver contract、pending writes、history、maintenance。 | [PERSISTENCE_MODEL.md](PERSISTENCE_MODEL.md) | `checkpointer_test.cpp`、`crash_recovery_test.cpp` | `checkpoint_resume` |
 | `src/langgraph/store` | long-term memory。 | [PERSISTENCE_MODEL.md](PERSISTENCE_MODEL.md) | store-related tests | `long_term_memory_store` |
 | `src/langgraph/message/model/tool` | messages、model adapters、tool execution。 | [SECURITY_MODEL.md](SECURITY_MODEL.md) | `agent_loop_test.cpp`、`provider_chat_model_test.cpp` | `model_tool_model_loop` |
-| `src/foundation/network` | HTTP/SSE、request auth。 | [SECURITY_MODEL.md](SECURITY_MODEL.md) | `http_client_test.cpp` | provider model tests |
+| `src/foundation/network` | HTTP/SSE、request auth、per-request budget/retry options。 | [SECURITY_MODEL.md](SECURITY_MODEL.md)、[API_CONTRACT.md](API_CONTRACT.md) | `http_client_test.cpp` | provider model tests |
 | `src/foundation/serialization` | state/checkpoint/envelope codecs。 | [PERSISTENCE_MODEL.md](PERSISTENCE_MODEL.md) | `serialization_test.cpp`、`content_envelope_test.cpp` | checkpoint examples |
 | `src/foundation/async/executor/threading` | channels、executors、owner guards。 | [CONCURRENCY_MODEL.md](CONCURRENCY_MODEL.md) | `async_channel_test.cpp`、`executor_test.cpp` | graph executor examples |
 

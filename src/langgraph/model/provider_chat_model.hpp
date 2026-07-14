@@ -41,6 +41,7 @@ struct ProviderChatModelOptions {
     bool includeUsage_ { true };
     ChatModelToolBinding toolBinding_;
     nlohmann::json extraRequestFields_ { nlohmann::json::object() };
+    HttpRequestOptions requestOptions_;
     HttpStreamOptions streamOptions_;
     std::shared_ptr<IHttpClient> httpClient_;
 
