@@ -88,6 +88,28 @@ public:
     [[nodiscard]] bool isClosed() const noexcept override { return closed_; }
 };
 
+class FakeTokenCounter final : public lc::ITokenCounter {
+public:
+    int textCalls_ { 0 };
+    int messageCalls_ { 0 };
+
+    [[nodiscard]] lc::Result<std::uint64_t> countTextTokens(std::string_view text) override
+    {
+        ++textCalls_;
+        return static_cast<std::uint64_t>(text.size());
+    }
+
+    [[nodiscard]] lc::Result<std::uint64_t> countMessageTokens(
+        const std::vector<lc::BaseMessage>& messages) override
+    {
+        ++messageCalls_;
+        std::uint64_t total = 0;
+        for (const auto& message : messages)
+            total += message.content_.size();
+        return total;
+    }
+};
+
 [[nodiscard]] std::optional<std::string> headerValue(
     const lc::HttpRequest& request,
     std::string_view name)
@@ -122,6 +144,16 @@ void testOpenAICompatibleInvokeTrimsPrompt()
     });
     assert(response.isOk());
     assert(response->content_ == "trimmed");
+    assert(response->usageMetadata_.source_ == lc::UsageMetadataSource::Provider);
+    assert(response->usageMetadata_.provider_ == "openai-compatible");
+    assert(response->usageMetadata_.model_ == "edge-model");
+    assert(response->usageMetadata_.tokens_.inputTokens_.has_value());
+    assert(*response->usageMetadata_.tokens_.inputTokens_ == 4);
+    assert(response->usageMetadata_.tokens_.outputTokens_.has_value());
+    assert(*response->usageMetadata_.tokens_.outputTokens_ == 1);
+    assert(response->usageMetadata_.tokens_.totalTokens_.has_value());
+    assert(*response->usageMetadata_.tokens_.totalTokens_ == 5);
+    assert(response->usageMetadata_.raw_.at("prompt_tokens") == 4);
     assert(http->sendCalls_ == 1);
     assert(http->lastRequest_.pathAndQuery_ == "/v1/chat/completions");
     assert(http->lastOptions_.timeout_ == 150ms);
@@ -162,11 +194,15 @@ void testOpenAICompatibleStreamUsageAndBackpressure()
                 assert(chunk.message_.has_value());
                 assert(chunk.message_->content_ == "hello");
                 assert(chunk.metadata_.at("usage").at("total_tokens") == 5);
+                assert(chunk.usageMetadata_.tokens_.totalTokens_.has_value());
+                assert(*chunk.usageMetadata_.tokens_.totalTokens_ == 5);
             }
             return lc::Status::ok();
         });
     assert(response.isOk());
     assert(response->content_ == "hello");
+    assert(response->usageMetadata_.tokens_.totalTokens_.has_value());
+    assert(*response->usageMetadata_.tokens_.totalTokens_ == 5);
     assert((deltas == std::vector<std::string> { "hel", "lo" }));
     assert(sawDone);
 
@@ -240,6 +276,10 @@ void testAnthropicProfileSeparatesSystemAndStreams()
         nullptr);
     assert(response.isOk());
     assert(response->content_ == "edge ok");
+    assert(response->usageMetadata_.source_ == lc::UsageMetadataSource::Provider);
+    assert(response->usageMetadata_.provider_ == "anthropic");
+    assert(response->usageMetadata_.tokens_.outputTokens_.has_value());
+    assert(*response->usageMetadata_.tokens_.outputTokens_ == 2);
     assert(http->streamCalls_ == 1);
     assert(http->lastRequest_.pathAndQuery_ == "/v1/messages");
     assert(headerValue(http->lastRequest_, "x-api-key") == "anthropic-key");
@@ -249,6 +289,29 @@ void testAnthropicProfileSeparatesSystemAndStreams()
     assert(body.at("system") == "be terse");
     assert(body.at("messages").size() == 1);
     assert(body.at("messages").at(0).at("role") == "user");
+}
+
+void testLocalTokenCounterFillsMissingUsage()
+{
+    auto http = std::make_shared<FakeHttpClient>();
+    http->response_.body_ = R"({"choices":[{"message":{"role":"assistant","content":"counted"}}]})";
+    auto counter = std::make_shared<FakeTokenCounter>();
+
+    auto options = lc::ProviderChatModelOptions::openAICompatible(http, "counter-model");
+    options.tokenCounter_ = counter;
+    lc::ProviderChatModel model(std::move(options));
+
+    auto response = model.invoke({ lc::BaseMessage::human("hello") });
+    assert(response.isOk());
+    assert(response->usageMetadata_.source_ == lc::UsageMetadataSource::Local);
+    assert(response->usageMetadata_.tokens_.inputTokens_.has_value());
+    assert(*response->usageMetadata_.tokens_.inputTokens_ == 5);
+    assert(response->usageMetadata_.tokens_.outputTokens_.has_value());
+    assert(*response->usageMetadata_.tokens_.outputTokens_ == 7);
+    assert(response->usageMetadata_.tokens_.totalTokens_.has_value());
+    assert(*response->usageMetadata_.tokens_.totalTokens_ == 12);
+    assert(counter->messageCalls_ == 1);
+    assert(counter->textCalls_ == 1);
 }
 
 void testBatchUsesInjectedTransport()
@@ -445,6 +508,7 @@ int main()
     testOpenAICompatibleStreamUsageAndBackpressure();
     testOpenAIRequestUsesStandardMultimodalContentBlocks();
     testAnthropicProfileSeparatesSystemAndStreams();
+    testLocalTokenCounterFillsMissingUsage();
     testBatchUsesInjectedTransport();
     testBindToolsBuildsOpenAIRequestAndParsesToolCalls();
     testOpenAIStreamToolCallChunks();

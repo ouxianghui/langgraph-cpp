@@ -371,8 +371,8 @@ nlohmann::json baseMessageToJson(const BaseMessage& message)
         value["tool_call_id"] = message.toolCallId_;
     if (!message.name_.empty())
         value["name"] = message.name_;
-    if (!message.usageMetadata_.is_null())
-        value["usage_metadata"] = message.usageMetadata_;
+    if (!message.usageMetadata_.empty())
+        value["usage_metadata"] = usageMetadataToJson(message.usageMetadata_);
     if (!message.responseMetadata_.is_null())
         value["response_metadata"] = message.responseMetadata_;
     if (!message.artifact_.is_null())
@@ -485,8 +485,12 @@ Result<BaseMessage> baseMessageFromJson(const nlohmann::json& value)
             return Status::invalidArgument("message name must be a string");
         message.name_ = value.at("name").get<std::string>();
     }
-    if (value.contains("usage_metadata"))
-        message.usageMetadata_ = value.at("usage_metadata");
+    if (value.contains("usage_metadata")) {
+        auto usage = usageMetadataFromJson(value.at("usage_metadata"));
+        if (!usage.isOk())
+            return usage.status();
+        message.usageMetadata_ = std::move(*usage);
+    }
     if (value.contains("response_metadata"))
         message.responseMetadata_ = value.at("response_metadata");
     if (value.contains("artifact"))

@@ -736,7 +736,7 @@ def compare_runnable_config(cpp: dict[str, Any]) -> None:
 
 
 def compare_contract(cpp: dict[str, Any]) -> None:
-    assert_true("contract.api_contract_version", cpp["api_contract_version"] == 24)
+    assert_true("contract.api_contract_version", cpp["api_contract_version"] == 25)
     assert_true("contract.schema_contract_version", cpp["schema_contract_version"] == 1)
     assert_true("contract.checkpoint_schema_version", cpp["checkpoint_schema_version"] == 3)
     assert_true("contract.content_envelope_version", cpp["content_envelope_version"] == 1)

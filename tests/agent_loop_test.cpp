@@ -29,8 +29,24 @@ void testMessageRoundTrip()
                 },
             },
         });
+    message.usageMetadata_.source_ = lc::UsageMetadataSource::Provider;
+    message.usageMetadata_.provider_ = "openai-compatible";
+    message.usageMetadata_.model_ = "edge-model";
+    message.usageMetadata_.tokens_.inputTokens_ = 2;
+    message.usageMetadata_.tokens_.outputTokens_ = 3;
+    message.usageMetadata_.tokens_.totalTokens_ = 5;
+    message.usageMetadata_.raw_ = {
+        { "prompt_tokens", 2 },
+        { "completion_tokens", 3 },
+    };
 
-    auto decoded = lc::baseMessageFromJson(lc::baseMessageToJson(message));
+    auto encoded = lc::baseMessageToJson(message);
+    assert(encoded.at("usage_metadata").at("input_tokens") == 2);
+    assert(encoded.at("usage_metadata").at("output_tokens") == 3);
+    assert(encoded.at("usage_metadata").at("total_tokens") == 5);
+    assert(encoded.at("usage_metadata").at("source") == "provider");
+
+    auto decoded = lc::baseMessageFromJson(encoded);
     assert(decoded.isOk());
     assert(*decoded == message);
 

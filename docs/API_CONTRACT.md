@@ -1,6 +1,6 @@
 # API 与 Schema 合同
 
-`langgraph-cpp` 用显式版本号跟踪 edge-runtime 的源码 API 合同和持久化 schema 合同。当前 API 合同版本是 `24`；持久化 schema 合同版本仍是 `1`。
+`langgraph-cpp` 用显式版本号跟踪 edge-runtime 的源码 API 合同和持久化 schema 合同。当前 API 合同版本是 `25`；持久化 schema 合同版本仍是 `1`。
 
 这是源码兼容和数据兼容承诺，不是 ABI 承诺。跨版本升级时，调用方仍应预期需要重新从源码构建。`1.0` 前可以演进，但不能含糊：破坏性变更必须提升合同版本、删除旧接口、同步测试和文档。
 
@@ -12,9 +12,24 @@
 - checkpointer、store、message、model、tool 和 edge adapter 接口；
 - runtime surface 必需的 foundation 值类型和服务接口，例如 `Status`、`Result<T>`、storage、serialization、resource limits、cancellation、executor 和 event 类型。
 
-在 API 合同版本 `24` 内，变更应尽量保持 additive 和源码兼容。删除公共名称、改变必填字段、改变默认 runtime 语义，或改变可恢复错误码，都需要显式提升 API 合同版本。
+在 API 合同版本 `25` 内，变更应尽量保持 additive 和源码兼容。删除公共名称、改变必填字段、改变默认 runtime 语义，或改变可恢复错误码，都需要显式提升 API 合同版本。
 
-## 2. API 合同版本 `24`
+## 2. API 合同版本 `25`
+
+版本 `25` 将模型 token usage 从 provider raw JSON 透传收敛为标准 usage contract。
+
+- 新增 `TokenUsage`、`UsageMetadata` 和 `UsageMetadataSource`，`usage_metadata` 序列化使用
+  `input_tokens`、`output_tokens`、`total_tokens`、`source`、`provider`、`model` 和 `raw` 形状。
+- `BaseMessage::usageMetadata_` 从任意 JSON 改为 typed `UsageMetadata`；`AIMessageChunk`
+  新增 `usageMetadata_`，同时在 `metadata["usage"]` 中保留标准 JSON 形状，供 stream event 使用。
+- 新增可选 `ITokenCounter`，用于 provider 未返回 usage 或返回不完整 usage 时补齐本地 token count。
+- `ProviderChatModel` 会把 OpenAI-compatible/Qwen/DeepSeek 的
+  `prompt_tokens`、`completion_tokens`、`total_tokens`，以及 Anthropic 的
+  `input_tokens`、`output_tokens` 归一化为 `TokenUsage`，并保留原始 provider payload 到 `raw`。
+- `LlamaCppChatModel` 实现 `ITokenCounter`，并在最终 assistant message/done chunk 中写入本地
+  `input_tokens`、`output_tokens` 和 `total_tokens`。
+
+## 3. API 合同版本 `24`
 
 版本 `24` 将 HTTP request 执行策略从隐式 client-only 配置改为显式 per-request contract。
 
@@ -23,7 +38,7 @@
 - `HttpClientConfig` 仍提供默认 connect/read/write timeout 和 retry policy；单次请求的 options 会覆盖 retry policy，并用 timeout/deadline 截断连接池等待、retry delay 和底层 transport timeout。
 - `ProviderChatModelOptions` 新增 `requestOptions_`，provider invoke/stream 会把 request budget 传入注入的 `IHttpClient`。
 
-## 3. API 合同版本 `23`
+## 4. API 合同版本 `23`
 
 版本 `23` 进一步简化 request-auth API。
 
@@ -34,10 +49,11 @@
 
 版本 `23` 还规定：历史 `CompiledStateGraph::replay()` 如果写入新 checkpoint，新 checkpoint 会接在该 thread 和 checkpoint namespace 当前 latest step 之后。这保留 time-travel 历史，同时让 replay 后再次 interrupt 的分支可以继续通过普通 `resume(thread_id)` 路径恢复。
 
-## 4. 近期 API 合同变更摘要
+## 5. 近期 API 合同变更摘要
 
 | 版本 | 主题 | 当前合同 |
 | --- | --- | --- |
+| `25` | Token usage metadata | `BaseMessage` 和 `AIMessageChunk` 使用标准 `UsageMetadata`；provider usage 和 llama.cpp 本地计数归一化为 `TokenUsage`。 |
 | `24` | HTTP request options | `IHttpClient` 所有 request entrypoint 显式接收 `HttpRequestOptions`；旧无 options 签名移除。 |
 | `23` | OAuth request auth | `IAuthorizationProvider` 只负责 `authorize(HttpRequest&)`；可刷新凭证通过 `IRefreshableAuthorization` 暴露 readiness/refresh gate。 |
 | `22` | HTTP request auth | HTTP client 使用 provider-neutral `IAuthorizationProvider`；旧 `IOAuthTokenProvider` 和 `oauthTokenProvider()` 不再公开。 |
@@ -62,13 +78,13 @@
 | `3` | Checkpoint tuple | checkpoint reads 使用 `get(CheckpointQuery)` / `list(CheckpointListOptions)`，并返回 `CheckpointTuple`。 |
 | `2` | Builder alias cleanup | 旧 builder alias 集合被移除；版本 `8` 进一步明确 LangGraph-style builder API 是唯一公共 surface。 |
 
-## 5. 持久化 Schema 合同
+## 6. 持久化 Schema 合同
 
 持久化 schema 合同版本是 `1`。当前由测试保护的组件 schema 版本如下：
 
 | Schema | 当前版本 |
 | --- | ---: |
-| API contract | `24` |
+| API contract | `25` |
 | Schema contract | `1` |
 | Checkpoint JSON schema | `3` |
 | Content envelope | `1` |
@@ -76,7 +92,7 @@
 
 除非显式加入 forward-compatible migration，否则 reader 读到未来版本时必须返回 `StatusCode::Unimplemented`。历史版本只在各组件声明的最低支持版本范围内保持支持。
 
-## 6. 稳定性范围
+## 7. 稳定性范围
 
 | 范围 | 当前承诺 |
 | --- | --- |
@@ -86,7 +102,7 @@
 | 私有实现 | `.cpp`、内部 `.hh`、test helpers、未导出的 helper 不冻结。 |
 | Optional adapters | provider、hardware、llama.cpp、future backend adapters 的内部实现不冻结。 |
 
-## 7. 不冻结的内容
+## 8. 不冻结的内容
 
 - C++ ABI 和二进制布局。
 - 私有实现文件、内部 helper 函数和 `.hh` 内部头。
@@ -94,7 +110,7 @@
 - 可选 provider、hardware、llama.cpp adapter 的内部实现细节。
 - 性能特征，除非测试或文档明确声明了约束。
 
-## 8. 变更规则
+## 9. 变更规则
 
 - 新公共 API 优先 additive，不复活旧兼容别名。
 - 如果新名称落地，旧接口应删除，而不是长期双轨兼容。

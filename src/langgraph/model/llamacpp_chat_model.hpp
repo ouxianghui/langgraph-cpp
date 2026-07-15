@@ -12,6 +12,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace lc {
@@ -39,7 +40,7 @@ struct LlamaCppChatModelOptions {
 };
 
 /// Chat model adapter backed by llama.cpp. Available only when LANGGRAPH_CPP_WITH_LLAMA_CPP=ON.
-class LlamaCppChatModel final : public BaseChatModel {
+class LlamaCppChatModel final : public BaseChatModel, public ITokenCounter {
 public:
     explicit LlamaCppChatModel(LlamaCppChatModelOptions options);
     ~LlamaCppChatModel() override;
@@ -53,6 +54,9 @@ public:
     [[nodiscard]] Result<BaseMessage> stream(
         const std::vector<BaseMessage>& messages,
         AIMessageChunkHandler onChunk) override;
+    [[nodiscard]] Result<std::uint64_t> countTextTokens(std::string_view text) override;
+    [[nodiscard]] Result<std::uint64_t> countMessageTokens(
+        const std::vector<BaseMessage>& messages) override;
 
 private:
     struct Impl;

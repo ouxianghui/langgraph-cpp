@@ -105,8 +105,8 @@
 - 当 `LANGGRAPH_CPP_WITH_LLAMA_CPP=ON` 时，可以使用 `LlamaCppChatModel`。
 - llama.cpp adapter 需要外部 llama.cpp 源码树、安装前缀或已有 CMake target；
   llama.cpp 默认不随仓库 vendored。
-- llama.cpp adapter 支持 token-piece streaming callback；真实 token usage 统计仍依赖
-  后续 provider-specific metadata。
+- llama.cpp adapter 支持 token-piece streaming callback，并会用 llama.cpp tokenizer 写入本地
+  `UsageMetadata`。
 - Tool-call GBNF 生成支持当前工具使用的实用 JSON Schema 子集：object、array、
   string、number、boolean、null、enum/const、required properties，以及有界的
   optional properties。
@@ -115,8 +115,8 @@
 - `ProviderChatModel` 提供 OpenAI-compatible、Anthropic、Qwen、DeepSeek profile，可通过
   注入的 `IHttpClient` 接入真实 HTTP/SSE transport；默认测试使用 fake transport，不访问
   真实云服务。
-- Provider adapter 已覆盖 SSE token streaming、provider usage metadata 透传、prompt
-  message/byte trimming、`batch()` 顺序批处理、OpenAI-compatible / Anthropic-style
+- Provider adapter 已覆盖 SSE token streaming、provider usage metadata 标准化、可选
+  `ITokenCounter` fallback、prompt message/byte trimming、`batch()` 顺序批处理、OpenAI-compatible / Anthropic-style
   tool schema binding、provider tool-call response parsing、LangChain standard
   `content_blocks`、多模态 text/image/audio/file/video block JSON 表达、OpenAI-compatible
   tool-call chunk delta，以及 Anthropic `tool_use` / `input_json_delta` streaming

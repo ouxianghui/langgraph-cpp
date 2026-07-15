@@ -83,9 +83,10 @@ The current MVP includes:
 - `BaseMessage`, `ToolCall`, `BaseChatModel::invoke()`, callback-based
   `BaseChatModel::stream()`, `BaseChatModel::batch()`,
   `BaseChatModel::bindTools()`, `AIMessageChunk`, LangChain-style
-  `content_blocks`, multimodal content blocks, and `FakeChatModel`.
+  `content_blocks`, multimodal content blocks, standardized token
+  `UsageMetadata`, optional `ITokenCounter`, and `FakeChatModel`.
 - Optional `LlamaCppChatModel` when `LANGGRAPH_CPP_WITH_LLAMA_CPP=ON`, including
-  token-piece streaming callbacks.
+  token-piece streaming callbacks and local token usage accounting.
 - `ToolRequest`, `ToolRuntime`, `BaseTool`, `FunctionTool`, `ToolPolicy`,
   `ToolExecutor`, schema validation, structured tool results, and structured
   tool errors. Tool nodes registered through `ToolNode` can route
@@ -101,7 +102,7 @@ The current contract is documented in
 [docs/API_CONTRACT.md](docs/API_CONTRACT.md). The guardrails are:
 
 - C++ source API reachable from `include/langgraph_cpp/langgraph.hpp` is
-  governed by API contract version `24`.
+  governed by API contract version `25`.
 - Persisted checkpoint/content/storage schemas are versioned and reject future
   versions by default.
 - ABI, private implementation details, and optional provider/hardware adapters

@@ -137,9 +137,11 @@
 | 类型 | 用途 |
 | --- | --- |
 | `BaseMessage` | system/human/ai/tool message。 |
+| `TokenUsage` / `UsageMetadata` | provider-neutral token usage，标准字段为 input/output/total tokens，并保留 provider raw usage。 |
 | `ToolCall` | assistant tool-call payload。 |
-| `AIMessageChunk` | streaming chunk，包含 text/content blocks/tool-call chunks。 |
+| `AIMessageChunk` | streaming chunk，包含 text/content blocks/tool-call chunks 和可选 usage metadata。 |
 | `BaseChatModel` | provider-neutral chat model interface。 |
+| `ITokenCounter` | 可选本地 token counter，用于 provider usage 缺失或不完整时补齐。 |
 | `FakeChatModel` | deterministic tests/examples model。 |
 | `ProviderChatModel` | HTTP provider profiles behind injected `IHttpClient`。 |
 | `LlamaCppChatModel` | optional local llama.cpp adapter。 |

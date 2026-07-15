@@ -46,6 +46,14 @@ namespace {
     return blocks;
 }
 
+[[nodiscard]] nlohmann::json metadataForUsage(const UsageMetadata& usage)
+{
+    nlohmann::json metadata = nlohmann::json::object();
+    if (!usage.empty())
+        metadata["usage"] = usageMetadataToJson(usage);
+    return metadata;
+}
+
 } // namespace
 
 Result<BaseMessage> BaseChatModel::stream(
@@ -67,6 +75,8 @@ Result<BaseMessage> BaseChatModel::stream(
         }
         if (auto status = onChunk(AIMessageChunk {
                 .message_ = *response,
+                .usageMetadata_ = response->usageMetadata_,
+                .metadata_ = metadataForUsage(response->usageMetadata_),
                 .done_ = true,
             });
             !status.isOk()) {

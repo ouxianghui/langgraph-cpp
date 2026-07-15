@@ -1,6 +1,7 @@
 #pragma once
 
 #include "foundation/status/result.hpp"
+#include "langgraph/message/usage_metadata.hpp"
 
 #include <cstdint>
 #include <string>
@@ -42,8 +43,8 @@ struct BaseMessage {
     std::string toolCallId_;
     /// Tool-only tool name.
     std::string name_;
-    /// AIMessage usage metadata, when supplied by a provider.
-    nlohmann::json usageMetadata_ = nullptr;
+    /// AIMessage usage metadata, normalized across providers when available.
+    UsageMetadata usageMetadata_;
     /// Provider response metadata, when supplied by a provider.
     nlohmann::json responseMetadata_ = nullptr;
     /// ToolMessage artifact payload kept out of string content.

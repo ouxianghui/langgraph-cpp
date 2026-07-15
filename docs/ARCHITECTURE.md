@@ -544,12 +544,33 @@ classDiagram
         +args_
     }
 
+    class UsageMetadata {
+        +tokens_
+        +source_
+        +provider_
+        +model_
+        +raw_
+    }
+
+    class TokenUsage {
+        +inputTokens_
+        +outputTokens_
+        +totalTokens_
+        +details_
+    }
+
     class BaseChatModel {
         <<interface>>
         +invoke()
         +stream()
         +batch()
         +bindTools()
+    }
+
+    class ITokenCounter {
+        <<interface>>
+        +countTextTokens()
+        +countMessageTokens()
     }
 
     class FakeChatModel {
@@ -577,9 +598,12 @@ classDiagram
     }
 
     BaseMessage "1" o-- "*" ToolCall
+    BaseMessage --> UsageMetadata
+    UsageMetadata --> TokenUsage
     FakeChatModel ..|> BaseChatModel
     ProviderChatModel ..|> BaseChatModel
     LlamaCppChatModel ..|> BaseChatModel
+    LlamaCppChatModel ..|> ITokenCounter
     BaseChatModel --> BaseMessage
     ModelNodeOptions ..> BaseChatModel : makeModelNode
 ```

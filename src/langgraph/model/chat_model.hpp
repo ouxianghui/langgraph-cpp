@@ -28,11 +28,24 @@ struct AIMessageChunk {
     nlohmann::json contentBlocks_ { nlohmann::json::array() };
     std::vector<ToolCallChunk> toolCallChunks_;
     std::optional<BaseMessage> message_;
+    UsageMetadata usageMetadata_;
     nlohmann::json metadata_ { nlohmann::json::object() };
     bool done_ { false };
 };
 
 using AIMessageChunkHandler = std::function<Status(const AIMessageChunk&)>;
+
+/// Optional tokenizer/counter interface for model adapters that need local usage accounting when a
+/// provider does not return usage metadata.
+class ITokenCounter {
+public:
+    virtual ~ITokenCounter() = default;
+
+    [[nodiscard]] virtual Result<std::uint64_t> countTextTokens(std::string_view text) = 0;
+    [[nodiscard]] virtual Result<std::uint64_t> countMessageTokens(
+        const std::vector<BaseMessage>& messages)
+        = 0;
+};
 
 struct ChatModelTool {
     std::string name_;

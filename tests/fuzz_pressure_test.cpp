@@ -500,7 +500,11 @@ void fuzzMessageToolCallJsonParser()
                         },
                     },
                 });
-            message.usageMetadata_ = { { "input_tokens", i }, { "output_tokens", i + 1 } };
+            message.usageMetadata_.source_ = lc::UsageMetadataSource::Provider;
+            message.usageMetadata_.provider_ = "fuzz";
+            message.usageMetadata_.tokens_.inputTokens_ = static_cast<std::uint64_t>(i);
+            message.usageMetadata_.tokens_.outputTokens_ = static_cast<std::uint64_t>(i + 1);
+            message.usageMetadata_.tokens_.totalTokens_ = static_cast<std::uint64_t>(i * 2 + 1);
             message.responseMetadata_ = { { "provider", "fuzz" } };
             break;
         default:

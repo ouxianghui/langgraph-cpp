@@ -1,9 +1,12 @@
 #include "langgraph/model/provider_chat_model.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <exception>
+#include <limits>
 #include <map>
 #include <optional>
+#include <string>
 #include <utility>
 
 namespace lc {
@@ -34,6 +37,117 @@ namespace {
 [[nodiscard]] bool httpStatusOk(int statusCode) noexcept
 {
     return statusCode >= 200 && statusCode < 300;
+}
+
+[[nodiscard]] std::optional<std::uint64_t> providerCount(
+    const nlohmann::json& usage,
+    std::string_view field) noexcept
+{
+    const std::string key(field);
+    if (!usage.is_object() || !usage.contains(key))
+        return std::nullopt;
+    const auto& value = usage.at(key);
+    try {
+        if (value.is_number_unsigned())
+            return value.get<std::uint64_t>();
+        if (value.is_number_integer()) {
+            const auto signedValue = value.get<std::int64_t>();
+            if (signedValue >= 0)
+                return static_cast<std::uint64_t>(signedValue);
+        }
+    } catch (...) {
+    }
+    return std::nullopt;
+}
+
+void inferTotalTokens(TokenUsage& usage) noexcept
+{
+    if (usage.totalTokens_.has_value()
+        || !usage.inputTokens_.has_value()
+        || !usage.outputTokens_.has_value()) {
+        return;
+    }
+
+    const auto max = std::numeric_limits<std::uint64_t>::max();
+    if (*usage.inputTokens_ <= max - *usage.outputTokens_)
+        usage.totalTokens_ = *usage.inputTokens_ + *usage.outputTokens_;
+}
+
+[[nodiscard]] UsageMetadata normalizeProviderUsage(
+    ChatProviderKind provider,
+    std::string_view model,
+    const nlohmann::json& rawUsage)
+{
+    if (!rawUsage.is_object() || rawUsage.empty())
+        return {};
+
+    UsageMetadata usage;
+    usage.source_ = UsageMetadataSource::Provider;
+    usage.provider_ = std::string(chatProviderName(provider));
+    usage.model_ = std::string(model);
+    usage.raw_ = rawUsage;
+
+    if (provider == ChatProviderKind::Anthropic) {
+        usage.tokens_.inputTokens_ = providerCount(rawUsage, "input_tokens");
+        usage.tokens_.outputTokens_ = providerCount(rawUsage, "output_tokens");
+        inferTotalTokens(usage.tokens_);
+        for (auto it = rawUsage.begin(); it != rawUsage.end(); ++it) {
+            if (it.key() != "input_tokens" && it.key() != "output_tokens")
+                usage.tokens_.details_[it.key()] = it.value();
+        }
+        return usage;
+    }
+
+    usage.tokens_.inputTokens_ = providerCount(rawUsage, "prompt_tokens");
+    usage.tokens_.outputTokens_ = providerCount(rawUsage, "completion_tokens");
+    usage.tokens_.totalTokens_ = providerCount(rawUsage, "total_tokens");
+    if (rawUsage.contains("prompt_tokens_details"))
+        usage.tokens_.details_["input_tokens"] = rawUsage.at("prompt_tokens_details");
+    if (rawUsage.contains("completion_tokens_details"))
+        usage.tokens_.details_["output_tokens"] = rawUsage.at("completion_tokens_details");
+    inferTotalTokens(usage.tokens_);
+    return usage;
+}
+
+[[nodiscard]] Result<UsageMetadata> completeUsageMetadata(
+    UsageMetadata usage,
+    ITokenCounter* counter,
+    const std::vector<BaseMessage>& promptMessages,
+    std::string_view outputText,
+    std::string_view provider,
+    std::string_view model)
+{
+    if (!counter)
+        return usage;
+
+    bool counted = false;
+    if (!usage.tokens_.inputTokens_.has_value()) {
+        auto input = counter->countMessageTokens(promptMessages);
+        if (!input.isOk())
+            return input.status();
+        usage.tokens_.inputTokens_ = *input;
+        counted = true;
+    }
+
+    if (!usage.tokens_.outputTokens_.has_value()) {
+        auto output = counter->countTextTokens(outputText);
+        if (!output.isOk())
+            return output.status();
+        usage.tokens_.outputTokens_ = *output;
+        counted = true;
+    }
+
+    inferTotalTokens(usage.tokens_);
+    if (counted) {
+        usage.source_ = usage.source_ == UsageMetadataSource::Provider
+            ? UsageMetadataSource::Mixed
+            : UsageMetadataSource::Local;
+    }
+    if (usage.provider_.empty())
+        usage.provider_ = std::string(provider);
+    if (usage.model_.empty())
+        usage.model_ = std::string(model);
+    return usage;
 }
 
 [[nodiscard]] std::size_t messageBytes(const BaseMessage& message)
@@ -238,14 +352,14 @@ namespace {
 [[nodiscard]] nlohmann::json commonMetadata(
     ChatProviderKind provider,
     std::string_view model,
-    nlohmann::json usage = nlohmann::json::object())
+    const UsageMetadata& usage = {})
 {
     nlohmann::json metadata {
         { "provider", chatProviderName(provider) },
         { "model", model },
     };
     if (!usage.empty())
-        metadata["usage"] = std::move(usage);
+        metadata["usage"] = usageMetadataToJson(usage);
     return metadata;
 }
 
@@ -678,11 +792,14 @@ Result<std::vector<BaseMessage>> ProviderChatModel::prepareMessages(
 
 Result<HttpRequest> ProviderChatModel::buildRequest(
     const std::vector<BaseMessage>& messages,
-    bool stream) const
+    bool stream,
+    std::vector<BaseMessage>* preparedMessages) const
 {
     auto prepared = prepareMessages(messages);
     if (!prepared.isOk())
         return prepared.status();
+    if (preparedMessages)
+        *preparedMessages = *prepared;
 
     nlohmann::json body {
         { "model", options_.model_ },
@@ -734,7 +851,9 @@ Result<HttpRequest> ProviderChatModel::buildRequest(
     return request;
 }
 
-Result<BaseMessage> ProviderChatModel::parseResponse(const HttpResponse& response) const
+Result<BaseMessage> ProviderChatModel::parseResponse(
+    const HttpResponse& response,
+    const std::vector<BaseMessage>& promptMessages) const
 {
     if (!httpStatusOk(response.statusCode_))
         return Status::unavailable("provider returned HTTP " + std::to_string(response.statusCode_));
@@ -749,9 +868,18 @@ Result<BaseMessage> ProviderChatModel::parseResponse(const HttpResponse& respons
     if (!parsed.isOk())
         return parsed.status();
 
-    const auto usage = usageFromBody(*body);
-    if (!usage.empty())
-        parsed->usageMetadata_ = usage;
+    auto usage = normalizeProviderUsage(options_.provider_, options_.model_, usageFromBody(*body));
+    auto completedUsage = completeUsageMetadata(
+        std::move(usage),
+        options_.tokenCounter_.get(),
+        promptMessages,
+        parsed->content_,
+        chatProviderName(options_.provider_),
+        options_.model_);
+    if (!completedUsage.isOk())
+        return completedUsage.status();
+    if (!completedUsage->empty())
+        parsed->usageMetadata_ = std::move(*completedUsage);
     parsed->responseMetadata_ = {
         { "provider", std::string(chatProviderName(options_.provider_)) },
         { "model", options_.model_ },
@@ -761,21 +889,23 @@ Result<BaseMessage> ProviderChatModel::parseResponse(const HttpResponse& respons
 
 Result<BaseMessage> ProviderChatModel::invoke(const std::vector<BaseMessage>& messages)
 {
-    auto request = buildRequest(messages, false);
+    std::vector<BaseMessage> promptMessages;
+    auto request = buildRequest(messages, false, &promptMessages);
     if (!request.isOk())
         return request.status();
 
     auto response = options_.httpClient_->send(std::move(*request), options_.requestOptions_);
     if (!response.isOk())
         return response.status();
-    return parseResponse(*response);
+    return parseResponse(*response, promptMessages);
 }
 
 Result<BaseMessage> ProviderChatModel::stream(
     const std::vector<BaseMessage>& messages,
     AIMessageChunkHandler onChunk)
 {
-    auto request = buildRequest(messages, true);
+    std::vector<BaseMessage> promptMessages;
+    auto request = buildRequest(messages, true, &promptMessages);
     if (!request.isOk())
         return request.status();
 
@@ -787,7 +917,7 @@ Result<BaseMessage> ProviderChatModel::stream(
     };
     std::map<std::size_t, ToolCallBuilder> toolCallBuilders;
     nlohmann::json streamedContentBlocks = nlohmann::json::array();
-    nlohmann::json usage = nlohmann::json::object();
+    UsageMetadata usage;
     Status callbackStatus = Status::ok();
     auto response = options_.httpClient_->sendSse(
         std::move(*request),
@@ -799,7 +929,10 @@ Result<BaseMessage> ProviderChatModel::stream(
             if (!parsed.isOk())
                 return parsed.status();
 
-            const auto eventUsage = usageFromBody(*parsed);
+            const auto eventUsage = normalizeProviderUsage(
+                options_.provider_,
+                options_.model_,
+                usageFromBody(*parsed));
             if (!eventUsage.empty())
                 usage = eventUsage;
 
@@ -848,6 +981,7 @@ Result<BaseMessage> ProviderChatModel::stream(
                     .text_ = delta.value_or(std::string {}),
                     .contentBlocks_ = std::move(contentBlocks),
                     .toolCallChunks_ = std::move(toolCallChunks),
+                    .usageMetadata_ = usage,
                     .metadata_ = commonMetadata(options_.provider_, options_.model_, usage),
                 });
                 return callbackStatus;
@@ -884,8 +1018,17 @@ Result<BaseMessage> ProviderChatModel::stream(
     message.contentBlocks_ = !streamedContentBlocks.empty()
         ? std::move(streamedContentBlocks)
         : contentBlocksFromText(message.content_);
-    if (!usage.empty())
-        message.usageMetadata_ = usage;
+    auto completedUsage = completeUsageMetadata(
+        std::move(usage),
+        options_.tokenCounter_.get(),
+        promptMessages,
+        message.content_,
+        chatProviderName(options_.provider_),
+        options_.model_);
+    if (!completedUsage.isOk())
+        return completedUsage.status();
+    if (!completedUsage->empty())
+        message.usageMetadata_ = *completedUsage;
     message.responseMetadata_ = {
         { "provider", std::string(chatProviderName(options_.provider_)) },
         { "model", options_.model_ },
@@ -893,7 +1036,8 @@ Result<BaseMessage> ProviderChatModel::stream(
     if (onChunk) {
         auto doneStatus = onChunk(AIMessageChunk {
             .message_ = message,
-            .metadata_ = commonMetadata(options_.provider_, options_.model_, usage),
+            .usageMetadata_ = message.usageMetadata_,
+            .metadata_ = commonMetadata(options_.provider_, options_.model_, message.usageMetadata_),
             .done_ = true,
         });
         if (!doneStatus.isOk())

@@ -66,8 +66,8 @@
 
 | 测试文件 | 主要覆盖 |
 | --- | --- |
-| `agent_loop_test.cpp` | fake model -> tool -> model loop。 |
-| `provider_chat_model_test.cpp` | provider profiles、HTTP injection、stream/tool-call parsing。 |
+| `agent_loop_test.cpp` | fake model -> tool -> model loop；message usage metadata JSON round-trip。 |
+| `provider_chat_model_test.cpp` | provider profiles、HTTP injection、stream/tool-call parsing、token usage normalization。 |
 | `edge_adapter_test.cpp` | hardware adapter registry and mock edge surfaces。 |
 
 ## 5. Fuzz 与压力

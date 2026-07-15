@@ -41,6 +41,7 @@ struct ProviderChatModelOptions {
     bool includeUsage_ { true };
     ChatModelToolBinding toolBinding_;
     nlohmann::json extraRequestFields_ { nlohmann::json::object() };
+    std::shared_ptr<ITokenCounter> tokenCounter_;
     HttpRequestOptions requestOptions_;
     HttpStreamOptions streamOptions_;
     std::shared_ptr<IHttpClient> httpClient_;
@@ -89,8 +90,11 @@ private:
         const std::vector<BaseMessage>& messages) const;
     [[nodiscard]] Result<HttpRequest> buildRequest(
         const std::vector<BaseMessage>& messages,
-        bool stream) const;
-    [[nodiscard]] Result<BaseMessage> parseResponse(const HttpResponse& response) const;
+        bool stream,
+        std::vector<BaseMessage>* preparedMessages = nullptr) const;
+    [[nodiscard]] Result<BaseMessage> parseResponse(
+        const HttpResponse& response,
+        const std::vector<BaseMessage>& promptMessages) const;
 
     ProviderChatModelOptions options_;
 };

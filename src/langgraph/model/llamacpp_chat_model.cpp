@@ -118,36 +118,46 @@ public:
     return prompt;
 }
 
+[[nodiscard]] Result<std::vector<llama_token>> tokenizeText(
+    const llama_vocab* vocab,
+    std::string_view text,
+    std::uint32_t contextSize,
+    bool addSpecial,
+    std::string_view emptyMessage)
+{
+    if (!vocab)
+        return Status::failedPrecondition("llama.cpp vocab is not loaded");
+    if (text.empty())
+        return Status::invalidArgument(std::string(emptyMessage));
+    if (contextSize == 0)
+        return Status::invalidArgument("llama.cpp context size must be greater than zero");
+    if (text.size() > static_cast<std::size_t>(std::numeric_limits<int32_t>::max()))
+        return Status::invalidArgument("llama.cpp text is too large");
+
+    std::vector<llama_token> tokens(contextSize);
+    const auto tokenCount = llama_tokenize(
+        vocab,
+        text.data(),
+        static_cast<int32_t>(text.size()),
+        tokens.data(),
+        static_cast<int32_t>(tokens.size()),
+        addSpecial,
+        true);
+    if (tokenCount < 0)
+        return Status::resourceExhausted("llama.cpp text exceeds context size");
+    if (tokenCount == 0)
+        return Status::invalidArgument("llama.cpp text produced no tokens");
+
+    tokens.resize(static_cast<std::size_t>(tokenCount));
+    return tokens;
+}
+
 [[nodiscard]] Result<std::vector<llama_token>> tokenizePrompt(
     const llama_vocab* vocab,
     std::string_view prompt,
     std::uint32_t contextSize)
 {
-    if (!vocab)
-        return Status::failedPrecondition("llama.cpp vocab is not loaded");
-    if (prompt.empty())
-        return Status::invalidArgument("llama.cpp prompt cannot be empty");
-    if (contextSize == 0)
-        return Status::invalidArgument("llama.cpp context size must be greater than zero");
-    if (prompt.size() > static_cast<std::size_t>(std::numeric_limits<int32_t>::max()))
-        return Status::invalidArgument("llama.cpp prompt is too large");
-
-    std::vector<llama_token> tokens(contextSize);
-    const auto tokenCount = llama_tokenize(
-        vocab,
-        prompt.data(),
-        static_cast<int32_t>(prompt.size()),
-        tokens.data(),
-        static_cast<int32_t>(tokens.size()),
-        true,
-        true);
-    if (tokenCount < 0)
-        return Status::resourceExhausted("llama.cpp prompt exceeds context size");
-    if (tokenCount == 0)
-        return Status::invalidArgument("llama.cpp prompt produced no tokens");
-
-    tokens.resize(static_cast<std::size_t>(tokenCount));
-    return tokens;
+    return tokenizeText(vocab, prompt, contextSize, true, "llama.cpp prompt cannot be empty");
 }
 
 [[nodiscard]] Result<std::string> tokenToPiece(const llama_vocab* vocab, llama_token token)
@@ -176,6 +186,21 @@ public:
     }
 
     return std::string(stackBuffer.data(), static_cast<std::size_t>(size));
+}
+
+[[nodiscard]] UsageMetadata llamaUsageMetadata(
+    const LlamaCppChatModelOptions& options,
+    std::uint64_t inputTokens,
+    std::uint64_t outputTokens)
+{
+    UsageMetadata usage;
+    usage.source_ = UsageMetadataSource::Local;
+    usage.provider_ = "llama.cpp";
+    usage.model_ = options.modelPath_;
+    usage.tokens_.inputTokens_ = inputTokens;
+    usage.tokens_.outputTokens_ = outputTokens;
+    usage.tokens_.totalTokens_ = inputTokens + outputTokens;
+    return usage;
 }
 
 } // namespace
@@ -239,6 +264,42 @@ Result<void> LlamaCppChatModel::load()
 {
     std::lock_guard lock(mutex_);
     return impl_->load(options_);
+}
+
+Result<std::uint64_t> LlamaCppChatModel::countTextTokens(std::string_view text)
+{
+    if (text.empty())
+        return static_cast<std::uint64_t>(0);
+
+    std::lock_guard lock(mutex_);
+    auto loadResult = impl_->load(options_);
+    if (!loadResult.isOk())
+        return loadResult.status();
+
+    auto tokens = tokenizeText(
+        impl_->vocab_,
+        text,
+        options_.contextSize_,
+        false,
+        "llama.cpp text cannot be empty");
+    if (!tokens.isOk())
+        return tokens.status();
+    return static_cast<std::uint64_t>(tokens->size());
+}
+
+Result<std::uint64_t> LlamaCppChatModel::countMessageTokens(
+    const std::vector<BaseMessage>& messages)
+{
+    std::lock_guard lock(mutex_);
+    auto loadResult = impl_->load(options_);
+    if (!loadResult.isOk())
+        return loadResult.status();
+
+    auto prompt = chatPrompt(messages);
+    auto tokens = tokenizePrompt(impl_->vocab_, prompt, options_.contextSize_);
+    if (!tokens.isOk())
+        return tokens.status();
+    return static_cast<std::uint64_t>(tokens->size());
 }
 
 Result<BaseMessage> LlamaCppChatModel::invoke(const std::vector<BaseMessage>& messages)
@@ -318,6 +379,7 @@ Result<BaseMessage> LlamaCppChatModel::stream(
     }
 
     std::string output;
+    const auto inputTokens = static_cast<std::uint64_t>(tokens->size());
     auto consumedTokens = static_cast<std::uint32_t>(tokens->size());
     for (std::uint32_t i = 0; i < options_.maxTokens_; ++i) {
         if (consumedTokens + 1 >= llama_n_ctx(context))
@@ -352,18 +414,25 @@ Result<BaseMessage> LlamaCppChatModel::stream(
         ++consumedTokens;
     }
 
+    const auto generatedTokens = static_cast<std::uint64_t>(
+        consumedTokens - static_cast<std::uint32_t>(inputTokens));
+    const auto usage = llamaUsageMetadata(options_, inputTokens, generatedTokens);
+
     Result<BaseMessage> message = options_.parseToolCallJson_
         ? assistantMessageFromToolCallJson(std::move(output))
         : Result<BaseMessage>(BaseMessage::ai(std::move(output)));
     if (!message.isOk())
         return message.status();
+    message->usageMetadata_ = usage;
 
     if (onChunk) {
         if (auto status = onChunk(AIMessageChunk {
                 .message_ = *message,
+                .usageMetadata_ = usage,
                 .metadata_ = {
                     { "provider", "llama.cpp" },
-                    { "generated_tokens", consumedTokens - static_cast<std::uint32_t>(tokens->size()) },
+                    { "generated_tokens", generatedTokens },
+                    { "usage", usageMetadataToJson(usage) },
                 },
                 .done_ = true,
             });

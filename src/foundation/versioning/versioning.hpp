@@ -15,8 +15,8 @@ namespace lc {
 
 using Version = std::uint32_t;
 
-inline constexpr Version kApiContractVersion = 24;
-inline constexpr Version kMinApiContractVersion = 24;
+inline constexpr Version kApiContractVersion = 25;
+inline constexpr Version kMinApiContractVersion = 25;
 inline constexpr Version kSchemaContractVersion = 1;
 inline constexpr Version kMinSchemaContractVersion = 1;
 inline constexpr Version kCheckpointSchemaVersion = 3;
