@@ -8,7 +8,7 @@
 #include <memory>
 #include <string_view>
 
-namespace lc {
+namespace lgc {
 
 /// `IExecutor` adapter backed by a single serial `Thread`.
 class SerialExecutor final : public IExecutor {
@@ -62,4 +62,4 @@ private:
 [[nodiscard]] std::shared_ptr<IExecutor> makeSerialExecutor(
     std::shared_ptr<IThread> thread);
 
-} // namespace lc
+} // namespace lgc

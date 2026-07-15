@@ -42,33 +42,33 @@ namespace {
     return out;
 }
 
-[[nodiscard]] lc::State stateFromJson(std::string text)
+[[nodiscard]] lgc::State stateFromJson(std::string text)
 {
-    auto state = lc::State::fromJson(std::move(text));
+    auto state = lgc::State::fromJson(std::move(text));
     assert(state.isOk());
     return std::move(*state);
 }
 
-[[nodiscard]] lc::Checkpoint checkpointForThread(
+[[nodiscard]] lgc::Checkpoint checkpointForThread(
     std::string threadId,
     std::string checkpointNamespace,
     std::string id,
     std::uint64_t step,
     std::string stateJson)
 {
-    return lc::Checkpoint {
+    return lgc::Checkpoint {
         .threadId_ = std::move(threadId),
         .checkpointId_ = std::move(id),
         .checkpointNamespace_ = std::move(checkpointNamespace),
         .step_ = step,
         .state_ = stateFromJson(std::move(stateJson)),
-        .nextNodes_ = { std::string(lc::END) },
+        .nextNodes_ = { std::string(lgc::END) },
         .metadata_ = { { "source", "crash-test" } },
         .createdAt_ = std::chrono::system_clock::now() + std::chrono::seconds(step),
     };
 }
 
-[[nodiscard]] lc::Checkpoint checkpoint(
+[[nodiscard]] lgc::Checkpoint checkpoint(
     std::string id,
     std::uint64_t step,
     std::string stateJson)
@@ -81,9 +81,9 @@ namespace {
         std::move(stateJson));
 }
 
-[[nodiscard]] std::string storageValueForCheckpoint(const lc::Checkpoint& value)
+[[nodiscard]] std::string storageValueForCheckpoint(const lgc::Checkpoint& value)
 {
-    lc::JsonCheckpointCodec codec;
+    lgc::JsonCheckpointCodec codec;
     auto payload = codec.encode(value);
     assert(payload.isOk());
     return nlohmann::json {
@@ -100,9 +100,9 @@ namespace {
     return std::string(20U - text.size(), '0') + text;
 }
 
-[[nodiscard]] std::string storageValueForWrite(const lc::CheckpointWrite& value)
+[[nodiscard]] std::string storageValueForWrite(const lgc::CheckpointWrite& value)
 {
-    lc::JsonCheckpointCodec codec;
+    lgc::JsonCheckpointCodec codec;
     auto payload = codec.encodeWrite(value);
     assert(payload.isOk());
     return nlohmann::json {
@@ -111,7 +111,7 @@ namespace {
     }.dump();
 }
 
-[[nodiscard]] lc::StorageKey checkpointKey(
+[[nodiscard]] lgc::StorageKey checkpointKey(
     std::string_view threadId,
     std::string_view checkpointId,
     std::string_view checkpointNamespace = {})
@@ -124,13 +124,13 @@ namespace {
         key.push_back('/');
     }
     key.append(hexEncode(checkpointId));
-    return lc::StorageKey {
+    return lgc::StorageKey {
         .scope_ = "langgraph/checkpoints",
         .key_ = std::move(key),
     };
 }
 
-[[nodiscard]] lc::StorageKey latestPointerKey(
+[[nodiscard]] lgc::StorageKey latestPointerKey(
     std::string_view threadId,
     std::string_view checkpointNamespace = {})
 {
@@ -139,13 +139,13 @@ namespace {
         key.append("/ns/");
         key.append(hexEncode(checkpointNamespace));
     }
-    return lc::StorageKey {
+    return lgc::StorageKey {
         .scope_ = "langgraph/checkpoints",
         .key_ = std::move(key),
     };
 }
 
-[[nodiscard]] lc::StorageKey checkpointWriteKey(
+[[nodiscard]] lgc::StorageKey checkpointWriteKey(
     std::string_view threadId,
     std::string_view checkpointNamespace,
     std::string_view checkpointId,
@@ -169,15 +169,15 @@ namespace {
     key.append(hexEncode(taskPath));
     key.push_back('/');
     key.append(paddedIndex(order));
-    return lc::StorageKey {
+    return lgc::StorageKey {
         .scope_ = "langgraph/checkpoints",
         .key_ = std::move(key),
     };
 }
 
-[[nodiscard]] lc::StorageKey storeKey(std::string_view key)
+[[nodiscard]] lgc::StorageKey storeKey(std::string_view key)
 {
-    return lc::StorageKey {
+    return lgc::StorageKey {
         .scope_ = "langgraph/store",
         .key_ = "items/" + hexEncode("edge") + "/@/" + hexEncode(key),
     };
@@ -185,74 +185,74 @@ namespace {
 
 #if LANGGRAPH_CPP_WITH_SQLITE
 
-[[nodiscard]] lc::SQLiteStorageOptions sqliteOptions(
-    lc::SQLiteJournalMode journalMode = lc::SQLiteJournalMode::Wal,
-    lc::SQLiteSynchronousMode synchronousMode = lc::SQLiteSynchronousMode::Full,
+[[nodiscard]] lgc::SQLiteStorageOptions sqliteOptions(
+    lgc::SQLiteJournalMode journalMode = lgc::SQLiteJournalMode::Wal,
+    lgc::SQLiteSynchronousMode synchronousMode = lgc::SQLiteSynchronousMode::Full,
     std::chrono::milliseconds busyTimeout = std::chrono::seconds(5))
 {
-    return lc::SQLiteStorageOptions {
+    return lgc::SQLiteStorageOptions {
         .busyTimeout_ = busyTimeout,
         .journalMode_ = journalMode,
         .synchronousMode_ = synchronousMode,
     };
 }
 
-[[nodiscard]] std::shared_ptr<lc::SQLiteStorage> openSQLite(
+[[nodiscard]] std::shared_ptr<lgc::SQLiteStorage> openSQLite(
     const std::string& path,
-    lc::SQLiteStorageOptions options = sqliteOptions())
+    lgc::SQLiteStorageOptions options = sqliteOptions())
 {
-    auto storage = std::make_shared<lc::SQLiteStorage>(
+    auto storage = std::make_shared<lgc::SQLiteStorage>(
         path,
-        lc::Logger::defaultLogger(),
-        lc::StorageLimits {},
-        lc::SystemWallClock::instance(),
+        lgc::Logger::defaultLogger(),
+        lgc::StorageLimits {},
+        lgc::SystemWallClock::instance(),
         std::move(options));
     auto opened = storage->open();
     assert(opened.isOk());
     return storage;
 }
 
-[[nodiscard]] lc::SQLiteJournalMode journalModeFromName(std::string_view name)
+[[nodiscard]] lgc::SQLiteJournalMode journalModeFromName(std::string_view name)
 {
     if (name == "wal")
-        return lc::SQLiteJournalMode::Wal;
+        return lgc::SQLiteJournalMode::Wal;
     if (name == "delete")
-        return lc::SQLiteJournalMode::Delete;
+        return lgc::SQLiteJournalMode::Delete;
     assert(false);
-    return lc::SQLiteJournalMode::Wal;
+    return lgc::SQLiteJournalMode::Wal;
 }
 
-[[nodiscard]] lc::SQLiteSynchronousMode synchronousModeFromName(std::string_view name)
+[[nodiscard]] lgc::SQLiteSynchronousMode synchronousModeFromName(std::string_view name)
 {
     if (name == "normal")
-        return lc::SQLiteSynchronousMode::Normal;
+        return lgc::SQLiteSynchronousMode::Normal;
     if (name == "full")
-        return lc::SQLiteSynchronousMode::Full;
+        return lgc::SQLiteSynchronousMode::Full;
     if (name == "extra")
-        return lc::SQLiteSynchronousMode::Extra;
+        return lgc::SQLiteSynchronousMode::Extra;
     assert(false);
-    return lc::SQLiteSynchronousMode::Full;
+    return lgc::SQLiteSynchronousMode::Full;
 }
 
-[[nodiscard]] std::string journalModeName(lc::SQLiteJournalMode mode)
+[[nodiscard]] std::string journalModeName(lgc::SQLiteJournalMode mode)
 {
     switch (mode) {
-    case lc::SQLiteJournalMode::Wal:
+    case lgc::SQLiteJournalMode::Wal:
         return "wal";
-    case lc::SQLiteJournalMode::Delete:
+    case lgc::SQLiteJournalMode::Delete:
         return "delete";
     }
     return "wal";
 }
 
-[[nodiscard]] std::string synchronousModeName(lc::SQLiteSynchronousMode mode)
+[[nodiscard]] std::string synchronousModeName(lgc::SQLiteSynchronousMode mode)
 {
     switch (mode) {
-    case lc::SQLiteSynchronousMode::Normal:
+    case lgc::SQLiteSynchronousMode::Normal:
         return "normal";
-    case lc::SQLiteSynchronousMode::Full:
+    case lgc::SQLiteSynchronousMode::Full:
         return "full";
-    case lc::SQLiteSynchronousMode::Extra:
+    case lgc::SQLiteSynchronousMode::Extra:
         return "extra";
     }
     return "full";
@@ -286,8 +286,8 @@ int crashChild(const std::string& databasePath, const std::string& mode)
     }
 
     auto storage = openSQLite(databasePath, options);
-    lc::StorageSaver checkpointer(storage);
-    lc::StorageStore store(storage);
+    lgc::StorageSaver checkpointer(storage);
+    lgc::StorageStore store(storage);
 
     if (mode == "committed") {
         assert(checkpointer.put(checkpoint("cp-1", 1, R"({"value":1})")).isOk());
@@ -314,7 +314,7 @@ int crashChild(const std::string& databasePath, const std::string& mode)
         assert(storage->put(
             checkpointKey(cp2.threadId_, cp2.checkpointId_),
             storageValueForCheckpoint(cp2),
-            lc::StoragePutOptions { .mode_ = lc::StoragePutMode::InsertOnly })
+            lgc::StoragePutOptions { .mode_ = lgc::StoragePutMode::InsertOnly })
             .isOk());
         assert(storage->flush().isOk());
         std::_Exit(87);
@@ -383,8 +383,8 @@ void runCrashChild(
     std::string mode,
     std::chrono::milliseconds timeout = std::chrono::seconds(10))
 {
-    lc::ProcessRunner runner;
-    auto result = runner.run(lc::ProcessOptions {
+    lgc::ProcessRunner runner;
+    auto result = runner.run(lgc::ProcessOptions {
         .executable_ = executable,
         .arguments_ = {
             "--crash-child",
@@ -403,8 +403,8 @@ void runSuccessfulChild(
     const std::filesystem::path& databasePath,
     std::string mode)
 {
-    lc::ProcessRunner runner;
-    auto result = runner.run(lc::ProcessOptions {
+    lgc::ProcessRunner runner;
+    auto result = runner.run(lgc::ProcessOptions {
         .executable_ = executable,
         .arguments_ = {
             "--crash-child",
@@ -422,8 +422,8 @@ void runKilledChild(
     const std::filesystem::path& databasePath,
     std::string mode)
 {
-    lc::ProcessRunner runner;
-    auto result = runner.run(lc::ProcessOptions {
+    lgc::ProcessRunner runner;
+    auto result = runner.run(lgc::ProcessOptions {
         .executable_ = executable,
         .arguments_ = {
             "--crash-child",
@@ -435,7 +435,7 @@ void runKilledChild(
     assert(result.isOk());
     assert(result->timedOut_);
     assert(!result->status_.isOk());
-    assert(result->status_.code() == lc::StatusCode::DeadlineExceeded);
+    assert(result->status_.code() == lgc::StatusCode::DeadlineExceeded);
 }
 
 void testReopenAfterHardExit(const char* executable)
@@ -445,14 +445,14 @@ void testReopenAfterHardExit(const char* executable)
     runCrashChild(executable, path, "committed");
 
     auto storage = openSQLite(path.string());
-    lc::StorageSaver checkpointer(storage);
-    auto latest = checkpointer.getTuple(lc::CheckpointQuery::latest("crash-thread"));
+    lgc::StorageSaver checkpointer(storage);
+    auto latest = checkpointer.getTuple(lgc::CheckpointQuery::latest("crash-thread"));
     assert(latest.isOk());
     assert(latest->has_value());
     assert((*latest)->checkpoint_.checkpointId_ == "cp-2");
     assert((*latest)->checkpoint_.state_.view().at("value") == 2);
 
-    lc::StorageStore store(storage);
+    lgc::StorageStore store(storage);
     auto item = store.get({ "edge" }, "memory");
     assert(item.isOk());
     assert(item->has_value());
@@ -462,13 +462,13 @@ void testReopenAfterHardExit(const char* executable)
 void testJournalAndSynchronousHardExitMatrix(const char* executable)
 {
     const std::array journals {
-        lc::SQLiteJournalMode::Wal,
-        lc::SQLiteJournalMode::Delete,
+        lgc::SQLiteJournalMode::Wal,
+        lgc::SQLiteJournalMode::Delete,
     };
     const std::array syncModes {
-        lc::SQLiteSynchronousMode::Normal,
-        lc::SQLiteSynchronousMode::Full,
-        lc::SQLiteSynchronousMode::Extra,
+        lgc::SQLiteSynchronousMode::Normal,
+        lgc::SQLiteSynchronousMode::Full,
+        lgc::SQLiteSynchronousMode::Extra,
     };
 
     for (const auto journal : journals) {
@@ -480,14 +480,14 @@ void testJournalAndSynchronousHardExitMatrix(const char* executable)
             runCrashChild(executable, path, "matrix:" + journalName + ":" + syncName);
 
             auto storage = openSQLite(path.string(), sqliteOptions(journal, sync));
-            lc::StorageSaver checkpointer(storage);
-            auto latest = checkpointer.getTuple(lc::CheckpointQuery::latest("crash-thread"));
+            lgc::StorageSaver checkpointer(storage);
+            auto latest = checkpointer.getTuple(lgc::CheckpointQuery::latest("crash-thread"));
             assert(latest.isOk());
             assert(latest->has_value());
             assert((*latest)->checkpoint_.checkpointId_ == "cp-2");
             assert((*latest)->checkpoint_.state_.view().at("value") == 2);
 
-            lc::StorageStore store(storage);
+            lgc::StorageStore store(storage);
             auto item = store.get({ "edge" }, "memory");
             assert(item.isOk());
             assert(item->has_value());
@@ -504,8 +504,8 @@ void testPartialCheckpointWriteReconcilesLatestPointer(const char* executable)
     runCrashChild(executable, path, "partial");
 
     auto storage = openSQLite(path.string());
-    lc::StorageSaver checkpointer(storage);
-    auto latest = checkpointer.getTuple(lc::CheckpointQuery::latest("crash-thread"));
+    lgc::StorageSaver checkpointer(storage);
+    auto latest = checkpointer.getTuple(lgc::CheckpointQuery::latest("crash-thread"));
     assert(latest.isOk());
     assert(latest->has_value());
     assert((*latest)->checkpoint_.checkpointId_ == "cp-2");
@@ -518,16 +518,16 @@ void testDanglingAndStaleLatestPointerReconcileByScan()
     const auto path = uniqueDatabasePath("pointer-reconcile");
     removeDatabaseFiles(path);
     auto storage = openSQLite(path.string());
-    lc::StorageSaver checkpointer(storage);
+    lgc::StorageSaver checkpointer(storage);
     assert(checkpointer.put(checkpoint("cp-1", 1, R"({"value":1})")).isOk());
     assert(checkpointer.put(checkpoint("cp-2", 2, R"({"value":2})")).isOk());
 
     assert(storage->put(
         latestPointerKey("crash-thread"),
         "missing-cp",
-        lc::StoragePutOptions { .mode_ = lc::StoragePutMode::Upsert })
+        lgc::StoragePutOptions { .mode_ = lgc::StoragePutMode::Upsert })
             .isOk());
-    auto latestAfterDanglingPointer = checkpointer.getTuple(lc::CheckpointQuery::latest("crash-thread"));
+    auto latestAfterDanglingPointer = checkpointer.getTuple(lgc::CheckpointQuery::latest("crash-thread"));
     assert(latestAfterDanglingPointer.isOk());
     assert(latestAfterDanglingPointer->has_value());
     assert((*latestAfterDanglingPointer)->checkpoint_.checkpointId_ == "cp-2");
@@ -535,9 +535,9 @@ void testDanglingAndStaleLatestPointerReconcileByScan()
     assert(storage->put(
         latestPointerKey("crash-thread"),
         "cp-1",
-        lc::StoragePutOptions { .mode_ = lc::StoragePutMode::Upsert })
+        lgc::StoragePutOptions { .mode_ = lgc::StoragePutMode::Upsert })
             .isOk());
-    auto latestAfterStalePointer = checkpointer.getTuple(lc::CheckpointQuery::latest("crash-thread"));
+    auto latestAfterStalePointer = checkpointer.getTuple(lgc::CheckpointQuery::latest("crash-thread"));
     assert(latestAfterStalePointer.isOk());
     assert(latestAfterStalePointer->has_value());
     assert((*latestAfterStalePointer)->checkpoint_.checkpointId_ == "cp-2");
@@ -549,10 +549,10 @@ void testPartialPendingWritesSurviveReopen()
     removeDatabaseFiles(path);
     {
         auto storage = openSQLite(path.string());
-        lc::StorageSaver checkpointer(storage);
+        lgc::StorageSaver checkpointer(storage);
         assert(checkpointer.put(checkpoint("cp-1", 1, R"({"value":1})")).isOk());
 
-        lc::CheckpointWrite partialWrite {
+        lgc::CheckpointWrite partialWrite {
             .taskId_ = "task-1",
             .taskPath_ = "branch",
             .nodeId_ = "left",
@@ -562,14 +562,14 @@ void testPartialPendingWritesSurviveReopen()
         assert(storage->put(
             checkpointWriteKey("crash-thread", {}, "cp-1", "task-1", "branch", 0),
             storageValueForWrite(partialWrite),
-            lc::StoragePutOptions { .mode_ = lc::StoragePutMode::Upsert })
+            lgc::StoragePutOptions { .mode_ = lgc::StoragePutMode::Upsert })
                 .isOk());
         assert(storage->flush().isOk());
     }
 
     auto reopened = openSQLite(path.string());
-    lc::StorageSaver checkpointer(reopened);
-    auto latest = checkpointer.getTuple(lc::CheckpointQuery::latest("crash-thread"));
+    lgc::StorageSaver checkpointer(reopened);
+    auto latest = checkpointer.getTuple(lgc::CheckpointQuery::latest("crash-thread"));
     assert(latest.isOk());
     assert(latest->has_value());
     assert((*latest)->pendingWrites_.size() == 1);
@@ -593,11 +593,11 @@ void testMultiProcessContention(const char* executable)
         writer.get();
 
     auto storage = openSQLite(path.string());
-    lc::StorageSaver checkpointer(storage);
-    lc::StorageStore store(storage);
+    lgc::StorageSaver checkpointer(storage);
+    lgc::StorageStore store(storage);
     for (int i = 0; i < 4; ++i) {
         const std::string threadId = "contention-thread-" + std::to_string(i);
-        auto latest = checkpointer.getTuple(lc::CheckpointQuery::latest(threadId));
+        auto latest = checkpointer.getTuple(lgc::CheckpointQuery::latest(threadId));
         assert(latest.isOk());
         assert(latest->has_value());
         assert((*latest)->checkpoint_.checkpointId_ == "cp-8");
@@ -617,23 +617,23 @@ void testPowerLossStyleKillDuringWrites(const char* executable)
     runKilledChild(executable, path, "kill-loop:wal:full");
 
     auto storage = openSQLite(path.string());
-    lc::StorageSaver checkpointer(storage);
-    auto latest = checkpointer.getTuple(lc::CheckpointQuery::latest("kill-thread"));
+    lgc::StorageSaver checkpointer(storage);
+    auto latest = checkpointer.getTuple(lgc::CheckpointQuery::latest("kill-thread"));
     assert(latest.isOk());
     assert(latest->has_value());
     assert((*latest)->checkpoint_.state_.view().contains("value"));
 
-    auto history = checkpointer.list(lc::CheckpointListOptions {
+    auto history = checkpointer.list(lgc::CheckpointListOptions {
         .threadId_ = "kill-thread",
         .checkpointNamespace_ = std::string(),
-        .order_ = lc::CheckpointListOrder::OldestFirst,
+        .order_ = lgc::CheckpointListOrder::OldestFirst,
     });
     assert(history.isOk());
     assert(!history->empty());
     for (const auto& record : *history)
         assert(record.checkpoint_.state_.view().contains("value"));
 
-    lc::StorageStore store(storage);
+    lgc::StorageStore store(storage);
     auto item = store.get({ "edge" }, "kill-marker");
     assert(item.isOk());
     assert(item->has_value());
@@ -646,38 +646,38 @@ void testCorruptionIsReported()
     removeDatabaseFiles(path);
     auto storage = openSQLite(path.string());
 
-    lc::StorageSaver checkpointer(storage);
+    lgc::StorageSaver checkpointer(storage);
     assert(checkpointer.put(checkpoint("cp-1", 1, R"({"value":1})")).isOk());
     assert(storage->put(
         checkpointKey("crash-thread", "cp-1"),
         "not-json",
-        lc::StoragePutOptions { .mode_ = lc::StoragePutMode::Upsert })
+        lgc::StoragePutOptions { .mode_ = lgc::StoragePutMode::Upsert })
         .isOk());
-    auto corruptedCheckpoint = checkpointer.getTuple(lc::CheckpointQuery::at("crash-thread", "cp-1"));
+    auto corruptedCheckpoint = checkpointer.getTuple(lgc::CheckpointQuery::at("crash-thread", "cp-1"));
     assert(!corruptedCheckpoint.isOk());
-    assert(corruptedCheckpoint.status().code() == lc::StatusCode::InvalidArgument);
-    auto corruptedCheckpointList = checkpointer.list(lc::CheckpointListOptions {
+    assert(corruptedCheckpoint.status().code() == lgc::StatusCode::InvalidArgument);
+    auto corruptedCheckpointList = checkpointer.list(lgc::CheckpointListOptions {
         .threadId_ = "crash-thread",
         .checkpointNamespace_ = std::string(),
     });
     assert(!corruptedCheckpointList.isOk());
-    assert(corruptedCheckpointList.status().code() == lc::StatusCode::InvalidArgument);
+    assert(corruptedCheckpointList.status().code() == lgc::StatusCode::InvalidArgument);
 
-    lc::StorageStore store(storage);
+    lgc::StorageStore store(storage);
     assert(store.put({ "edge" }, "memory", { { "ok", true } }).isOk());
     assert(storage->put(
         storeKey("memory"),
         "[",
-        lc::StoragePutOptions { .mode_ = lc::StoragePutMode::Upsert })
+        lgc::StoragePutOptions { .mode_ = lgc::StoragePutMode::Upsert })
         .isOk());
     auto corruptedStore = store.get({ "edge" }, "memory");
     assert(!corruptedStore.isOk());
-    assert(corruptedStore.status().code() == lc::StatusCode::InvalidArgument);
-    auto corruptedStoreSearch = store.search(lc::StoreSearchOptions {
+    assert(corruptedStore.status().code() == lgc::StatusCode::InvalidArgument);
+    auto corruptedStoreSearch = store.search(lgc::StoreSearchOptions {
         .namespacePrefix_ = { "edge" },
     });
     assert(!corruptedStoreSearch.isOk());
-    assert(corruptedStoreSearch.status().code() == lc::StatusCode::InvalidArgument);
+    assert(corruptedStoreSearch.status().code() == lgc::StatusCode::InvalidArgument);
 }
 
 void testRetentionAndPruning()
@@ -685,14 +685,14 @@ void testRetentionAndPruning()
     const auto path = uniqueDatabasePath("prune");
     removeDatabaseFiles(path);
     auto storage = openSQLite(path.string());
-    lc::StorageSaver checkpointer(storage);
+    lgc::StorageSaver checkpointer(storage);
     assert(checkpointer.put(checkpoint("cp-1", 1, R"({"value":1})")).isOk());
     assert(checkpointer.put(checkpoint("cp-2", 2, R"({"value":2})")).isOk());
     assert(checkpointer.put(checkpoint("cp-3", 3, R"({"value":3})")).isOk());
 
     auto pruned = checkpointer.prune(
         "crash-thread",
-        lc::CheckpointPruneOptions {
+        lgc::CheckpointPruneOptions {
             .keepLatest_ = 1,
         });
     assert(pruned.isOk());
@@ -700,10 +700,10 @@ void testRetentionAndPruning()
     assert(pruned->remaining_ == 1);
     assert(pruned->latestCheckpointId_ == "cp-3");
 
-    auto history = checkpointer.list(lc::CheckpointListOptions {
+    auto history = checkpointer.list(lgc::CheckpointListOptions {
         .threadId_ = "crash-thread",
         .checkpointNamespace_ = std::string(),
-        .order_ = lc::CheckpointListOrder::OldestFirst,
+        .order_ = lgc::CheckpointListOrder::OldestFirst,
     });
     assert(history.isOk());
     assert(history->size() == 1);

@@ -13,7 +13,7 @@
 
 #include <sqlite3.h>
 
-namespace lc {
+namespace lgc {
 namespace {
 using sqlite_detail::sqliteStatus;
 }
@@ -372,4 +372,4 @@ bool SQLiteStorage::isClosed() const noexcept
     return closed_;
 }
 
-} // namespace lc
+} // namespace lgc

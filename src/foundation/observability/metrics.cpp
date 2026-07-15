@@ -9,7 +9,7 @@
 #include <string>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] MetricTags normalizeTags(MetricTags tags)
@@ -459,4 +459,4 @@ std::string_view metricOverflowPolicyName(MetricOverflowPolicy policy) noexcept
     return "unknown";
 }
 
-} // namespace lc
+} // namespace lgc

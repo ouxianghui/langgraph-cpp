@@ -5,7 +5,7 @@
 #include <chrono>
 #include <functional>
 
-namespace lc {
+namespace lgc {
 
 /// Internal timer substrate. Runtime-facing scheduling should use `ITaskScheduler`.
 ///
@@ -36,4 +36,4 @@ public:
     [[nodiscard]] virtual bool isClosed() const noexcept = 0;
 };
 
-} // namespace lc
+} // namespace lgc

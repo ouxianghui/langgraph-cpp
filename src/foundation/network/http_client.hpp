@@ -7,7 +7,7 @@
 #include <memory>
 #include <mutex>
 
-namespace lc {
+namespace lgc {
 
 /// Outbound HTTP/HTTPS client: cpp-httplib + connection pool for buffered requests, dedicated
 /// streaming connections for body/SSE streams, serial async queue, and request authorization gate.
@@ -65,4 +65,4 @@ private:
     std::shared_ptr<Impl> impl_;
 };
 
-} // namespace lc
+} // namespace lgc

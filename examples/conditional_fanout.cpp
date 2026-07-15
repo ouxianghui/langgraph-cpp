@@ -6,37 +6,37 @@
 
 int main()
 {
-    lc::StateGraph graph;
+    lgc::StateGraph graph;
 
-    auto status = graph.addNode("triage", [](const lc::State&, lc::Runtime&) {
-        return lc::StateUpdate::fromJson(R"({"decision":"inspect"})");
+    auto status = graph.addNode("triage", [](const lgc::State&, lgc::Runtime&) {
+        return lgc::StateUpdate::fromJson(R"({"decision":"inspect"})");
     });
     if (!status.isOk()) {
         std::cerr << status.status().toString() << '\n';
         return 1;
     }
-    status = graph.addNode("temperature", [](const lc::State&, lc::Runtime&) {
-        return lc::StateUpdate::fromJson(R"({"checks":["temperature"],"facts":{"temperature_c":42.5}})");
+    status = graph.addNode("temperature", [](const lgc::State&, lgc::Runtime&) {
+        return lgc::StateUpdate::fromJson(R"({"checks":["temperature"],"facts":{"temperature_c":42.5}})");
     });
     if (!status.isOk()) {
         std::cerr << status.status().toString() << '\n';
         return 1;
     }
-    status = graph.addNode("power", [](const lc::State&, lc::Runtime&) {
-        return lc::StateUpdate::fromJson(R"({"checks":["power"],"facts":{"voltage_v":12.1}})");
+    status = graph.addNode("power", [](const lgc::State&, lgc::Runtime&) {
+        return lgc::StateUpdate::fromJson(R"({"checks":["power"],"facts":{"voltage_v":12.1}})");
     });
     if (!status.isOk()) {
         std::cerr << status.status().toString() << '\n';
         return 1;
     }
-    status = graph.addNode("join", [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::StateUpdate> {
+    status = graph.addNode("join", [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
         auto json = state.toJson();
         if (!json.isOk())
             return json.status();
 
         const bool healthy = json->at("facts").at("temperature_c").get<double>() < 80.0
             && json->at("facts").at("voltage_v").get<double>() > 11.0;
-        return lc::StateUpdate::fromJsonValue({
+        return lgc::StateUpdate::fromJsonValue({
             { "healthy", healthy },
         });
     });
@@ -45,15 +45,15 @@ int main()
         return 1;
     }
 
-    status = graph.addEdge(std::string(lc::START), "triage");
+    status = graph.addEdge(std::string(lgc::START), "triage");
     if (!status.isOk()) {
         std::cerr << status.status().toString() << '\n';
         return 1;
     }
     status = graph.addConditionalEdges(
         "triage",
-        [](const lc::State&, lc::Runtime&) -> lc::Result<std::vector<lc::NodeId>> {
-            return std::vector<lc::NodeId> { "temperature", "power" };
+        [](const lgc::State&, lgc::Runtime&) -> lgc::Result<std::vector<lgc::NodeId>> {
+            return std::vector<lgc::NodeId> { "temperature", "power" };
         },
         { "temperature", "power" });
     if (!status.isOk()) {
@@ -70,7 +70,7 @@ int main()
         std::cerr << status.status().toString() << '\n';
         return 1;
     }
-    status = graph.addEdge("join", std::string(lc::END));
+    status = graph.addEdge("join", std::string(lgc::END));
     if (!status.isOk()) {
         std::cerr << status.status().toString() << '\n';
         return 1;
@@ -82,11 +82,11 @@ int main()
         return 1;
     }
 
-    lc::RunOptions options;
-    options.reducers_.set("checks", lc::ReducerKind::Append);
-    options.reducers_.set("facts", lc::ReducerKind::MergeObject);
+    lgc::RunOptions options;
+    options.reducers_.set("checks", lgc::ReducerKind::Append);
+    options.reducers_.set("facts", lgc::ReducerKind::MergeObject);
 
-    auto input = lc::State::fromJson("{}");
+    auto input = lgc::State::fromJson("{}");
     if (!input.isOk()) {
         std::cerr << input.status().toString() << '\n';
         return 1;

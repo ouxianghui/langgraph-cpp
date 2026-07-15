@@ -9,8 +9,8 @@
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size)
 {
     try {
-        const auto input = lc::fuzz::inputToString(data, size);
-        lc::SseParser parser;
+        const auto input = lgc::fuzz::inputToString(data, size);
+        lgc::SseParser parser;
         std::size_t offset = 0;
         while (offset < input.size()) {
             const auto raw = static_cast<unsigned char>(input[offset]);
@@ -20,16 +20,16 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
             const auto chunk = std::string_view(input).substr(offset, chunkSize);
             auto status = parser.feed(
                 chunk,
-                [](const lc::ServerSentEvent&) {
-                    return lc::Status::ok();
+                [](const lgc::ServerSentEvent&) {
+                    return lgc::Status::ok();
                 });
             if (!status.isOk())
                 return 0;
             offset += chunkSize;
         }
         (void)parser.finish(
-            [](const lc::ServerSentEvent&) {
-                return lc::Status::ok();
+            [](const lgc::ServerSentEvent&) {
+                return lgc::Status::ok();
             });
     } catch (...) {
     }

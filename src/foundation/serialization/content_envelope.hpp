@@ -14,7 +14,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 using Bytes = std::vector<std::uint8_t>;
 
@@ -117,4 +117,4 @@ private:
 [[nodiscard]] Result<Envelope> deserializeEnvelope(std::string_view text, const JsonDecodeLimits& limits);
 [[nodiscard]] bool isEnvelopePayload(const Payload& payload) noexcept;
 
-} // namespace lc
+} // namespace lgc

@@ -7,7 +7,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc {
+namespace lgc {
 
 struct StorageStoreOptions {
     /// Storage scope prefix used for long-lived store items.
@@ -38,4 +38,4 @@ private:
     StorageStoreOptions options_;
 };
 
-} // namespace lc
+} // namespace lgc

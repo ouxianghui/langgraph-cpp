@@ -31,23 +31,23 @@ namespace {
 
 using Json = nlohmann::json;
 
-[[nodiscard]] lc::State stateFromJson(std::string text)
+[[nodiscard]] lgc::State stateFromJson(std::string text)
 {
-    auto state = lc::State::fromJson(std::move(text));
+    auto state = lgc::State::fromJson(std::move(text));
     assert(state.isOk());
     return std::move(*state);
 }
 
-[[nodiscard]] lc::State stateFromJsonValue(Json value)
+[[nodiscard]] lgc::State stateFromJsonValue(Json value)
 {
-    auto state = lc::State::fromJsonValue(value);
+    auto state = lgc::State::fromJsonValue(value);
     assert(state.isOk());
     return std::move(*state);
 }
 
-[[nodiscard]] lc::StateUpdate updateFromJsonValue(Json value)
+[[nodiscard]] lgc::StateUpdate updateFromJsonValue(Json value)
 {
-    auto update = lc::StateUpdate::fromJsonValue(value);
+    auto update = lgc::StateUpdate::fromJsonValue(value);
     assert(update.isOk());
     return std::move(*update);
 }
@@ -69,14 +69,14 @@ using Json = nlohmann::json;
     return out;
 }
 
-[[nodiscard]] lc::CheckpointWrite checkpointWrite(
+[[nodiscard]] lgc::CheckpointWrite checkpointWrite(
     std::uint64_t order,
     std::string node = "node",
     Json update = Json::object())
 {
     if (update.empty())
         update = Json { { "value", order } };
-    return lc::CheckpointWrite {
+    return lgc::CheckpointWrite {
         .taskId_ = "task-" + std::to_string(order % 17U),
         .taskPath_ = "root/task-" + std::to_string(order % 7U),
         .nodeId_ = std::move(node),
@@ -89,7 +89,7 @@ using Json = nlohmann::json;
     };
 }
 
-[[nodiscard]] lc::Checkpoint checkpointFor(
+[[nodiscard]] lgc::Checkpoint checkpointFor(
     std::string threadId,
     std::string checkpointNamespace,
     std::string checkpointId,
@@ -98,16 +98,16 @@ using Json = nlohmann::json;
 {
     if (state.empty())
         state = Json { { "step", step } };
-    return lc::Checkpoint {
+    return lgc::Checkpoint {
         .threadId_ = std::move(threadId),
         .checkpointId_ = std::move(checkpointId),
         .checkpointNamespace_ = std::move(checkpointNamespace),
         .parentCheckpointId_ = step == 0U ? std::nullopt : std::optional<std::string>("cp-" + padded(step - 1U)),
         .step_ = step,
         .state_ = stateFromJsonValue(std::move(state)),
-        .nextNodes_ = { step % 2U == 0U ? "next" : std::string(lc::END) },
+        .nextNodes_ = { step % 2U == 0U ? "next" : std::string(lgc::END) },
         .nextTasks_ = {
-            lc::CheckpointTask {
+            lgc::CheckpointTask {
                 .taskId_ = "task-next-" + std::to_string(step),
                 .nodeId_ = "next",
                 .checkpointNamespace_ = "root",
@@ -136,13 +136,13 @@ using Json = nlohmann::json;
 
 void fuzzJsonSchemaParserValidator()
 {
-    const lc::SchemaValidator validator;
+    const lgc::SchemaValidator validator;
     std::mt19937 rng(0x5C4E'0001U);
 
     for (int i = 0; i < 384; ++i) {
         const int selector = i % 8;
         if (selector == 0) {
-            auto schema = lc::JsonSchema::fromJson(Json {
+            auto schema = lgc::JsonSchema::fromJson(Json {
                 { "type", "object" },
                 { "required", Json::array({ "id", "score" }) },
                 { "properties", {
@@ -168,8 +168,8 @@ void fuzzJsonSchemaParserValidator()
                         *schema)
                         .isOk());
         } else if (selector == 1) {
-            auto schema = lc::JsonSchema::array()
-                              .items(lc::JsonSchema::integer().minimum(-10).maximum(10))
+            auto schema = lgc::JsonSchema::array()
+                              .items(lgc::JsonSchema::integer().minimum(-10).maximum(10))
                               .minItems(1)
                               .maxItems(5)
                               .uniqueItems();
@@ -177,14 +177,14 @@ void fuzzJsonSchemaParserValidator()
             assert(!validator.check(Json::array({ 1, 1 }), schema).isOk());
             assert(!validator.check(Json::array({ 11 }), schema).isOk());
         } else if (selector == 2) {
-            auto schema = lc::JsonSchema::string()
+            auto schema = lgc::JsonSchema::string()
                               .minLength(3)
                               .maxLength(12)
                               .pattern(R"(^[a-z]+-[0-9]+$)");
             assert(validator.check("abc-" + std::to_string(i), schema).isOk());
             assert(!validator.check("ABC-" + std::to_string(i), schema).isOk());
         } else if (selector == 3) {
-            auto schema = lc::JsonSchema::fromJson(Json {
+            auto schema = lgc::JsonSchema::fromJson(Json {
                 { "anyOf", Json::array({
                                Json { { "type", "boolean" } },
                                Json { { "type", "integer" }, { "multipleOf", 2 } },
@@ -195,7 +195,7 @@ void fuzzJsonSchemaParserValidator()
             assert(validator.check(4, *schema).isOk());
             assert(!validator.check(5, *schema).isOk());
         } else if (selector == 4) {
-            auto schema = lc::JsonSchema::fromJson(Json {
+            auto schema = lgc::JsonSchema::fromJson(Json {
                 { "oneOf", Json::array({
                                Json { { "type", "integer" } },
                                Json { { "minimum", 0 } },
@@ -205,30 +205,30 @@ void fuzzJsonSchemaParserValidator()
             assert(validator.check(-1, *schema).isOk());
             assert(!validator.check(1, *schema).isOk());
         } else if (selector == 5) {
-            auto schema = lc::JsonSchema::fromJson(Json {
+            auto schema = lgc::JsonSchema::fromJson(Json {
                 { "required", Json::array({ "a", "a" }) },
             });
             assert(!schema.isOk());
-            assert(schema.status().code() == lc::StatusCode::InvalidArgument);
+            assert(schema.status().code() == lgc::StatusCode::InvalidArgument);
         } else if (selector == 6) {
-            auto schema = lc::JsonSchema::fromJson(Json {
+            auto schema = lgc::JsonSchema::fromJson(Json {
                 { "type", "string" },
                 { "pattern", "[" },
             });
             assert(!schema.isOk());
-            assert(schema.status().code() == lc::StatusCode::InvalidArgument);
+            assert(schema.status().code() == lgc::StatusCode::InvalidArgument);
         } else {
-            auto schema = lc::JsonSchema::fromJson(Json {
+            auto schema = lgc::JsonSchema::fromJson(Json {
                 { "type", "object" },
                 { "unknownKeyword", true },
             });
             assert(!schema.isOk());
-            auto relaxed = lc::JsonSchema::fromJson(
+            auto relaxed = lgc::JsonSchema::fromJson(
                 Json {
                     { "type", "object" },
                     { "unknownKeyword", true },
                 },
-                lc::JsonSchemaOptions {
+                lgc::JsonSchemaOptions {
                     .allowUnknownKeywords_ = true,
                 });
             assert(relaxed.isOk());
@@ -237,11 +237,11 @@ void fuzzJsonSchemaParserValidator()
 
     auto limited = validator.validateText(
         R"({"items":[{"name":"tool"},{"name":"runtime"}]})",
-        lc::JsonSchema::object().property(
+        lgc::JsonSchema::object().property(
             "items",
-            lc::JsonSchema::array().items(lc::JsonSchema::object()),
+            lgc::JsonSchema::array().items(lgc::JsonSchema::object()),
             true),
-        lc::ValidationOptions {
+        lgc::ValidationOptions {
             .maxDepth_ = 1,
         });
     assert(limited.isOk());
@@ -251,26 +251,26 @@ void fuzzJsonSchemaParserValidator()
 
 void fuzzStateUpdateReducerMerge()
 {
-    lc::ReducerRegistry reducers;
+    lgc::ReducerRegistry reducers;
     reducers
-        .set("numbers", lc::ReducerKind::Append)
-        .set("messages", lc::ReducerKind::AddMessages)
-        .set("metadata", lc::ReducerKind::MergeObject)
-        .set("sum", [](const Json& left, const Json& right) -> lc::Result<Json> {
+        .set("numbers", lgc::ReducerKind::Append)
+        .set("messages", lgc::ReducerKind::AddMessages)
+        .set("metadata", lgc::ReducerKind::MergeObject)
+        .set("sum", [](const Json& left, const Json& right) -> lgc::Result<Json> {
             const auto lhs = left.is_null() ? 0 : left.get<int>();
             return Json(lhs + right.get<int>());
         });
 
     auto state = stateFromJson(R"({"numbers":[],"messages":[],"metadata":{},"sum":0,"status":"new"})");
     for (int i = 0; i < 512; ++i) {
-        auto message = lc::BaseMessage::human("message-" + std::to_string(i));
+        auto message = lgc::BaseMessage::human("message-" + std::to_string(i));
         message.id_ = "msg-" + std::to_string(i % 64);
 
-        auto merged = lc::applyStateUpdate(
+        auto merged = lgc::applyStateUpdate(
             state,
             updateFromJsonValue({
                 { "numbers", Json::array({ i }) },
-                { "messages", Json::array({ lc::baseMessageToJson(message) }) },
+                { "messages", Json::array({ lgc::baseMessageToJson(message) }) },
                 { "metadata", { { "k" + std::to_string(i % 23), i } } },
                 { "sum", 1 },
                 { "status", i % 2 == 0 ? "even" : "odd" },
@@ -287,26 +287,26 @@ void fuzzStateUpdateReducerMerge()
     assert(view.at("messages").size() == 64);
     assert(view.at("messages").back().at("content") == "message-511");
 
-    auto overwritten = lc::applyStateUpdate(
+    auto overwritten = lgc::applyStateUpdate(
         state,
         updateFromJsonValue({
-            { "numbers", lc::overwriteToJson(lc::Overwrite { .value_ = Json::array({ "reset" }) }) },
+            { "numbers", lgc::overwriteToJson(lgc::Overwrite { .value_ = Json::array({ "reset" }) }) },
         }),
         reducers);
     assert(overwritten.isOk());
     assert(overwritten->view().at("numbers") == Json::array({ "reset" }));
 
-    auto invalidMessages = lc::applyStateUpdate(
+    auto invalidMessages = lgc::applyStateUpdate(
         stateFromJson(R"({"messages":"not-array"})"),
         updateFromJsonValue({ { "messages", Json::array({ "x" }) } }),
         reducers);
     assert(!invalidMessages.isOk());
-    assert(invalidMessages.status().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidMessages.status().code() == lgc::StatusCode::InvalidArgument);
 }
 
 void fuzzCheckpointCodec()
 {
-    const lc::JsonCheckpointCodec codec;
+    const lgc::JsonCheckpointCodec codec;
 
     for (std::uint64_t i = 0; i < 256; ++i) {
         auto checkpoint = checkpointFor(
@@ -323,7 +323,7 @@ void fuzzCheckpointCodec()
 
         auto encoded = codec.encode(checkpoint);
         assert(encoded.isOk());
-        assert(lc::isCheckpointPayload(encoded->contentType_));
+        assert(lgc::isCheckpointPayload(encoded->contentType_));
         auto decoded = codec.decode(*encoded);
         assert(decoded.isOk());
         assert(decoded->threadId_ == checkpoint.threadId_);
@@ -336,37 +336,37 @@ void fuzzCheckpointCodec()
 
         auto encodedWrite = codec.encodeWrite(checkpoint.pendingWrites_.front());
         assert(encodedWrite.isOk());
-        assert(lc::isCheckpointWritePayload(encodedWrite->contentType_));
+        assert(lgc::isCheckpointWritePayload(encodedWrite->contentType_));
         auto decodedWrite = codec.decodeWrite(*encodedWrite);
         assert(decodedWrite.isOk());
         assert(*decodedWrite == checkpoint.pendingWrites_.front());
     }
 
-    auto wrongType = codec.decode(lc::Payload {
+    auto wrongType = codec.decode(lgc::Payload {
         .contentType_ = "application/json",
         .data_ = "{}",
     });
     assert(!wrongType.isOk());
-    assert(wrongType.status().code() == lc::StatusCode::InvalidArgument);
+    assert(wrongType.status().code() == lgc::StatusCode::InvalidArgument);
 
-    auto unknownField = codec.decode(lc::Payload {
+    auto unknownField = codec.decode(lgc::Payload {
         .contentType_ = "application/vnd.langgraph-cpp.checkpoint+json",
         .data_ = R"({"thread_id":"t","checkpoint_id":"c","step":1,"state":{},"unexpected":true})",
     });
     assert(!unknownField.isOk());
-    assert(unknownField.status().code() == lc::StatusCode::InvalidArgument);
+    assert(unknownField.status().code() == lgc::StatusCode::InvalidArgument);
 }
 
 void fuzzContentEnvelope()
 {
-    lc::EnvelopeCodec envelope;
-    lc::EnvelopeOptions options;
+    lgc::EnvelopeCodec envelope;
+    lgc::EnvelopeOptions options;
 #if !LANGGRAPH_CPP_WITH_CRYPTO
     options.checksum_ = false;
 #endif
 
     for (int i = 0; i < 128; ++i) {
-        lc::Payload payload {
+        lgc::Payload payload {
             .contentType_ = "application/json",
             .data_ = Json {
                 { "index", i },
@@ -376,25 +376,25 @@ void fuzzContentEnvelope()
 
         auto encoded = envelope.encode(payload, options);
         assert(encoded.isOk());
-        assert(encoded->contentType_ == lc::envelopeContentType());
+        assert(encoded->contentType_ == lgc::envelopeContentType());
 
         auto decoded = envelope.decode(*encoded, options);
         assert(decoded.isOk());
         assert(decoded->contentType_ == payload.contentType_);
         assert(decoded->data_ == payload.data_);
 
-        auto parsed = lc::deserializeEnvelope(encoded->data_);
+        auto parsed = lgc::deserializeEnvelope(encoded->data_);
         assert(parsed.isOk());
-        auto serialized = lc::serializeEnvelope(*parsed);
+        auto serialized = lgc::serializeEnvelope(*parsed);
         assert(serialized.isOk());
-        auto reparsed = lc::deserializeEnvelope(*serialized);
+        auto reparsed = lgc::deserializeEnvelope(*serialized);
         assert(reparsed.isOk());
         assert(reparsed->contentType_ == payload.contentType_);
     }
 
     auto checkpoint = checkpointFor("envelope-thread", "root", "cp-envelope", 9);
     checkpoint.pendingWrites_.push_back(checkpointWrite(9));
-    lc::EnvelopedCheckpointCodec codec(std::make_shared<lc::JsonCheckpointCodec>(), envelope, options);
+    lgc::EnvelopedCheckpointCodec codec(std::make_shared<lgc::JsonCheckpointCodec>(), envelope, options);
     auto encodedCheckpoint = codec.encode(checkpoint);
     assert(encodedCheckpoint.isOk());
     auto decodedCheckpoint = codec.decode(*encodedCheckpoint);
@@ -408,9 +408,9 @@ void fuzzContentEnvelope()
     assert(decodedWrite.isOk());
     assert(*decodedWrite == checkpoint.pendingWrites_.front());
 
-    auto malformed = lc::deserializeEnvelope(R"({"version":1,"content_type":"application/json","data_hex":"00","extra":true})");
+    auto malformed = lgc::deserializeEnvelope(R"({"version":1,"content_type":"application/json","data_hex":"00","extra":true})");
     assert(!malformed.isOk());
-    assert(malformed.status().code() == lc::StatusCode::InvalidArgument);
+    assert(malformed.status().code() == lgc::StatusCode::InvalidArgument);
 }
 
 void fuzzSseParser()
@@ -435,22 +435,22 @@ void fuzzSseParser()
             stream += "retry: not-a-number\n";
         stream += "\n";
 
-        lc::http_client_detail::SseParser parser;
-        std::vector<lc::ServerSentEvent> events;
+        lgc::http_client_detail::SseParser parser;
+        std::vector<lgc::ServerSentEvent> events;
         std::size_t offset = 0;
         while (offset < stream.size()) {
             const auto chunk = 1U + (rng() % 7U);
             const auto size = std::min<std::size_t>(chunk, stream.size() - offset);
-            auto status = parser.feed(std::string_view(stream).substr(offset, size), [&](const lc::ServerSentEvent& event) {
+            auto status = parser.feed(std::string_view(stream).substr(offset, size), [&](const lgc::ServerSentEvent& event) {
                 events.push_back(event);
-                return lc::Status::ok();
+                return lgc::Status::ok();
             });
             assert(status.isOk());
             offset += size;
         }
-        assert(parser.finish([&](const lc::ServerSentEvent& event) {
+        assert(parser.finish([&](const lgc::ServerSentEvent& event) {
             events.push_back(event);
-            return lc::Status::ok();
+            return lgc::Status::ok();
         }).isOk());
 
         assert(events.size() == 1);
@@ -465,34 +465,34 @@ void fuzzSseParser()
         }
     }
 
-    lc::http_client_detail::SseParser parser;
-    auto cancelled = parser.feed("data: stop\n\n", [](const lc::ServerSentEvent&) {
-        return lc::Status::cancelled("consumer stopped");
+    lgc::http_client_detail::SseParser parser;
+    auto cancelled = parser.feed("data: stop\n\n", [](const lgc::ServerSentEvent&) {
+        return lgc::Status::cancelled("consumer stopped");
     });
     assert(!cancelled.isOk());
-    assert(cancelled.code() == lc::StatusCode::Cancelled);
+    assert(cancelled.code() == lgc::StatusCode::Cancelled);
 }
 
 void fuzzMessageToolCallJsonParser()
 {
     for (int i = 0; i < 256; ++i) {
-        lc::BaseMessage message;
+        lgc::BaseMessage message;
         switch (i % 4) {
         case 0:
-            message = lc::BaseMessage::system("system-" + std::to_string(i));
+            message = lgc::BaseMessage::system("system-" + std::to_string(i));
             break;
         case 1:
-            message = lc::BaseMessage::human("human-" + std::to_string(i));
+            message = lgc::BaseMessage::human("human-" + std::to_string(i));
             message.contentBlocks_ = Json::array({
                 Json { { "type", "text" }, { "text", message.content_ } },
                 Json { { "type", "image" }, { "url", "https://example.com/" + std::to_string(i) + ".jpg" } },
             });
             break;
         case 2:
-            message = lc::BaseMessage::ai(
+            message = lgc::BaseMessage::ai(
                 "ai-" + std::to_string(i),
                 {
-                    lc::ToolCall {
+                    lgc::ToolCall {
                         .id_ = "call-" + std::to_string(i),
                         .name_ = "tool_" + std::to_string(i % 9),
                         .args_ = {
@@ -500,7 +500,7 @@ void fuzzMessageToolCallJsonParser()
                         },
                     },
                 });
-            message.usageMetadata_.source_ = lc::UsageMetadataSource::Provider;
+            message.usageMetadata_.source_ = lgc::UsageMetadataSource::Provider;
             message.usageMetadata_.provider_ = "fuzz";
             message.usageMetadata_.tokens_.inputTokens_ = static_cast<std::uint64_t>(i);
             message.usageMetadata_.tokens_.outputTokens_ = static_cast<std::uint64_t>(i + 1);
@@ -508,7 +508,7 @@ void fuzzMessageToolCallJsonParser()
             message.responseMetadata_ = { { "provider", "fuzz" } };
             break;
         default:
-            message = lc::BaseMessage::tool(
+            message = lgc::BaseMessage::tool(
                 "call-" + std::to_string(i),
                 "tool_" + std::to_string(i % 9),
                 Json { { "ok", true }, { "index", i } }.dump());
@@ -517,8 +517,8 @@ void fuzzMessageToolCallJsonParser()
         }
         message.id_ = "msg-" + std::to_string(i);
 
-        auto encoded = lc::baseMessageToJson(message);
-        auto decoded = lc::baseMessageFromJson(encoded);
+        auto encoded = lgc::baseMessageToJson(message);
+        auto decoded = lgc::baseMessageFromJson(encoded);
         assert(decoded.isOk());
         assert(decoded->id_ == message.id_);
         assert(decoded->type_ == message.type_);
@@ -528,7 +528,7 @@ void fuzzMessageToolCallJsonParser()
         assert(decoded->name_ == message.name_);
     }
 
-    auto nativeBlocks = lc::normalizeContentBlocks(Json::array({
+    auto nativeBlocks = lgc::normalizeContentBlocks(Json::array({
         Json {
             { "type", "image_url" },
             { "image_url", {
@@ -557,31 +557,31 @@ void fuzzMessageToolCallJsonParser()
     assert(nativeBlocks->at(1).at("type") == "audio");
     assert(nativeBlocks->at(1).at("mime_type") == "audio/wav");
 
-    auto messages = lc::messagesFromJson(lc::messagesToJson({
-        lc::BaseMessage::system("sys"),
-        lc::BaseMessage::human("hi"),
-        lc::BaseMessage::ai("answer"),
+    auto messages = lgc::messagesFromJson(lgc::messagesToJson({
+        lgc::BaseMessage::system("sys"),
+        lgc::BaseMessage::human("hi"),
+        lgc::BaseMessage::ai("answer"),
     }));
     assert(messages.isOk());
     assert(messages->size() == 3);
 
-    auto invalidToolCall = lc::toolCallFromJson(Json {
+    auto invalidToolCall = lgc::toolCallFromJson(Json {
         { "id", "call" },
         { "name", "tool" },
         { "args", Json::array() },
     });
     assert(!invalidToolCall.isOk());
-    assert(invalidToolCall.status().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidToolCall.status().code() == lgc::StatusCode::InvalidArgument);
 
-    auto toolResult = lc::ToolResult::failure(
-        lc::ToolErrorCode::Rejected,
+    auto toolResult = lgc::ToolResult::failure(
+        lgc::ToolErrorCode::Rejected,
         "blocked",
         { { "reason", "policy" } });
-    auto decodedToolResult = lc::toolResultFromJson(lc::toolResultToJson(toolResult));
+    auto decodedToolResult = lgc::toolResultFromJson(lgc::toolResultToJson(toolResult));
     assert(decodedToolResult.isOk());
     assert(!decodedToolResult->ok_);
     assert(decodedToolResult->error_.has_value());
-    assert(decodedToolResult->error_->code_ == lc::ToolErrorCode::Rejected);
+    assert(decodedToolResult->error_->code_ == lgc::ToolErrorCode::Rejected);
 }
 
 void fuzzGraphNamespaceParser()
@@ -592,10 +592,10 @@ void fuzzGraphNamespaceParser()
         std::string nameSpace;
         const int segments = 1 + static_cast<int>(rng() % 6U);
         if (i % 5 == 0)
-            nameSpace.push_back(lc::detail::kCheckpointNamespaceSeparator);
+            nameSpace.push_back(lgc::detail::kCheckpointNamespaceSeparator);
         for (int s = 0; s < segments; ++s) {
             if (s > 0 || !nameSpace.empty())
-                nameSpace.push_back(lc::detail::kCheckpointNamespaceSeparator);
+                nameSpace.push_back(lgc::detail::kCheckpointNamespaceSeparator);
             if (i % 7 == 0 && s == 1)
                 continue;
             auto segment = "node-" + std::to_string(i) + "-" + std::to_string(s);
@@ -603,23 +603,23 @@ void fuzzGraphNamespaceParser()
             nameSpace.append(segment);
         }
         if (i % 3 == 0)
-            nameSpace.push_back(lc::detail::kCheckpointNamespaceSeparator);
+            nameSpace.push_back(lgc::detail::kCheckpointNamespaceSeparator);
 
-        auto parsed = lc::detail::namespacePathFromString(nameSpace);
+        auto parsed = lgc::detail::namespacePathFromString(nameSpace);
         assert(parsed.is_array());
         assert(parsed.size() == expected.size());
         for (std::size_t n = 0; n < expected.size(); ++n)
             assert(parsed.at(n) == expected.at(n));
     }
 
-    auto root = lc::detail::namespacePathFromString("");
+    auto root = lgc::detail::namespacePathFromString("");
     assert(root.is_array());
     assert(root.empty());
 }
 
 void fuzzRunnableConfigMergePatch()
 {
-    auto config = lc::RunnableConfig::fromJson(Json {
+    auto config = lgc::RunnableConfig::fromJson(Json {
         { "tags", Json::array({ "base" }) },
         { "metadata", { { "source", "test" } } },
         { "configurable", {
@@ -635,7 +635,7 @@ void fuzzRunnableConfigMergePatch()
     assert(config->metadata_.at("assistant_id") == "assistant-a");
 
     for (int i = 0; i < 128; ++i) {
-        auto patched = lc::patchRunnableConfig(
+        auto patched = lgc::patchRunnableConfig(
             *config,
             Json {
                 { "tags", Json::array({ "tag-" + std::to_string(i) }) },
@@ -654,7 +654,7 @@ void fuzzRunnableConfigMergePatch()
     assert(config->configurable_.contains("extra_0"));
     assert(config->maxConcurrency_.has_value());
 
-    auto overrideConfig = lc::RunnableConfig::fromJson(Json {
+    auto overrideConfig = lgc::RunnableConfig::fromJson(Json {
         { "tags", Json::array({ "override" }) },
         { "metadata", { { "source", "override" }, { "new", true } } },
         { "configurable", { { "thread_id", "thread-b" }, { "checkpoint_ns", "child" } } },
@@ -662,7 +662,7 @@ void fuzzRunnableConfigMergePatch()
     });
     assert(overrideConfig.isOk());
 
-    auto merged = lc::mergeRunnableConfigs({ *config, *overrideConfig });
+    auto merged = lgc::mergeRunnableConfigs({ *config, *overrideConfig });
     assert(merged.isOk());
     assert(merged->tags_.back() == "override");
     assert(merged->metadata_.at("source") == "override");
@@ -671,24 +671,24 @@ void fuzzRunnableConfigMergePatch()
     assert(merged->configurable_.at("checkpoint_ns") == "child");
     assert(merged->runId_ == "run-override");
 
-    lc::RunOptions options;
+    lgc::RunOptions options;
     options.threadId_ = "original";
     options.checkpointNamespace_ = "original-ns";
-    auto applied = lc::applyRunnableConfig(std::move(options), *merged);
+    auto applied = lgc::applyRunnableConfig(std::move(options), *merged);
     assert(applied.isOk());
     assert(applied->threadId_ == "thread-b");
     assert(applied->checkpointNamespace_ == "child");
     assert(applied->runId_ == "run-override");
     assert(applied->maxConcurrency_ == *merged->maxConcurrency_);
 
-    auto invalid = lc::patchRunnableConfig(*merged, Json::array());
+    auto invalid = lgc::patchRunnableConfig(*merged, Json::array());
     assert(!invalid.isOk());
-    assert(invalid.status().code() == lc::StatusCode::InvalidArgument);
+    assert(invalid.status().code() == lgc::StatusCode::InvalidArgument);
 }
 
 void stressCheckpointHistory1000()
 {
-    auto exercise = [](lc::BaseCheckpointSaver& saver, std::string threadId) {
+    auto exercise = [](lgc::BaseCheckpointSaver& saver, std::string threadId) {
         constexpr std::uint64_t kCheckpoints = 1008;
         for (std::uint64_t step = 0; step < kCheckpoints; ++step) {
             auto checkpoint = checkpointFor(
@@ -703,23 +703,23 @@ void stressCheckpointHistory1000()
             assert(saver.put(std::move(checkpoint)).isOk());
         }
 
-        auto latest = saver.getTuple(lc::CheckpointQuery::latest(threadId, "root"));
+        auto latest = saver.getTuple(lgc::CheckpointQuery::latest(threadId, "root"));
         assert(latest.isOk());
         assert(latest->has_value());
         assert((*latest)->checkpoint_.checkpointId_ == "cp-" + padded(kCheckpoints - 1U));
         assert((*latest)->checkpoint_.state_.view().at("step") == kCheckpoints - 1U);
 
-        auto history = saver.list(lc::CheckpointListOptions {
+        auto history = saver.list(lgc::CheckpointListOptions {
             .threadId_ = threadId,
             .checkpointNamespace_ = std::string("root"),
-            .order_ = lc::CheckpointListOrder::OldestFirst,
+            .order_ = lgc::CheckpointListOrder::OldestFirst,
         });
         assert(history.isOk());
         assert(history->size() == kCheckpoints);
         assert(history->front().checkpoint_.checkpointId_ == "cp-" + padded(0));
         assert(history->back().checkpoint_.checkpointId_ == "cp-" + padded(kCheckpoints - 1U));
 
-        auto newestLimited = saver.list(lc::CheckpointListOptions {
+        auto newestLimited = saver.list(lgc::CheckpointListOptions {
             .threadId_ = threadId,
             .checkpointNamespace_ = std::string("root"),
             .limit_ = 7,
@@ -730,7 +730,7 @@ void stressCheckpointHistory1000()
 
         auto pruned = saver.prune(
             threadId,
-            lc::CheckpointPruneOptions {
+            lgc::CheckpointPruneOptions {
                 .checkpointNamespace_ = "root",
                 .keepLatest_ = 8,
             });
@@ -741,23 +741,23 @@ void stressCheckpointHistory1000()
         assert(saver.deleteThread(threadId).isOk());
     };
 
-    lc::InMemorySaver memory;
+    lgc::InMemorySaver memory;
     exercise(memory, "history-memory");
 
-    auto storage = std::make_shared<lc::MemoryStorage>();
-    lc::StorageSaver storageSaver(storage, lc::StorageSaverOptions { .listPageSize_ = 37 });
+    auto storage = std::make_shared<lgc::MemoryStorage>();
+    lgc::StorageSaver storageSaver(storage, lgc::StorageSaverOptions { .listPageSize_ = 37 });
     exercise(storageSaver, "history-storage");
 }
 
-[[nodiscard]] lc::CompiledStateGraph buildIncrementGraph()
+[[nodiscard]] lgc::CompiledStateGraph buildIncrementGraph()
 {
-    lc::StateGraph graph;
-    assert(graph.addNode("inc", [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::StateUpdate> {
+    lgc::StateGraph graph;
+    assert(graph.addNode("inc", [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
         const auto next = state.view().value("value", 0) + 1;
-        return lc::StateUpdate::fromJsonValue({ { "value", next } });
+        return lgc::StateUpdate::fromJsonValue({ { "value", next } });
     }).isOk());
-    assert(graph.addEdge(std::string(lc::START), "inc").isOk());
-    assert(graph.addEdge("inc", std::string(lc::END)).isOk());
+    assert(graph.addEdge(std::string(lgc::START), "inc").isOk());
+    assert(graph.addEdge("inc", std::string(lgc::END)).isOk());
     auto compiled = graph.compile();
     assert(compiled.isOk());
     return std::move(*compiled);
@@ -766,7 +766,7 @@ void stressCheckpointHistory1000()
 void stressConcurrentGraphInvocations1000()
 {
     const auto compiled = buildIncrementGraph();
-    auto checkpointer = std::make_shared<lc::InMemorySaver>();
+    auto checkpointer = std::make_shared<lgc::InMemorySaver>();
 
     constexpr int kWorkers = 32;
     constexpr int kPerWorker = 32;
@@ -787,7 +787,7 @@ void stressConcurrentGraphInvocations1000()
                 cv.wait(lock, [&] { return start; });
             }
             for (int index = 0; index < kPerWorker; ++index) {
-                lc::RunOptions options;
+                lgc::RunOptions options;
                 options.threadId_ = "concurrent-" + std::to_string(worker) + "-" + std::to_string(index);
                 options.checkpointer_ = checkpointer;
                 auto result = compiled.invoke(stateFromJsonValue({ { "value", index } }), options);
@@ -809,32 +809,32 @@ void stressConcurrentGraphInvocations1000()
         worker.join();
     assert(completed.load(std::memory_order_acquire) == kWorkers * kPerWorker);
 
-    auto latest = checkpointer->getTuple(lc::CheckpointQuery::latest("concurrent-0-0"));
+    auto latest = checkpointer->getTuple(lgc::CheckpointQuery::latest("concurrent-0-0"));
     assert(latest.isOk());
     assert(latest->has_value());
     assert((*latest)->checkpoint_.state_.view().at("value") == 1);
 }
 
-[[nodiscard]] lc::CompiledStateGraph buildInterruptGraph()
+[[nodiscard]] lgc::CompiledStateGraph buildInterruptGraph()
 {
-    lc::StateGraph graph;
-    assert(graph.addNode("gate", [](const lc::State&, lc::Runtime& context) -> lc::Result<lc::NodeOutput> {
+    lgc::StateGraph graph;
+    assert(graph.addNode("gate", [](const lgc::State&, lgc::Runtime& context) -> lgc::Result<lgc::NodeOutput> {
         if (!context.hasResumeValue()) {
-            return lc::NodeOutput::interrupt(lc::Interrupt {
+            return lgc::NodeOutput::interrupt(lgc::Interrupt {
                 .id_ = "approval",
                 .value_ = { { "question", "continue?" } },
             });
         }
-        auto update = lc::StateUpdate::fromJsonValue({
+        auto update = lgc::StateUpdate::fromJsonValue({
             { "approved", context.resumeValue().value("approved", false) },
             { "worker", context.resumeValue().value("worker", -1) },
         });
         if (!update.isOk())
             return update.status();
-        return lc::NodeOutput::update(std::move(*update));
+        return lgc::NodeOutput::update(std::move(*update));
     }).isOk());
-    assert(graph.addEdge(std::string(lc::START), "gate").isOk());
-    assert(graph.addEdge("gate", std::string(lc::END)).isOk());
+    assert(graph.addEdge(std::string(lgc::START), "gate").isOk());
+    assert(graph.addEdge("gate", std::string(lgc::END)).isOk());
     auto compiled = graph.compile();
     assert(compiled.isOk());
     return std::move(*compiled);
@@ -843,7 +843,7 @@ void stressConcurrentGraphInvocations1000()
 void stressMultithreadStreamConsumerResume()
 {
     const auto compiled = buildInterruptGraph();
-    auto checkpointer = std::make_shared<lc::InMemorySaver>();
+    auto checkpointer = std::make_shared<lgc::InMemorySaver>();
 
     constexpr int kWorkers = 16;
     std::atomic<int> completed { 0 };
@@ -852,15 +852,15 @@ void stressMultithreadStreamConsumerResume()
 
     for (int worker = 0; worker < kWorkers; ++worker) {
         workers.emplace_back([&, worker] {
-            lc::RunOptions options;
+            lgc::RunOptions options;
             options.threadId_ = "stream-resume-" + std::to_string(worker);
             options.checkpointer_ = checkpointer;
 
             auto streamResult = compiled.streamProjected(
                 stateFromJson("{}"),
                 options,
-                lc::RunProjectionOptions {
-                    .modes_ = { lc::StreamMode::Interrupts, lc::StreamMode::Values, lc::StreamMode::Events },
+                lgc::RunProjectionOptions {
+                    .modes_ = { lgc::StreamMode::Interrupts, lgc::StreamMode::Values, lgc::StreamMode::Events },
                     .capacity_ = 16,
                 });
             assert(streamResult.isOk());
@@ -873,25 +873,25 @@ void stressMultithreadStreamConsumerResume()
                 if (!part->has_value())
                     break;
                 sawInterrupt = sawInterrupt
-                    || (*part)->mode_ == lc::StreamMode::Interrupts
-                    || ((*part)->mode_ == lc::StreamMode::Values && (*part)->data_.contains("__interrupt__"));
+                    || (*part)->mode_ == lgc::StreamMode::Interrupts
+                    || ((*part)->mode_ == lgc::StreamMode::Values && (*part)->data_.contains("__interrupt__"));
             }
             auto paused = stream.result();
             assert(paused.isOk());
-            assert(paused->status_ == lc::RunStatus::Paused);
+            assert(paused->status_ == lgc::RunStatus::Paused);
             assert(sawInterrupt);
 
-            lc::RunOptions resumeOptions;
+            lgc::RunOptions resumeOptions;
             resumeOptions.checkpointer_ = checkpointer;
-            resumeOptions.command_ = lc::Command::resume({
+            resumeOptions.command_ = lgc::Command::resume({
                 { "approved", true },
                 { "worker", worker },
             });
             auto resumedStream = compiled.resumeProjected(
                 options.threadId_,
                 resumeOptions,
-                lc::RunProjectionOptions {
-                    .modes_ = { lc::StreamMode::Updates, lc::StreamMode::Values },
+                lgc::RunProjectionOptions {
+                    .modes_ = { lgc::StreamMode::Updates, lgc::StreamMode::Values },
                     .capacity_ = 16,
                 });
             assert(resumedStream.isOk());
@@ -903,13 +903,13 @@ void stressMultithreadStreamConsumerResume()
                 if (!part->has_value())
                     break;
                 sawResumeValue = sawResumeValue
-                    || ((*part)->mode_ == lc::StreamMode::Values
+                    || ((*part)->mode_ == lgc::StreamMode::Values
                         && (*part)->data_.contains("worker")
                         && (*part)->data_.at("worker") == worker);
             }
             auto completedRun = resume.result();
             assert(completedRun.isOk());
-            assert(completedRun->status_ == lc::RunStatus::Completed);
+            assert(completedRun->status_ == lgc::RunStatus::Completed);
             assert(completedRun->state_.view().at("approved") == true);
             assert(completedRun->state_.view().at("worker") == worker);
             assert(sawResumeValue);
@@ -939,17 +939,17 @@ void removeDatabaseFiles(const std::filesystem::path& path)
     std::filesystem::remove(path.string() + "-journal");
 }
 
-[[nodiscard]] std::shared_ptr<lc::SQLiteStorage> openSQLite(const std::filesystem::path& path)
+[[nodiscard]] std::shared_ptr<lgc::SQLiteStorage> openSQLite(const std::filesystem::path& path)
 {
-    auto storage = std::make_shared<lc::SQLiteStorage>(
+    auto storage = std::make_shared<lgc::SQLiteStorage>(
         path.string(),
-        lc::Logger::defaultLogger(),
-        lc::StorageLimits {},
-        lc::SystemWallClock::instance(),
-        lc::SQLiteStorageOptions {
+        lgc::Logger::defaultLogger(),
+        lgc::StorageLimits {},
+        lgc::SystemWallClock::instance(),
+        lgc::SQLiteStorageOptions {
             .busyTimeout_ = std::chrono::seconds(10),
-            .journalMode_ = lc::SQLiteJournalMode::Wal,
-            .synchronousMode_ = lc::SQLiteSynchronousMode::Full,
+            .journalMode_ = lgc::SQLiteJournalMode::Wal,
+            .synchronousMode_ = lgc::SQLiteSynchronousMode::Full,
         });
     auto opened = storage->open();
     assert(opened.isOk());
@@ -962,7 +962,7 @@ int sqliteContentionChild(
     std::uint64_t checkpointCount)
 {
     auto storage = openSQLite(databasePath);
-    lc::StorageSaver saver(storage, lc::StorageSaverOptions { .listPageSize_ = 31 });
+    lgc::StorageSaver saver(storage, lgc::StorageSaverOptions { .listPageSize_ = 31 });
     const std::string threadId = "sqlite-contention-" + std::to_string(writer);
     for (std::uint64_t step = 0; step < checkpointCount; ++step) {
         auto checkpoint = checkpointFor(
@@ -996,8 +996,8 @@ void stressSQLiteMultiProcessContention(const char* executable)
     writers.reserve(kWriters);
     for (int writer = 0; writer < kWriters; ++writer) {
         writers.push_back(std::async(std::launch::async, [executable, path, writer] {
-            lc::ProcessRunner runner;
-            auto result = runner.run(lc::ProcessOptions {
+            lgc::ProcessRunner runner;
+            auto result = runner.run(lgc::ProcessOptions {
                 .executable_ = executable,
                 .arguments_ = {
                     "--sqlite-contention-child",
@@ -1017,20 +1017,20 @@ void stressSQLiteMultiProcessContention(const char* executable)
         writer.get();
 
     auto storage = openSQLite(path);
-    lc::StorageSaver saver(storage, lc::StorageSaverOptions { .listPageSize_ = 29 });
+    lgc::StorageSaver saver(storage, lgc::StorageSaverOptions { .listPageSize_ = 29 });
     for (int writer = 0; writer < kWriters; ++writer) {
         const std::string threadId = "sqlite-contention-" + std::to_string(writer);
-        auto latest = saver.getTuple(lc::CheckpointQuery::latest(threadId, "root"));
+        auto latest = saver.getTuple(lgc::CheckpointQuery::latest(threadId, "root"));
         assert(latest.isOk());
         assert(latest->has_value());
         assert((*latest)->checkpoint_.checkpointId_ == "cp-" + padded(kCheckpointsPerWriter - 1U));
         assert((*latest)->checkpoint_.state_.view().at("writer") == writer);
         assert((*latest)->checkpoint_.state_.view().at("step") == kCheckpointsPerWriter - 1U);
 
-        auto history = saver.list(lc::CheckpointListOptions {
+        auto history = saver.list(lgc::CheckpointListOptions {
             .threadId_ = threadId,
             .checkpointNamespace_ = std::string("root"),
-            .order_ = lc::CheckpointListOrder::OldestFirst,
+            .order_ = lgc::CheckpointListOrder::OldestFirst,
         });
         assert(history.isOk());
         assert(history->size() == kCheckpointsPerWriter);
@@ -1056,20 +1056,20 @@ void stressLargeStateMessagePendingWrites()
     Json largeUpdate = Json::object();
     for (int i = 0; i < 900; ++i)
         largeUpdate["extra_" + padded(static_cast<std::uint64_t>(i), 4)] = i;
-    auto merged = lc::applyStateUpdate(state, updateFromJsonValue(largeUpdate));
+    auto merged = lgc::applyStateUpdate(state, updateFromJsonValue(largeUpdate));
     assert(merged.isOk());
     assert(merged->view().size() == 3900);
 
-    lc::BaseMessage largeMessage = lc::BaseMessage::human(deterministicText(256 * 1024, 3));
+    lgc::BaseMessage largeMessage = lgc::BaseMessage::human(deterministicText(256 * 1024, 3));
     largeMessage.id_ = "large-message";
-    auto decodedMessage = lc::baseMessageFromJson(lc::baseMessageToJson(largeMessage));
+    auto decodedMessage = lgc::baseMessageFromJson(lgc::baseMessageToJson(largeMessage));
     assert(decodedMessage.isOk());
     assert(decodedMessage->content_.size() == largeMessage.content_.size());
 
     auto messageState = stateFromJsonValue({
-        { "messages", lc::messagesToJson({ largeMessage }) },
+        { "messages", lgc::messagesToJson({ largeMessage }) },
     });
-    const lc::JsonStateCodec stateCodec;
+    const lgc::JsonStateCodec stateCodec;
     auto encodedState = stateCodec.encode(messageState);
     assert(encodedState.isOk());
     auto decodedState = stateCodec.decode(*encodedState);
@@ -1083,21 +1083,21 @@ void stressLargeStateMessagePendingWrites()
     for (std::uint64_t i = 0; i < kPendingWrites; ++i)
         checkpoint.pendingWrites_.push_back(checkpointWrite(i, "pending", { { "pending_index", i } }));
 
-    const lc::JsonCheckpointCodec checkpointCodec;
+    const lgc::JsonCheckpointCodec checkpointCodec;
     auto encodedCheckpoint = checkpointCodec.encode(checkpoint);
     assert(encodedCheckpoint.isOk());
     auto decodedCheckpoint = checkpointCodec.decode(*encodedCheckpoint);
     assert(decodedCheckpoint.isOk());
     assert(decodedCheckpoint->pendingWrites_.size() == kPendingWrites);
 
-    lc::InMemorySaver saver;
+    lgc::InMemorySaver saver;
     auto seed = checkpointFor("large-pending", "root", "cp-store", 2);
     assert(saver.put(seed).isOk());
-    std::vector<lc::CheckpointWrite> writes;
+    std::vector<lgc::CheckpointWrite> writes;
     writes.reserve(kPendingWrites);
     for (std::uint64_t i = 0; i < kPendingWrites; ++i)
         writes.push_back(checkpointWrite(i, "pending", { { "pending_index", i } }));
-    assert(saver.putWrites(lc::CheckpointWriteSet {
+    assert(saver.putWrites(lgc::CheckpointWriteSet {
         .threadId_ = "large-pending",
         .checkpointNamespace_ = "root",
         .checkpointId_ = "cp-store",
@@ -1105,7 +1105,7 @@ void stressLargeStateMessagePendingWrites()
         .taskPath_ = "bulk/path",
         .writes_ = std::move(writes),
     }).isOk());
-    auto stored = saver.getTuple(lc::CheckpointQuery::at("large-pending", "cp-store", "root"));
+    auto stored = saver.getTuple(lgc::CheckpointQuery::at("large-pending", "cp-store", "root"));
     assert(stored.isOk());
     assert(stored->has_value());
     assert((*stored)->pendingWrites_.size() == kPendingWrites);
@@ -1119,8 +1119,8 @@ void stressCancellationTimeoutShutdownRace()
         std::condition_variable cv;
         bool started = false;
 
-        lc::StateGraph graph;
-        assert(graph.addNode("slow", [&](const lc::State&, lc::Runtime& context) -> lc::Result<lc::StateUpdate> {
+        lgc::StateGraph graph;
+        assert(graph.addNode("slow", [&](const lgc::State&, lgc::Runtime& context) -> lgc::Result<lgc::StateUpdate> {
             {
                 std::lock_guard lock(mutex);
                 started = true;
@@ -1136,13 +1136,13 @@ void stressCancellationTimeoutShutdownRace()
             }
             return context.cancellationToken().check("cancelled by pressure test");
         }).isOk());
-        assert(graph.addEdge(std::string(lc::START), "slow").isOk());
-        assert(graph.addEdge("slow", std::string(lc::END)).isOk());
+        assert(graph.addEdge(std::string(lgc::START), "slow").isOk());
+        assert(graph.addEdge("slow", std::string(lgc::END)).isOk());
         auto compiled = graph.compile();
         assert(compiled.isOk());
 
-        lc::CancellationSource source;
-        lc::RunOptions options;
+        lgc::CancellationSource source;
+        lgc::RunOptions options;
         options.cancellationToken_ = source.token();
         auto future = std::async(std::launch::async, [&] {
             return compiled->invoke(stateFromJson("{}"), options);
@@ -1156,26 +1156,26 @@ void stressCancellationTimeoutShutdownRace()
         cv.notify_all();
         auto result = future.get();
         assert(!result.isOk());
-        assert(result.status().code() == lc::StatusCode::Cancelled);
+        assert(result.status().code() == lgc::StatusCode::Cancelled);
     }
 
     {
-        lc::NodeOptions timeoutOptions;
+        lgc::NodeOptions timeoutOptions;
         timeoutOptions.timeout_ = std::chrono::milliseconds(1);
-        timeoutOptions.errorHandler_ = [](const lc::Status& status, const lc::State&, lc::Runtime&) -> lc::Result<lc::NodeOutput> {
-            assert(status.code() == lc::StatusCode::DeadlineExceeded);
-            return lc::NodeOutput::update(updateFromJsonValue({ { "timed_out", true } }));
+        timeoutOptions.errorHandler_ = [](const lgc::Status& status, const lgc::State&, lgc::Runtime&) -> lgc::Result<lgc::NodeOutput> {
+            assert(status.code() == lgc::StatusCode::DeadlineExceeded);
+            return lgc::NodeOutput::update(updateFromJsonValue({ { "timed_out", true } }));
         };
 
-        lc::StateGraph graph;
-        assert(graph.addNode("timeout", [](const lc::State&, lc::Runtime&) -> lc::Result<lc::StateUpdate> {
+        lgc::StateGraph graph;
+        assert(graph.addNode("timeout", [](const lgc::State&, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
-            return lc::StateUpdate::fromJsonValue({ { "late", true } });
+            return lgc::StateUpdate::fromJsonValue({ { "late", true } });
         },
                    timeoutOptions)
                    .isOk());
-        assert(graph.addEdge(std::string(lc::START), "timeout").isOk());
-        assert(graph.addEdge("timeout", std::string(lc::END)).isOk());
+        assert(graph.addEdge(std::string(lgc::START), "timeout").isOk());
+        assert(graph.addEdge("timeout", std::string(lgc::END)).isOk());
         auto compiled = graph.compile();
         assert(compiled.isOk());
         auto result = compiled->invoke(stateFromJson("{}"));
@@ -1190,8 +1190,8 @@ void stressCancellationTimeoutShutdownRace()
         bool started = false;
         bool release = false;
 
-        lc::StateGraph graph;
-        assert(graph.addNode("streaming", [&](const lc::State&, lc::Runtime& context) -> lc::Result<lc::StateUpdate> {
+        lgc::StateGraph graph;
+        assert(graph.addNode("streaming", [&](const lgc::State&, lgc::Runtime& context) -> lgc::Result<lgc::StateUpdate> {
             {
                 std::lock_guard lock(mutex);
                 started = true;
@@ -1204,18 +1204,18 @@ void stressCancellationTimeoutShutdownRace()
             }
             std::unique_lock lock(mutex);
             if (!cv.wait_for(lock, std::chrono::seconds(2), [&] { return release; }))
-                return lc::Status::deadlineExceeded("stream shutdown release timed out");
-            return lc::StateUpdate::fromJsonValue({ { "released", true } });
+                return lgc::Status::deadlineExceeded("stream shutdown release timed out");
+            return lgc::StateUpdate::fromJsonValue({ { "released", true } });
         }).isOk());
-        assert(graph.addEdge(std::string(lc::START), "streaming").isOk());
-        assert(graph.addEdge("streaming", std::string(lc::END)).isOk());
+        assert(graph.addEdge(std::string(lgc::START), "streaming").isOk());
+        assert(graph.addEdge("streaming", std::string(lgc::END)).isOk());
         auto compiled = graph.compile();
         assert(compiled.isOk());
 
         auto streamResult = compiled->streamEvents(
             stateFromJson("{}"),
             {},
-            lc::RunStreamOptions {
+            lgc::RunStreamOptions {
                 .capacity_ = 256,
             });
         assert(streamResult.isOk());

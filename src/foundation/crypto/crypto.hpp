@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 enum class HashAlgorithm : std::uint8_t {
     Sha256,
@@ -83,4 +83,4 @@ struct MaskOptions {
     std::span<const std::uint8_t> lhs,
     std::span<const std::uint8_t> rhs) noexcept;
 
-} // namespace lc
+} // namespace lgc

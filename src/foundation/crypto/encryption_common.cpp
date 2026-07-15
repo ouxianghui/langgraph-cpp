@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace lc::encryption_detail {
+namespace lgc::encryption_detail {
 
 [[nodiscard]] std::span<const std::uint8_t> bytesFromString(std::string_view text) noexcept
 {
@@ -42,4 +42,4 @@ namespace lc::encryption_detail {
     return Status::ok();
 }
 
-} // namespace lc::encryption_detail
+} // namespace lgc::encryption_detail

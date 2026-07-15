@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace lc::scheduler_detail {
+namespace lgc::scheduler_detail {
 
 void finishRetry(
     const std::shared_ptr<detail::SchedulerState>& scheduler,
@@ -76,4 +76,4 @@ void dispatchRetry(
     }
 }
 
-} // namespace lc::scheduler_detail
+} // namespace lgc::scheduler_detail

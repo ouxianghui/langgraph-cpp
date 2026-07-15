@@ -12,7 +12,7 @@
 #include <string_view>
 #include <utility>
 
-namespace lc::blob_detail {
+namespace lgc::blob_detail {
 
 namespace fs = std::filesystem;
 
@@ -62,4 +62,4 @@ struct StagedContent {
 [[nodiscard]] Result<void> writeDataFile(const fs::path& path, std::span<const std::byte> data);
 [[nodiscard]] Status removeFileStrict(const fs::path& path, std::string_view label);
 
-} // namespace lc::blob_detail
+} // namespace lgc::blob_detail

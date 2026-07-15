@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] Status combineStatus(Status current, const Status& next)
@@ -184,4 +184,4 @@ void QueuedEventSink::recordWorkerStatus(const Status& status)
         lastStatus_ = status;
 }
 
-} // namespace lc
+} // namespace lgc

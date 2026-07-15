@@ -7,10 +7,10 @@
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size)
 {
     try {
-        const auto input = lc::fuzz::inputToString(data, size);
-        const auto parts = lc::fuzz::splitInput(input, 2);
-        lc::EnvelopeCodec codec;
-        const lc::EnvelopeOptions options {
+        const auto input = lgc::fuzz::inputToString(data, size);
+        const auto parts = lgc::fuzz::splitInput(input, 2);
+        lgc::EnvelopeCodec codec;
+        const lgc::EnvelopeOptions options {
             .checksum_ = true,
             .maxDecodedBytes_ = 128 * 1024,
             .decodeLimits_ = {
@@ -23,26 +23,26 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
             },
         };
 
-        auto envelope = lc::deserializeEnvelope(parts[0], options.decodeLimits_);
+        auto envelope = lgc::deserializeEnvelope(parts[0], options.decodeLimits_);
         if (envelope.isOk())
             (void)codec.unwrap(*envelope, options);
 
         auto decoded = codec.decode(
-            lc::Payload {
-                .contentType_ = std::string(lc::envelopeContentType()),
+            lgc::Payload {
+                .contentType_ = std::string(lgc::envelopeContentType()),
                 .data_ = parts[0],
             },
             options);
         (void)decoded;
 
         auto wrapped = codec.encode(
-            lc::Payload {
+            lgc::Payload {
                 .contentType_ = "application/octet-stream",
                 .data_ = parts[1],
             },
             options);
         if (wrapped.isOk()) {
-            (void)lc::deserializeEnvelope(wrapped->data_, options.decodeLimits_);
+            (void)lgc::deserializeEnvelope(wrapped->data_, options.decodeLimits_);
             (void)codec.decode(*wrapped, options);
         }
     } catch (...) {

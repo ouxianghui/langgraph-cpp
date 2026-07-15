@@ -21,77 +21,77 @@ int main()
 
     const auto root = fs::temp_directory_path() / "langgraph_cpp_filesystem_test";
     fs::remove_all(root);
-    assert(lc::ensureDir(root).isOk());
+    assert(lgc::ensureDir(root).isOk());
 
-    auto normalized = lc::normalize("a/../b.txt", root);
+    auto normalized = lgc::normalize("a/../b.txt", root);
     assert(normalized.isOk());
     assert(normalized->is_absolute());
     assert(normalized->filename() == "b.txt");
 
-    auto safeChild = lc::resolveChild(root, "checkpoints/thread-1/state.json");
+    auto safeChild = lgc::resolveChild(root, "checkpoints/thread-1/state.json");
     assert(safeChild.isOk());
-    assert(lc::requireInside(root, *safeChild).isOk());
+    assert(lgc::requireInside(root, *safeChild).isOk());
 
-    auto unsafe = lc::resolveChild(root, "../outside.txt");
+    auto unsafe = lgc::resolveChild(root, "../outside.txt");
     assert(!unsafe.isOk());
-    assert(unsafe.status().code() == lc::StatusCode::PermissionDenied);
+    assert(unsafe.status().code() == lgc::StatusCode::PermissionDenied);
 
-    assert(lc::requireSafeRelativePath("models/local.bin").isOk());
-    assert(lc::requireSafeRelativePath("/absolute/path").code() == lc::StatusCode::InvalidArgument);
-    assert(lc::requireSafeRelativePath("a/../../b").code() == lc::StatusCode::PermissionDenied);
-    assert(lc::requireSafeRelativePath("models/local:bin").code() == lc::StatusCode::InvalidArgument);
-    assert(lc::requireSafeRelativePath("CON.txt").code() == lc::StatusCode::InvalidArgument);
-    lc::PathPolicy shortPolicy;
+    assert(lgc::requireSafeRelativePath("models/local.bin").isOk());
+    assert(lgc::requireSafeRelativePath("/absolute/path").code() == lgc::StatusCode::InvalidArgument);
+    assert(lgc::requireSafeRelativePath("a/../../b").code() == lgc::StatusCode::PermissionDenied);
+    assert(lgc::requireSafeRelativePath("models/local:bin").code() == lgc::StatusCode::InvalidArgument);
+    assert(lgc::requireSafeRelativePath("CON.txt").code() == lgc::StatusCode::InvalidArgument);
+    lgc::PathPolicy shortPolicy;
     shortPolicy.maxComponentLength_ = 4;
-    assert(lc::requireSafeRelativePath("model.bin", shortPolicy).code() == lc::StatusCode::InvalidArgument);
-    assert(lc::normalize("").status().code() == lc::StatusCode::InvalidArgument);
+    assert(lgc::requireSafeRelativePath("model.bin", shortPolicy).code() == lgc::StatusCode::InvalidArgument);
+    assert(lgc::normalize("").status().code() == lgc::StatusCode::InvalidArgument);
 
     const auto target = root / "checkpoint.json";
-    assert(lc::writeFileAtomic(target, R"({"step":1})").isOk());
-    auto text = lc::readFile(target);
+    assert(lgc::writeFileAtomic(target, R"({"step":1})").isOk());
+    auto text = lgc::readFile(target);
     assert(text.isOk());
     assert(*text == R"({"step":1})");
 
-    lc::AtomicWriteOptions noReplace;
+    lgc::AtomicWriteOptions noReplace;
     noReplace.replaceExisting_ = false;
-    auto writeAgain = lc::writeFileAtomic(target, "new", noReplace);
+    auto writeAgain = lgc::writeFileAtomic(target, "new", noReplace);
     assert(!writeAgain.isOk());
-    assert(writeAgain.status().code() == lc::StatusCode::AlreadyExists);
-    assert(lc::readFile(target).value() == R"({"step":1})");
+    assert(writeAgain.status().code() == lgc::StatusCode::AlreadyExists);
+    assert(lgc::readFile(target).value() == R"({"step":1})");
 
-    lc::AtomicWriteOptions durable;
+    lgc::AtomicWriteOptions durable;
     durable.durable_ = true;
-    assert(lc::writeFileAtomic(root / "durable.txt", "durable", durable).isOk());
-    assert(lc::readFile(root / "durable.txt").value() == "durable");
+    assert(lgc::writeFileAtomic(root / "durable.txt", "durable", durable).isOk());
+    assert(lgc::readFile(root / "durable.txt").value() == "durable");
 
-    lc::AtomicWriteOptions badAtomicPrefix;
+    lgc::AtomicWriteOptions badAtomicPrefix;
     badAtomicPrefix.tempPrefix_ = "bad/prefix";
-    auto badAtomic = lc::writeFileAtomic(root / "bad-prefix.txt", "x", badAtomicPrefix);
+    auto badAtomic = lgc::writeFileAtomic(root / "bad-prefix.txt", "x", badAtomicPrefix);
     assert(!badAtomic.isOk());
-    assert(badAtomic.status().code() == lc::StatusCode::InvalidArgument);
+    assert(badAtomic.status().code() == lgc::StatusCode::InvalidArgument);
 
     const auto parentFile = root / "not-a-directory";
     {
         std::ofstream file(parentFile);
         file << "file";
     }
-    assert(lc::ensureDir(parentFile).status().code() == lc::StatusCode::FailedPrecondition);
-    auto writeUnderFile = lc::writeFileAtomic(parentFile / "child.txt", "x");
+    assert(lgc::ensureDir(parentFile).status().code() == lgc::StatusCode::FailedPrecondition);
+    auto writeUnderFile = lgc::writeFileAtomic(parentFile / "child.txt", "x");
     assert(!writeUnderFile.isOk());
-    assert(writeUnderFile.status().code() == lc::StatusCode::FailedPrecondition);
+    assert(writeUnderFile.status().code() == lgc::StatusCode::FailedPrecondition);
 
-    auto tempUnderFile = lc::TempFile::create(lc::TempFileOptions {
+    auto tempUnderFile = lgc::TempFile::create(lgc::TempFileOptions {
         .directory_ = parentFile,
         .createDirectory_ = false,
     });
     assert(!tempUnderFile.isOk());
 
-    auto badTempPrefix = lc::TempFile::create(lc::TempFileOptions {
+    auto badTempPrefix = lgc::TempFile::create(lgc::TempFileOptions {
         .directory_ = root,
         .prefix_ = "bad/prefix",
     });
     assert(!badTempPrefix.isOk());
-    assert(badTempPrefix.status().code() == lc::StatusCode::InvalidArgument);
+    assert(badTempPrefix.status().code() == lgc::StatusCode::InvalidArgument);
 
     const std::vector<std::byte> bytes {
         std::byte { 0x01 },
@@ -99,65 +99,65 @@ int main()
         std::byte { 0x03 },
     };
     const auto binaryTarget = root / "model.bin";
-    assert(lc::writeFileAtomic(binaryTarget, bytes).isOk());
+    assert(lgc::writeFileAtomic(binaryTarget, bytes).isOk());
     assert(fs::file_size(binaryTarget) == bytes.size());
 
     {
-        auto temp = lc::TempFile::create(lc::TempFileOptions { .directory_ = root });
+        auto temp = lgc::TempFile::create(lgc::TempFileOptions { .directory_ = root });
         assert(temp.isOk());
         const auto tempPath = temp->path();
         assert(fs::exists(tempPath));
         assert(temp->write("scratch").isOk());
         assert(temp->flush().isOk());
-        assert(lc::readFile(tempPath).value() == "scratch");
+        assert(lgc::readFile(tempPath).value() == "scratch");
         assert(temp->close().isOk());
         assert(!temp->valid());
-        assert(lc::readFile(tempPath).value() == "scratch");
+        assert(lgc::readFile(tempPath).value() == "scratch");
     }
 
-    auto temp = lc::TempFile::create(lc::TempFileOptions { .directory_ = root });
+    auto temp = lgc::TempFile::create(lgc::TempFileOptions { .directory_ = root });
     assert(temp.isOk());
     const auto releasedPath = temp->release();
     assert(!releasedPath.empty());
     assert(fs::exists(releasedPath));
-    temp = lc::TempFile {};
+    temp = lgc::TempFile {};
     assert(fs::exists(releasedPath));
     fs::remove(releasedPath);
 
-    const auto missing = lc::realPath(root / "missing.txt");
+    const auto missing = lgc::realPath(root / "missing.txt");
     assert(!missing.isOk());
-    assert(missing.status().code() == lc::StatusCode::NotFound);
+    assert(missing.status().code() == lgc::StatusCode::NotFound);
 
-    auto directoryRead = lc::readFile(root);
+    auto directoryRead = lgc::readFile(root);
     assert(!directoryRead.isOk());
-    assert(directoryRead.status().code() == lc::StatusCode::FailedPrecondition);
+    assert(directoryRead.status().code() == lgc::StatusCode::FailedPrecondition);
 
     const auto largePath = root / "large.txt";
     const std::string largeText(1024, 'x');
-    assert(lc::writeFileAtomic(largePath, largeText).isOk());
-    auto tooLarge = lc::readFile(largePath, lc::ReadFileOptions { .maxBytes_ = 128 });
+    assert(lgc::writeFileAtomic(largePath, largeText).isOk());
+    auto tooLarge = lgc::readFile(largePath, lgc::ReadFileOptions { .maxBytes_ = 128 });
     assert(!tooLarge.isOk());
-    assert(tooLarge.status().code() == lc::StatusCode::ResourceExhausted);
-    auto unlimited = lc::readFile(largePath, lc::ReadFileOptions { .maxBytes_ = 0 });
+    assert(tooLarge.status().code() == lgc::StatusCode::ResourceExhausted);
+    auto unlimited = lgc::readFile(largePath, lgc::ReadFileOptions { .maxBytes_ = 0 });
     assert(unlimited.isOk());
     assert(unlimited->size() == largeText.size());
 
     const auto outside = fs::temp_directory_path() / "langgraph_cpp_filesystem_outside.txt";
-    assert(lc::writeFileAtomic(outside, "outside").isOk());
-    auto inside = lc::isInside(root, outside);
+    assert(lgc::writeFileAtomic(outside, "outside").isOk());
+    auto inside = lgc::isInside(root, outside);
     assert(inside.isOk());
     assert(!*inside);
     fs::remove(outside);
 
     const auto symlinkOutside = fs::temp_directory_path() / "langgraph_cpp_filesystem_symlink_outside";
     fs::remove_all(symlinkOutside);
-    assert(lc::ensureDir(symlinkOutside).isOk());
+    assert(lgc::ensureDir(symlinkOutside).isOk());
     std::error_code symlinkEc;
     fs::create_directory_symlink(symlinkOutside, root / "link-out", symlinkEc);
     if (!symlinkEc) {
-        auto escaped = lc::resolveChild(root, "link-out/escaped.txt");
+        auto escaped = lgc::resolveChild(root, "link-out/escaped.txt");
         assert(!escaped.isOk());
-        assert(escaped.status().code() == lc::StatusCode::PermissionDenied);
+        assert(escaped.status().code() == lgc::StatusCode::PermissionDenied);
     }
     fs::remove_all(symlinkOutside);
 
@@ -170,7 +170,7 @@ int main()
     std::vector<std::thread> writers;
     for (const auto& value : values) {
         writers.emplace_back([&, value] {
-            if (!lc::writeFileAtomic(concurrentTarget, value).isOk())
+            if (!lgc::writeFileAtomic(concurrentTarget, value).isOk())
                 failures.fetch_add(1, std::memory_order_relaxed);
         });
     }
@@ -178,13 +178,13 @@ int main()
         writer.join();
 
     assert(failures.load(std::memory_order_relaxed) == 0);
-    auto concurrentText = lc::readFile(concurrentTarget);
+    auto concurrentText = lgc::readFile(concurrentTarget);
     assert(concurrentText.isOk());
     assert(std::find(values.begin(), values.end(), *concurrentText) != values.end());
 
 #if !defined(_WIN32)
     const auto readOnlyDirectory = root / "readonly";
-    assert(lc::ensureDir(readOnlyDirectory).isOk());
+    assert(lgc::ensureDir(readOnlyDirectory).isOk());
     std::error_code permissionEc;
     fs::permissions(
         readOnlyDirectory,
@@ -192,7 +192,7 @@ int main()
         fs::perm_options::replace,
         permissionEc);
     if (!permissionEc && ::geteuid() != 0) {
-        auto denied = lc::writeFileAtomic(readOnlyDirectory / "blocked.txt", "x");
+        auto denied = lgc::writeFileAtomic(readOnlyDirectory / "blocked.txt", "x");
         assert(!denied.isOk());
     }
     fs::permissions(readOnlyDirectory, fs::perms::owner_all, fs::perm_options::replace, permissionEc);

@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 RedactionEventSink::RedactionEventSink(std::shared_ptr<IEventSink> inner, Redactor redactor)
     : inner_(std::move(inner))
@@ -38,4 +38,4 @@ bool RedactionEventSink::isClosed() const noexcept
     return inner_->isClosed();
 }
 
-} // namespace lc
+} // namespace lgc

@@ -8,7 +8,7 @@
 #include <memory>
 #include <mutex>
 
-namespace lc {
+namespace lgc {
 
 /// Runtime-facing service owner. Prefer this container plus `Lifecycle` for runtime integration;
 /// low-level `threading` / `timer` objects should be owned behind executors and schedulers.
@@ -53,4 +53,4 @@ private:
     RuntimeServices services,
     RuntimeContainerOptions options = {});
 
-} // namespace lc
+} // namespace lgc

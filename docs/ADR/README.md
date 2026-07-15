@@ -14,10 +14,11 @@
 | [0008-optional-integrations-behind-ports.md](0008-optional-integrations-behind-ports.md) | 将 provider、storage、network 和 hardware 集成放在可选端口后。 |
 | [0009-stream-envelope-and-projection.md](0009-stream-envelope-and-projection.md) | 使用 LangGraph-style stream envelope 和 projection。 |
 | [0010-explicit-tool-registration.md](0010-explicit-tool-registration.md) | 工具必须显式注册并通过 schema / policy 边界执行。 |
+| [0011-public-namespace-lgc.md](0011-public-namespace-lgc.md) | 公共 C++ / CMake namespace 从 `lc` 重命名为 `lgc`。 |
 
 ## 新增 ADR 规则
 
-1. 使用递增编号：`0011-topic.md`。
+1. 使用递增编号：`0012-topic.md`。
 2. `状态` 使用 `Proposed`、`Accepted`、`Superseded` 或 `Rejected`。
 3. 写清被拒绝方案，避免只记录最终答案。
 4. 写清验证方式，让设计决策能被测试、示例或文档门禁支撑。

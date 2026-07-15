@@ -8,7 +8,7 @@
 #include <cstddef>
 #include <memory>
 
-namespace lc {
+namespace lgc {
 
 /// `IExecutor` adapter backed by an `IThreadPool`.
 class ConcurrentExecutor final : public IExecutor {
@@ -55,4 +55,4 @@ private:
 [[nodiscard]] std::shared_ptr<IExecutor> makeConcurrentExecutor(
     std::shared_ptr<IThreadPool> pool);
 
-} // namespace lc
+} // namespace lgc

@@ -41,6 +41,33 @@ require_no_matches \
     "src/foundation must not include src/langgraph headers."
 
 require_no_matches \
+    "src/foundation" \
+    '^\s*#\s*include\s*[<"]core/' \
+    "src/foundation must not include src/core (lgc::core) headers."
+
+require_no_matches \
+    "src/core" \
+    '^\s*#\s*include\s*[<"][^>"]*langgraph/' \
+    "src/core must not include src/langgraph headers."
+
+# Assembly includes look like #include "core/...". langgraph/core/ids.hpp uses
+# #include "langgraph/core/..." and is intentionally allowed.
+require_no_matches \
+    "src/langgraph" \
+    '^\s*#\s*include\s*[<"]core/' \
+    "src/langgraph must not include src/core (lgc::core) assembly headers."
+
+require_file_contains \
+    "CMakeLists.txt" \
+    'target_link_libraries\(core PUBLIC lgc::foundation\)' \
+    "CMake target 'core' must link PUBLIC lgc::foundation."
+
+require_no_matches \
+    "CMakeLists.txt" \
+    'target_link_libraries\(langgraph[^)]*lgc::core' \
+    "CMake target 'langgraph' must not link lgc::core."
+
+require_no_matches \
     "include/langgraph_cpp/langgraph.hpp" \
     '^\s*#\s*include\s*[<"][^>"]*\.hh[>"]' \
     "The public aggregate header must not include internal .hh headers."
@@ -49,6 +76,11 @@ require_no_matches \
     "include/langgraph_cpp/langgraph.hpp" \
     '^\s*#\s*include\s*[<"][^>"]*third_party/' \
     "The public aggregate header must not include third_party paths directly."
+
+require_no_matches \
+    "include/langgraph_cpp/langgraph.hpp" \
+    '^\s*#\s*include\s*[<"]core/' \
+    "The public aggregate header must not include lgc::core assembly headers."
 
 require_file_contains \
     "CMakeLists.txt" \

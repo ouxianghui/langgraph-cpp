@@ -13,49 +13,49 @@
 
 namespace {
 
-class RecordingExecutor final : public lc::IExecutor {
+class RecordingExecutor final : public lgc::IExecutor {
 public:
     ~RecordingExecutor() override
     {
         (void)waitIdle(std::chrono::seconds(1));
     }
 
-    [[nodiscard]] lc::Status post(Task task, std::source_location = std::source_location::current()) override
+    [[nodiscard]] lgc::Status post(Task task, std::source_location = std::source_location::current()) override
     {
         if (!task)
-            return lc::Status::invalidArgument("task cannot be empty");
+            return lgc::Status::invalidArgument("task cannot be empty");
         if (closed_.load(std::memory_order_acquire))
-            return lc::Status::unavailable("executor is closed");
+            return lgc::Status::unavailable("executor is closed");
 
         postCalls_.fetch_add(1, std::memory_order_relaxed);
         std::lock_guard lock(mutex_);
         threads_.emplace_back([task = std::move(task)]() mutable {
             task();
         });
-        return lc::Status::ok();
+        return lgc::Status::ok();
     }
 
-    [[nodiscard]] lc::Status postDelayed(
+    [[nodiscard]] lgc::Status postDelayed(
         Duration,
         Task,
         std::source_location = std::source_location::current()) override
     {
-        return lc::Status::unimplemented("not supported");
+        return lgc::Status::unimplemented("not supported");
     }
 
-    [[nodiscard]] lc::Status execute(Task, std::source_location = std::source_location::current()) override
+    [[nodiscard]] lgc::Status execute(Task, std::source_location = std::source_location::current()) override
     {
         executeCalls_.fetch_add(1, std::memory_order_relaxed);
-        return lc::Status::internal("scheduler should use post");
+        return lgc::Status::internal("scheduler should use post");
     }
 
-    [[nodiscard]] lc::Status executeAndWait(Task, std::source_location = std::source_location::current()) override
+    [[nodiscard]] lgc::Status executeAndWait(Task, std::source_location = std::source_location::current()) override
     {
         executeAndWaitCalls_.fetch_add(1, std::memory_order_relaxed);
-        return lc::Status::internal("scheduler should use post");
+        return lgc::Status::internal("scheduler should use post");
     }
 
-    [[nodiscard]] lc::Status waitIdle(Duration) override
+    [[nodiscard]] lgc::Status waitIdle(Duration) override
     {
         std::vector<std::thread> threads;
         {
@@ -66,10 +66,10 @@ public:
             if (thread.joinable())
                 thread.join();
         }
-        return lc::Status::ok();
+        return lgc::Status::ok();
     }
 
-    [[nodiscard]] lc::Status close(Duration timeout) override
+    [[nodiscard]] lgc::Status close(Duration timeout) override
     {
         closed_.store(true, std::memory_order_release);
         return waitIdle(timeout);
@@ -105,7 +105,7 @@ int main()
     using namespace std::chrono_literals;
 
     {
-        lc::TaskScheduler scheduler;
+        lgc::TaskScheduler scheduler;
         std::atomic<int> count { 0 };
 
         auto scheduled = scheduler.scheduleAfter(10ms, [&] {
@@ -117,13 +117,13 @@ int main()
         assert(task.id() != 0);
         assert(scheduler.waitIdle(1s).isOk());
         assert(count == 1);
-        assert(task.state() == lc::ScheduledTaskState::Completed);
+        assert(task.state() == lgc::ScheduledTaskState::Completed);
         assert(task.status().isOk());
-        assert(lc::taskStateName(task.state()) == "completed");
+        assert(lgc::taskStateName(task.state()) == "completed");
     }
 
     {
-        lc::TaskScheduler scheduler;
+        lgc::TaskScheduler scheduler;
 
         auto scheduled = scheduler.scheduleAfter(1ms, [] {
             throw std::runtime_error("boom");
@@ -131,13 +131,13 @@ int main()
         assert(scheduled.isOk());
         auto task = scheduled.value();
         assert(scheduler.waitIdle(1s).isOk());
-        assert(task.state() == lc::ScheduledTaskState::Failed);
+        assert(task.state() == lgc::ScheduledTaskState::Failed);
         assert(!task.status().isOk());
-        assert(lc::taskStateName(task.state()) == "failed");
+        assert(lgc::taskStateName(task.state()) == "failed");
     }
 
     {
-        lc::TaskScheduler scheduler;
+        lgc::TaskScheduler scheduler;
         std::atomic<int> count { 0 };
 
         auto scheduled = scheduler.schedulePeriodic(
@@ -145,7 +145,7 @@ int main()
             [&] {
                 ++count;
             },
-            lc::PeriodicScheduleOptions {
+            lgc::PeriodicScheduleOptions {
                 .maxRuns_ = 3,
             });
         assert(scheduled.isOk());
@@ -156,7 +156,7 @@ int main()
     }
 
     {
-        lc::TaskScheduler scheduler;
+        lgc::TaskScheduler scheduler;
         std::atomic<int> count { 0 };
 
         auto scheduled = scheduler.schedulePeriodic(
@@ -164,19 +164,19 @@ int main()
             [&] {
                 ++count;
             },
-            lc::PeriodicScheduleOptions {
+            lgc::PeriodicScheduleOptions {
                 .maxRuns_ = 3,
-                .mode_ = lc::PeriodicScheduleMode::FixedRate,
+                .mode_ = lgc::PeriodicScheduleMode::FixedRate,
                 .startImmediately_ = true,
             });
         assert(scheduled.isOk());
         assert(scheduler.waitIdle(1s).isOk());
         assert(count == 3);
-        assert(lc::periodicModeName(lc::PeriodicScheduleMode::FixedRate) == "fixed_rate");
+        assert(lgc::periodicModeName(lgc::PeriodicScheduleMode::FixedRate) == "fixed_rate");
     }
 
     {
-        lc::TaskScheduler scheduler;
+        lgc::TaskScheduler scheduler;
         std::atomic<int> count { 0 };
 
         auto scheduled = scheduler.scheduleAfter(200ms, [&] {
@@ -191,8 +191,8 @@ int main()
     }
 
     {
-        lc::TaskScheduler scheduler;
-        lc::CancellationSource source;
+        lgc::TaskScheduler scheduler;
+        lgc::CancellationSource source;
         std::atomic<int> count { 0 };
 
         auto scheduled = scheduler.scheduleAfter(
@@ -200,7 +200,7 @@ int main()
             [&] {
                 ++count;
             },
-            lc::ScheduleOptions {
+            lgc::ScheduleOptions {
                 .cancellation_ = source.token(),
             });
         assert(scheduled.isOk());
@@ -208,30 +208,30 @@ int main()
         assert(source.cancel("caller stopped run"));
         assert(scheduler.waitIdle(100ms).isOk());
         assert(count == 0);
-        assert(task.state() == lc::ScheduledTaskState::Cancelled);
-        assert(task.status().code() == lc::StatusCode::Cancelled);
+        assert(task.state() == lgc::ScheduledTaskState::Cancelled);
+        assert(task.status().code() == lgc::StatusCode::Cancelled);
         assert(task.status().message() == "caller stopped run");
     }
 
     {
-        lc::TaskScheduler scheduler;
+        lgc::TaskScheduler scheduler;
         std::atomic<int> attempts { 0 };
         std::atomic<int> completionCalls { 0 };
-        lc::RetryReport finalReport;
+        lgc::RetryReport finalReport;
 
         auto scheduled = scheduler.scheduleRetry(
             [&](std::uint32_t attempt) {
                 ++attempts;
                 if (attempt < 3)
-                    return lc::Status::unavailable("temporary");
-                return lc::Status::ok();
+                    return lgc::Status::unavailable("temporary");
+                return lgc::Status::ok();
             },
-            [&](lc::RetryReport report) {
+            [&](lgc::RetryReport report) {
                 finalReport = report;
                 ++completionCalls;
             },
-            lc::RetryScheduleOptions {
-                .policy_ = lc::RetryPolicy::fixed(3, 5ms),
+            lgc::RetryScheduleOptions {
+                .policy_ = lgc::RetryPolicy::fixed(3, 5ms),
             });
         assert(scheduled.isOk());
         auto task = scheduled.value();
@@ -241,24 +241,24 @@ int main()
         assert(finalReport.attempts_ == 3);
         assert(finalReport.retries_ == 2);
         assert(finalReport.status_.isOk());
-        assert(task.state() == lc::ScheduledTaskState::Completed);
+        assert(task.state() == lgc::ScheduledTaskState::Completed);
     }
 
     {
-        lc::TaskScheduler scheduler;
+        lgc::TaskScheduler scheduler;
         std::atomic<int> attempts { 0 };
-        lc::RetryReport finalReport;
+        lgc::RetryReport finalReport;
 
         auto scheduled = scheduler.scheduleRetry(
             [&](std::uint32_t) {
                 ++attempts;
-                return lc::Status::unavailable("still down");
+                return lgc::Status::unavailable("still down");
             },
-            [&](lc::RetryReport report) {
+            [&](lgc::RetryReport report) {
                 finalReport = report;
             },
-            lc::RetryScheduleOptions {
-                .policy_ = lc::RetryPolicy::fixed(2, 5ms),
+            lgc::RetryScheduleOptions {
+                .policy_ = lgc::RetryPolicy::fixed(2, 5ms),
             });
         assert(scheduled.isOk());
         auto task = scheduled.value();
@@ -266,14 +266,14 @@ int main()
         assert(attempts == 2);
         assert(finalReport.attempts_ == 2);
         assert(finalReport.retries_ == 1);
-        assert(finalReport.status_.code() == lc::StatusCode::Unavailable);
-        assert(task.state() == lc::ScheduledTaskState::Failed);
-        assert(task.status().code() == lc::StatusCode::Unavailable);
+        assert(finalReport.status_.code() == lgc::StatusCode::Unavailable);
+        assert(task.state() == lgc::ScheduledTaskState::Failed);
+        assert(task.status().code() == lgc::StatusCode::Unavailable);
     }
 
     {
-        lc::TaskScheduler scheduler;
-        lc::CancellationSource source;
+        lgc::TaskScheduler scheduler;
+        lgc::CancellationSource source;
 
         auto scheduled = scheduler.cancelAfter(10ms, source, "node timed out");
         assert(scheduled.isOk());
@@ -281,15 +281,15 @@ int main()
         assert(scheduler.waitIdle(1s).isOk());
         assert(source.cancelled());
         assert(source.reason() == "node timed out");
-        assert(timeout.state() == lc::ScheduledTaskState::Completed);
+        assert(timeout.state() == lgc::ScheduledTaskState::Completed);
     }
 
     {
-        lc::TaskScheduler scheduler;
-        lc::CancellationToken token;
-        lc::ScheduledTask timeout;
+        lgc::TaskScheduler scheduler;
+        lgc::CancellationToken token;
+        lgc::ScheduledTask timeout;
         {
-            lc::CancellationSource source;
+            lgc::CancellationSource source;
             token = source.token();
             auto scheduled = scheduler.cancelAfter(10ms, source, "scoped source timed out");
             assert(scheduled.isOk());
@@ -298,11 +298,11 @@ int main()
         assert(scheduler.waitIdle(1s).isOk());
         assert(token.cancelled());
         assert(token.reason() == "scoped source timed out");
-        assert(timeout.state() == lc::ScheduledTaskState::Completed);
+        assert(timeout.state() == lgc::ScheduledTaskState::Completed);
     }
 
     {
-        lc::TaskScheduler scheduler;
+        lgc::TaskScheduler scheduler;
         std::mutex mutex;
         std::condition_variable cv;
         bool started = false;
@@ -326,56 +326,56 @@ int main()
             assert(cv.wait_for(lock, 1s, [&] { return started; }));
         }
         assert(task.cancel());
-        assert(task.state() == lc::ScheduledTaskState::Cancelling);
-        assert(lc::taskStateName(task.state()) == "cancelling");
+        assert(task.state() == lgc::ScheduledTaskState::Cancelling);
+        assert(lgc::taskStateName(task.state()) == "cancelling");
         {
             std::lock_guard lock(mutex);
             release = true;
         }
         cv.notify_all();
         assert(scheduler.waitIdle(1s).isOk());
-        assert(task.state() == lc::ScheduledTaskState::Completed);
+        assert(task.state() == lgc::ScheduledTaskState::Completed);
         assert(task.status().isOk());
     }
 
     {
         std::mutex eventsMutex;
-        std::vector<lc::SchedulerEventType> events;
-        auto eventSink = std::make_shared<lc::SchedulerCallbackSink>(
-            [&](lc::SchedulerEvent event) {
+        std::vector<lgc::SchedulerEventType> events;
+        auto eventSink = std::make_shared<lgc::SchedulerCallbackSink>(
+            [&](lgc::SchedulerEvent event) {
                 std::lock_guard lock(eventsMutex);
                 events.push_back(event.type_);
-                return lc::Status::ok();
+                return lgc::Status::ok();
             });
-        auto metrics = std::make_shared<lc::InMemoryMetricRecorder>();
-        auto traces = std::make_shared<lc::InMemoryTraceSink>();
-        lc::TaskScheduler scheduler(lc::SchedulerOptions {
+        auto metrics = std::make_shared<lgc::InMemoryMetricRecorder>();
+        auto traces = std::make_shared<lgc::InMemoryTraceSink>();
+        lgc::TaskScheduler scheduler(lgc::SchedulerOptions {
             .eventSink_ = eventSink,
             .metricsRecorder_ = metrics,
             .traceSink_ = traces,
         });
 
-        auto scheduled = scheduler.scheduleAfter(5ms, [] {}, lc::ScheduleOptions {
+        auto scheduled = scheduler.scheduleAfter(5ms, [] {}, lgc::ScheduleOptions {
             .name_ = "observed",
         });
         assert(scheduled.isOk());
         assert(scheduler.waitIdle(1s).isOk());
 
-        std::vector<lc::SchedulerEventType> snapshot;
+        std::vector<lgc::SchedulerEventType> snapshot;
         {
             std::lock_guard lock(eventsMutex);
             snapshot = events;
         }
-        assert(std::find(snapshot.begin(), snapshot.end(), lc::SchedulerEventType::Scheduled) != snapshot.end());
-        assert(std::find(snapshot.begin(), snapshot.end(), lc::SchedulerEventType::Started) != snapshot.end());
-        assert(std::find(snapshot.begin(), snapshot.end(), lc::SchedulerEventType::Completed) != snapshot.end());
+        assert(std::find(snapshot.begin(), snapshot.end(), lgc::SchedulerEventType::Scheduled) != snapshot.end());
+        assert(std::find(snapshot.begin(), snapshot.end(), lgc::SchedulerEventType::Started) != snapshot.end());
+        assert(std::find(snapshot.begin(), snapshot.end(), lgc::SchedulerEventType::Completed) != snapshot.end());
         assert(!metrics->snapshots().empty());
         assert(!traces->spans().empty());
-        assert(lc::schedulerEventName(lc::SchedulerEventType::Retrying) == "retrying");
+        assert(lgc::schedulerEventName(lgc::SchedulerEventType::Retrying) == "retrying");
     }
 
     {
-        lc::TaskScheduler scheduler;
+        lgc::TaskScheduler scheduler;
         std::atomic<int> count { 0 };
 
         auto scheduled = scheduler.scheduleAfter(10ms, [&] {
@@ -383,18 +383,18 @@ int main()
         });
         assert(scheduled.isOk());
         auto task = scheduled.value();
-        auto closed = scheduler.close(lc::SchedulerCloseOptions {
+        auto closed = scheduler.close(lgc::SchedulerCloseOptions {
             .timeout_ = 1s,
-            .policy_ = lc::SchedulerClosePolicy::DrainPending,
+            .policy_ = lgc::SchedulerClosePolicy::DrainPending,
         });
         assert(closed.isOk());
         assert(count == 1);
-        assert(task.state() == lc::ScheduledTaskState::Completed);
-        assert(lc::closePolicyName(lc::SchedulerClosePolicy::DrainPending) == "drain_pending");
+        assert(task.state() == lgc::ScheduledTaskState::Completed);
+        assert(lgc::closePolicyName(lgc::SchedulerClosePolicy::DrainPending) == "drain_pending");
     }
 
     {
-        lc::TaskScheduler scheduler;
+        lgc::TaskScheduler scheduler;
         std::atomic<int> count { 0 };
         auto pendingResult = scheduler.scheduleAfter(1h, [&] {
             ++count;
@@ -402,23 +402,23 @@ int main()
         assert(pendingResult.isOk());
         auto pending = pendingResult.value();
 
-        auto closed = scheduler.close(lc::SchedulerCloseOptions {
+        auto closed = scheduler.close(lgc::SchedulerCloseOptions {
             .timeout_ = 100ms,
-            .policy_ = lc::SchedulerClosePolicy::CancelPending,
+            .policy_ = lgc::SchedulerClosePolicy::CancelPending,
         });
         assert(closed.isOk());
         assert(scheduler.isClosed());
         assert(count == 0);
-        assert(pending.state() == lc::ScheduledTaskState::Cancelled);
-        assert(pending.status().code() == lc::StatusCode::Cancelled);
+        assert(pending.state() == lgc::ScheduledTaskState::Cancelled);
+        assert(pending.status().code() == lgc::StatusCode::Cancelled);
 
         auto scheduled = scheduler.scheduleAfter(1ms, [] {});
         assert(!scheduled.isOk());
-        assert(scheduled.status().code() == lc::StatusCode::FailedPrecondition);
+        assert(scheduled.status().code() == lgc::StatusCode::FailedPrecondition);
     }
 
     {
-        lc::TaskScheduler scheduler;
+        lgc::TaskScheduler scheduler;
         std::atomic<int> count { 0 };
         auto pendingResult = scheduler.scheduleAfter(200ms, [&] {
             ++count;
@@ -426,29 +426,29 @@ int main()
         assert(pendingResult.isOk());
         auto pending = pendingResult.value();
 
-        auto closed = scheduler.close(lc::SchedulerCloseOptions {
+        auto closed = scheduler.close(lgc::SchedulerCloseOptions {
             .timeout_ = 10ms,
-            .policy_ = lc::SchedulerClosePolicy::DrainPending,
+            .policy_ = lgc::SchedulerClosePolicy::DrainPending,
         });
-        assert(closed.code() == lc::StatusCode::DeadlineExceeded);
-        assert(pending.state() == lc::ScheduledTaskState::Cancelled);
+        assert(closed.code() == lgc::StatusCode::DeadlineExceeded);
+        assert(pending.state() == lgc::ScheduledTaskState::Cancelled);
         std::this_thread::sleep_for(250ms);
         assert(count == 0);
     }
 
     {
-        lc::TaskScheduler scheduler;
+        lgc::TaskScheduler scheduler;
         auto emptyTask = scheduler.scheduleAfter(1ms, {});
-        assert(emptyTask.status().code() == lc::StatusCode::InvalidArgument);
+        assert(emptyTask.status().code() == lgc::StatusCode::InvalidArgument);
         auto invalidPeriodic = scheduler.schedulePeriodic(0ms, [] {});
-        assert(invalidPeriodic.status().code() == lc::StatusCode::InvalidArgument);
+        assert(invalidPeriodic.status().code() == lgc::StatusCode::InvalidArgument);
         auto invalidRetry = scheduler.scheduleRetry({}, {});
-        assert(invalidRetry.status().code() == lc::StatusCode::InvalidArgument);
+        assert(invalidRetry.status().code() == lgc::StatusCode::InvalidArgument);
     }
 
     {
         auto executor = std::make_shared<RecordingExecutor>();
-        lc::TaskScheduler scheduler(lc::SchedulerOptions {
+        lgc::TaskScheduler scheduler(lgc::SchedulerOptions {
             .executor_ = executor,
         });
         std::atomic<int> count { 0 };
@@ -468,7 +468,7 @@ int main()
     {
         auto executor = std::make_shared<RecordingExecutor>();
         assert(executor->close(1s).isOk());
-        lc::TaskScheduler scheduler(lc::SchedulerOptions {
+        lgc::TaskScheduler scheduler(lgc::SchedulerOptions {
             .executor_ = executor,
         });
 
@@ -476,13 +476,13 @@ int main()
         assert(scheduled.isOk());
         auto task = scheduled.value();
         assert(scheduler.waitIdle(1s).isOk());
-        assert(task.state() == lc::ScheduledTaskState::Failed);
-        assert(task.status().code() == lc::StatusCode::Unavailable);
+        assert(task.state() == lgc::ScheduledTaskState::Failed);
+        assert(task.status().code() == lgc::StatusCode::Unavailable);
     }
 
     {
-        lc::ManualClock clock(lc::Clock::TimePoint(100ms));
-        lc::TaskScheduler scheduler(lc::SchedulerOptions {
+        lgc::ManualClock clock(lgc::Clock::TimePoint(100ms));
+        lgc::TaskScheduler scheduler(lgc::SchedulerOptions {
             .clock_ = &clock,
         });
         std::atomic<int> count { 0 };
@@ -501,7 +501,7 @@ int main()
     }
 
     {
-        lc::TaskScheduler scheduler;
+        lgc::TaskScheduler scheduler;
         std::atomic<int> count { 0 };
         std::vector<std::thread> producers;
         producers.reserve(4);

@@ -9,7 +9,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 namespace {
 using nlohmann::json;
 using namespace content_envelope_detail;
@@ -257,4 +257,4 @@ Result<Payload> EnvelopeCodec::decode(
     return unwrap(*envelope, options);
 }
 
-} // namespace lc
+} // namespace lgc

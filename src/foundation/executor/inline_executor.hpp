@@ -8,7 +8,7 @@
 #include <memory>
 #include <mutex>
 
-namespace lc {
+namespace lgc {
 
 /// Deterministic executor that runs accepted tasks synchronously on the caller thread.
 class InlineExecutor final : public IExecutor {
@@ -49,4 +49,4 @@ private:
 [[nodiscard]] std::shared_ptr<IExecutor> makeInlineExecutor(
     std::shared_ptr<ILogger> logger = Logger::defaultLogger());
 
-} // namespace lc
+} // namespace lgc

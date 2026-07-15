@@ -4,7 +4,7 @@
 #include <string>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 namespace {
 
@@ -138,4 +138,4 @@ Result<std::vector<StoreNamespace>> BaseStore::listNamespaces(
     return Status::internal("store list_namespaces returned an unexpected result type");
 }
 
-} // namespace lc
+} // namespace lgc

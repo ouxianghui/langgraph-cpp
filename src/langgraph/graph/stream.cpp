@@ -5,7 +5,7 @@
 #include <thread>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 template <typename StreamState>
@@ -167,4 +167,4 @@ RunStatus runStatusFromStatus(const Status& status) noexcept
     return RunStatus::Failed;
 }
 
-} // namespace lc
+} // namespace lgc

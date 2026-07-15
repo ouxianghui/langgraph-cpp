@@ -9,7 +9,7 @@
 #include <string>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 /// Future-returning checkpointer facade for runtimes that need async saver variants.
 ///
@@ -117,4 +117,4 @@ Future<void> AsyncCheckpointSaver::submitVoid(Fn&& fn) const
     return future;
 }
 
-} // namespace lc
+} // namespace lgc

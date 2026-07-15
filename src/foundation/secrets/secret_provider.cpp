@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 constexpr std::size_t kMaxSecretKeyBytes = 256;
@@ -174,4 +174,4 @@ Status validateSecretKey(std::string_view name)
     return Status::ok();
 }
 
-} // namespace lc
+} // namespace lgc

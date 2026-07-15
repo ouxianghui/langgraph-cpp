@@ -2,7 +2,7 @@
 
 #include <filesystem>
 
-namespace lc {
+namespace lgc {
 
 /// Parent directory of the running executable (best-effort: macOS / Linux / `argv[0]` / cwd).
 [[nodiscard]] std::filesystem::path executableDirectory(char* argv0);
@@ -11,4 +11,4 @@ namespace lc {
 /// (then that path is used as-is, relative or absolute).
 [[nodiscard]] std::filesystem::path resolveConfigDirectory(char* argv0);
 
-} // namespace lc
+} // namespace lgc

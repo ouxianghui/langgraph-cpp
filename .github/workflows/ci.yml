@@ -70,6 +70,10 @@ jobs:
         if: matrix.compiler == 'gcc' && matrix.build_type == 'Debug'
         run: scripts/check-dependency-policy.sh
 
+      - name: Context skills
+        if: matrix.compiler == 'gcc' && matrix.build_type == 'Debug'
+        run: scripts/check-context-skills.sh
+
       - name: Example smoke
         if: matrix.compiler == 'gcc' && matrix.build_type == 'Debug'
         run: BUILD_DIR=build/${{ matrix.compiler }}-${{ matrix.build_type }} scripts/run-examples.sh

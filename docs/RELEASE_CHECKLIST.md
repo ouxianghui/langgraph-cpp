@@ -15,6 +15,7 @@
 - [ ] libFuzzer harness 可以构建并完成 smoke run。
 - [ ] Python LangGraph conformance 针对当前 upstream package 通过。
 - [ ] `scripts/check-dependency-policy.sh` 通过。
+- [ ] `scripts/check-context-skills.sh` 通过。
 - [ ] `scripts/run-examples.sh` 通过并生成最新 [reports/example-smoke-report.md](reports/example-smoke-report.md)。
 - [ ] `scripts/generate-quality-report.sh --full` 已生成最新 [reports/latest-quality-report.md](reports/latest-quality-report.md)。
 - [ ] docs snippet compile test 通过。
@@ -33,6 +34,7 @@ cmake --build --preset unix-debug
 ctest --test-dir build/unix-debug --output-on-failure
 ctest --test-dir build/unix-debug -L docs --output-on-failure
 scripts/check-dependency-policy.sh
+scripts/check-context-skills.sh
 scripts/run-examples.sh
 scripts/generate-quality-report.sh
 git diff --check

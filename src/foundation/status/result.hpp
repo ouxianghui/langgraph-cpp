@@ -8,7 +8,7 @@
 #include <utility>
 #include <variant>
 
-namespace lc {
+namespace lgc {
 
 namespace detail {
 
@@ -187,4 +187,4 @@ template <typename T>
     return Result<T>::fromStatus(std::move(status));
 }
 
-} // namespace lc
+} // namespace lgc

@@ -6,7 +6,7 @@
 #include <functional>
 #include <source_location>
 
-namespace lc {
+namespace lgc {
 
 /// Runtime-facing execution abstraction for graph nodes and background work.
 ///
@@ -70,4 +70,4 @@ public:
     [[nodiscard]] virtual bool isExecutorThread() const noexcept = 0;
 };
 
-} // namespace lc
+} // namespace lgc

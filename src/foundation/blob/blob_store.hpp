@@ -16,7 +16,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 using BlobData = std::vector<std::byte>;
 using BlobMetadata = std::map<std::string, std::string>;
@@ -187,4 +187,4 @@ private:
 [[nodiscard]] std::string encodeBlobCursor(const BlobKey& key);
 [[nodiscard]] Result<std::optional<BlobKey>> decodeBlobCursor(std::string_view cursor);
 
-} // namespace lc
+} // namespace lgc

@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 RuntimeContainer::RuntimeContainer(RuntimeServices services, RuntimeContainerOptions options)
     : services_(std::move(services))
@@ -107,4 +107,4 @@ Result<std::shared_ptr<RuntimeContainer>> createRuntimeContainer(
     return container;
 }
 
-} // namespace lc
+} // namespace lgc

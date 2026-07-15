@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 CallbackEventSink::CallbackEventSink(Callback callback, CallbackEventSinkOptions options)
     : callback_(std::move(callback))
@@ -117,4 +117,4 @@ Status CallbackEventSink::waitIdleLocked(std::unique_lock<std::mutex>& lock, Dur
     return Status::ok();
 }
 
-} // namespace lc
+} // namespace lgc

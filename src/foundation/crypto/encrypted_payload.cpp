@@ -9,7 +9,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 namespace {
 using nlohmann::json;
 using namespace encryption_detail;
@@ -206,4 +206,4 @@ Result<std::string> decryptText(
     return stringFromBytes(*plaintext);
 }
 
-} // namespace lc
+} // namespace lgc

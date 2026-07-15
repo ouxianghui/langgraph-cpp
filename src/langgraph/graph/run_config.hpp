@@ -25,7 +25,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 enum class CommandGraph {
     Current,
@@ -152,4 +152,4 @@ struct RunResult {
     std::optional<Command> parentCommand_;
 };
 
-} // namespace lc
+} // namespace lgc

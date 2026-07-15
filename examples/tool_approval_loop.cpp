@@ -7,7 +7,7 @@
 
 namespace {
 
-void require(lc::Result<void> result)
+void require(lgc::Result<void> result)
 {
     if (!result.isOk()) {
         std::cerr << result.status() << '\n';
@@ -15,31 +15,31 @@ void require(lc::Result<void> result)
     }
 }
 
-lc::Result<std::vector<lc::ToolCall>> latestToolCalls(const lc::State& state)
+lgc::Result<std::vector<lgc::ToolCall>> latestToolCalls(const lgc::State& state)
 {
     auto json = state.toJson();
     if (!json.isOk())
         return json.status();
-    auto messages = lc::messagesFromStateJson(*json);
+    auto messages = lgc::messagesFromStateJson(*json);
     if (!messages.isOk())
         return messages.status();
 
     for (auto it = messages->rbegin(); it != messages->rend(); ++it) {
-        if (it->type_ == lc::MessageType::AI)
+        if (it->type_ == lgc::MessageType::AI)
             return it->toolCalls_;
     }
-    return std::vector<lc::ToolCall> {};
+    return std::vector<lgc::ToolCall> {};
 }
 
 } // namespace
 
 int main()
 {
-    auto model = std::make_shared<lc::FakeChatModel>(std::vector<lc::BaseMessage> {
-        lc::BaseMessage::ai(
+    auto model = std::make_shared<lgc::FakeChatModel>(std::vector<lgc::BaseMessage> {
+        lgc::BaseMessage::ai(
             "",
             {
-                lc::ToolCall {
+                lgc::ToolCall {
                     .id_ = "call-1",
                     .name_ = "add",
                     .args_ = {
@@ -48,38 +48,38 @@ int main()
                     },
                 },
             }),
-        lc::BaseMessage::ai("Approved tool result: 21."),
+        lgc::BaseMessage::ai("Approved tool result: 21."),
     });
 
-    auto registry = std::make_shared<lc::ToolRegistry>();
-    require(registry->add(lc::Tool {
+    auto registry = std::make_shared<lgc::ToolRegistry>();
+    require(registry->add(lgc::Tool {
         .name_ = "add",
         .description_ = "Add two integers.",
-        .inputSchema_ = lc::JsonSchema::object()
-                            .property("a", lc::JsonSchema::integer(), true)
-                            .property("b", lc::JsonSchema::integer(), true)
+        .inputSchema_ = lgc::JsonSchema::object()
+                            .property("a", lgc::JsonSchema::integer(), true)
+                            .property("b", lgc::JsonSchema::integer(), true)
                             .additionalProperties(false),
-        .callable_ = [](const nlohmann::json& input) -> lc::Result<nlohmann::json> {
+        .callable_ = [](const nlohmann::json& input) -> lgc::Result<nlohmann::json> {
             return nlohmann::json {
                 { "value", input.at("a").get<int>() + input.at("b").get<int>() },
             };
         },
     }));
 
-    lc::StateGraph graph;
-    require(graph.addNode("model", lc::makeModelNode(model)));
-    require(graph.addNode("approve_tool", [](const lc::State& state, lc::Runtime& context) -> lc::Result<lc::NodeOutput> {
+    lgc::StateGraph graph;
+    require(graph.addNode("model", lgc::makeModelNode(model)));
+    require(graph.addNode("approve_tool", [](const lgc::State& state, lgc::Runtime& context) -> lgc::Result<lgc::NodeOutput> {
         auto toolCalls = latestToolCalls(state);
         if (!toolCalls.isOk())
             return toolCalls.status();
         if (toolCalls->empty())
-            return lc::NodeOutput::update(lc::StateUpdate::empty());
+            return lgc::NodeOutput::update(lgc::StateUpdate::empty());
 
         if (!context.hasResumeValue()) {
             nlohmann::json calls = nlohmann::json::array();
             for (const auto& toolCall : *toolCalls)
-                calls.push_back(lc::toolCallToJson(toolCall));
-            return lc::NodeOutput::interrupt(lc::Interrupt {
+                calls.push_back(lgc::toolCallToJson(toolCall));
+            return lgc::NodeOutput::interrupt(lgc::Interrupt {
                 .id_ = "approve_tool_calls",
                 .value_ = {
                     { "tool_calls", std::move(calls) },
@@ -95,42 +95,42 @@ int main()
         if (!approved) {
             nlohmann::json rejectedMessages = nlohmann::json::array();
             for (const auto& toolCall : *toolCalls) {
-                rejectedMessages.push_back(lc::baseMessageToJson(lc::BaseMessage::tool(
+                rejectedMessages.push_back(lgc::baseMessageToJson(lgc::BaseMessage::tool(
                     toolCall.id_,
                     toolCall.name_,
-                    lc::toolResultToJson(lc::ToolResult::failure(
-                        lc::ToolErrorCode::Rejected,
+                    lgc::toolResultToJson(lgc::ToolResult::failure(
+                        lgc::ToolErrorCode::Rejected,
                         "tool call rejected by operator")).dump())));
             }
             update["messages"] = std::move(rejectedMessages);
         }
 
-        auto stateUpdate = lc::StateUpdate::fromJsonValue(update);
+        auto stateUpdate = lgc::StateUpdate::fromJsonValue(update);
         if (!stateUpdate.isOk())
             return stateUpdate.status();
-        return lc::NodeOutput::update(std::move(*stateUpdate));
+        return lgc::NodeOutput::update(std::move(*stateUpdate));
     }));
-    require(graph.addNode("tools", lc::ToolNode(registry)));
-    require(graph.addEdge(std::string(lc::START), "model"));
+    require(graph.addNode("tools", lgc::ToolNode(registry)));
+    require(graph.addEdge(std::string(lgc::START), "model"));
     require(graph.addConditionalEdges(
         "model",
-        [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::NodeId> {
-            if (lc::toolsCondition(state))
+        [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::NodeId> {
+            if (lgc::toolsCondition(state))
                 return std::string("approve_tool");
-            return std::string(lc::END);
+            return std::string(lgc::END);
         },
-        { "approve_tool", std::string(lc::END) }));
+        { "approve_tool", std::string(lgc::END) }));
     require(graph.addConditionalEdges(
         "approve_tool",
-        [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::NodeId> {
+        [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::NodeId> {
             auto json = state.toJson();
             if (!json.isOk())
                 return json.status();
             if (json->value("tool_approved", false))
                 return std::string("tools");
-            return std::string(lc::END);
+            return std::string(lgc::END);
         },
-        { "tools", std::string(lc::END) }));
+        { "tools", std::string(lgc::END) }));
     require(graph.addEdge("tools", "model"));
 
     auto compiled = graph.compile();
@@ -139,14 +139,14 @@ int main()
         return 1;
     }
 
-    auto checkpointer = std::make_shared<lc::InMemorySaver>();
-    lc::RunOptions options;
+    auto checkpointer = std::make_shared<lgc::InMemorySaver>();
+    lgc::RunOptions options;
     options.threadId_ = "tool-approval-demo";
     options.checkpointer_ = checkpointer;
-    options.reducers_.set("messages", lc::ReducerKind::AddMessages);
+    options.reducers_.set("messages", lgc::ReducerKind::AddMessages);
 
-    auto input = lc::State::fromJsonValue({
-        { "messages", lc::messagesToJson({ lc::BaseMessage::human("Add 8 and 13.") }) },
+    auto input = lgc::State::fromJsonValue({
+        { "messages", lgc::messagesToJson({ lgc::BaseMessage::human("Add 8 and 13.") }) },
     });
     auto paused = compiled->invoke(*input, options);
     if (!paused.isOk()) {
@@ -154,10 +154,10 @@ int main()
         return 1;
     }
 
-    lc::RunOptions resumeOptions;
+    lgc::RunOptions resumeOptions;
     resumeOptions.checkpointer_ = checkpointer;
-    resumeOptions.reducers_.set("messages", lc::ReducerKind::AddMessages);
-    resumeOptions.command_ = lc::Command::resume({
+    resumeOptions.reducers_.set("messages", lgc::ReducerKind::AddMessages);
+    resumeOptions.command_ = lgc::Command::resume({
         { "approved", true },
     });
 

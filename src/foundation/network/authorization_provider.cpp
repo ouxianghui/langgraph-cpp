@@ -5,7 +5,7 @@
 
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] Status validateHeaderValue(std::string_view value, std::string_view context)
@@ -227,4 +227,4 @@ Status FunctionAuthorizationProvider::authorize(HttpRequest& request)
     return handler_(request);
 }
 
-} // namespace lc
+} // namespace lgc

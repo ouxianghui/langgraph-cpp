@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 constexpr std::string_view kInterruptStateKey = "__interrupt__";
@@ -2133,4 +2133,4 @@ Result<RunResult> CompiledStateGraph::runFrom(
     return result;
 }
 
-} // namespace lc
+} // namespace lgc

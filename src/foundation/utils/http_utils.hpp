@@ -3,7 +3,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc {
+namespace lgc {
 
 /// 8 hex chars (32-bit value), for `requuid`-style query parameters.
 [[nodiscard]] std::string makeReqUuid8();
@@ -22,4 +22,4 @@ namespace lc {
 [[nodiscard]] std::string basicAuthHeaderValue(std::string_view clientId,
     std::string_view clientSecret);
 
-} // namespace lc
+} // namespace lgc

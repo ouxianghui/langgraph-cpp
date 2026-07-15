@@ -13,7 +13,7 @@
 #include <windows.h>
 #include <utility>
 
-namespace lc::process_runner_detail {
+namespace lgc::process_runner_detail {
 namespace {
 
 using process_detail::appendBounded;
@@ -376,6 +376,6 @@ Result<ProcessResult> runPlatformProcess(
     return okResult(std::move(result));
 }
 
-} // namespace lc::process_runner_detail
+} // namespace lgc::process_runner_detail
 
 #endif

@@ -7,7 +7,7 @@
 #include <string>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] Status unavailableFromThreadStopped(const std::exception& error)
@@ -155,4 +155,4 @@ std::shared_ptr<IExecutor> makeSerialExecutor(std::shared_ptr<IThread> thread)
     return std::make_shared<SerialExecutor>(std::move(thread));
 }
 
-} // namespace lc
+} // namespace lgc

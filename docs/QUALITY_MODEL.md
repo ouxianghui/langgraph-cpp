@@ -30,7 +30,8 @@
 | 示例 smoke | 默认示例二进制批量运行并生成报告。 | `scripts/run-examples.sh`、[reports/example-smoke-report.md](reports/example-smoke-report.md)。 |
 | 文档验收 | README/API docs 中的代码片段能编译。 | `ctest --test-dir build/unix-debug -L docs --output-on-failure`。 |
 | 上游兼容切片 | 与 Python LangGraph 关键行为对比。 | `unix-debug-conformance` preset。 |
-| 架构依赖规则 | foundation/langgraph 分层、public aggregate header 和 optional dependency gate。 | `scripts/check-dependency-policy.sh`。 |
+| 架构依赖规则 | foundation/core/langgraph 分层、public aggregate header 和 optional dependency gate。 | `scripts/check-dependency-policy.sh`。 |
+| Context skills 完整性 | `context/` 必选文件、入口接线、权威版本钉扎与 docs 闭环标记。 | `scripts/check-context-skills.sh`。 |
 | 本地质量报告 | 汇总最近一次本地 dependency/docs/diff/full-test 检查。 | `scripts/generate-quality-report.sh`、[reports/latest-quality-report.md](reports/latest-quality-report.md)。 |
 | Coverage 入口 | 本地 coverage build、CTest 和报告输出。 | `scripts/coverage.sh`。 |
 
@@ -93,6 +94,7 @@ ctest --test-dir build/unix-debug --output-on-failure
 ```sh
 ctest --test-dir build/unix-debug -L docs --output-on-failure
 scripts/check-dependency-policy.sh
+scripts/check-context-skills.sh
 scripts/run-examples.sh
 scripts/generate-quality-report.sh
 git diff --check

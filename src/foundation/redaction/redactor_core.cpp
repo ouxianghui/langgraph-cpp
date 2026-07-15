@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] std::string normalizeKey(std::string_view value)
@@ -479,4 +479,4 @@ RedactionResult<nlohmann::json> Redactor::redactJsonValue(
         .report_ = {},
     };
 }
-} // namespace lc
+} // namespace lgc

@@ -4,7 +4,7 @@
 #include <string>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 thread_local const void* tlsInlineExecutor = nullptr;
@@ -173,4 +173,4 @@ std::shared_ptr<IExecutor> makeInlineExecutor(std::shared_ptr<ILogger> logger)
     return std::make_shared<InlineExecutor>(std::move(logger));
 }
 
-} // namespace lc
+} // namespace lgc

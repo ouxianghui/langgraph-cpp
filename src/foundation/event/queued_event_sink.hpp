@@ -9,7 +9,7 @@
 #include <mutex>
 #include <thread>
 
-namespace lc {
+namespace lgc {
 
 struct QueuedEventSinkOptions {
     std::size_t capacity_ { 1024 };
@@ -54,4 +54,4 @@ private:
     bool closed_ { false };
 };
 
-} // namespace lc
+} // namespace lgc

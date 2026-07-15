@@ -15,23 +15,23 @@
 
 namespace {
 
-lc::BlobData bytes(std::initializer_list<unsigned int> values)
+lgc::BlobData bytes(std::initializer_list<unsigned int> values)
 {
-    lc::BlobData out;
+    lgc::BlobData out;
     out.reserve(values.size());
     for (const auto value : values)
         out.push_back(std::byte(value));
     return out;
 }
 
-lc::BlobData bytesFromText(std::string_view text)
+lgc::BlobData bytesFromText(std::string_view text)
 {
-    lc::BlobData out(text.size());
+    lgc::BlobData out(text.size());
     std::memcpy(out.data(), text.data(), text.size());
     return out;
 }
 
-std::string textFromBytes(const lc::BlobData& data)
+std::string textFromBytes(const lgc::BlobData& data)
 {
     return std::string(reinterpret_cast<const char*>(data.data()), data.size());
 }
@@ -47,21 +47,21 @@ void writeText(const std::filesystem::path& path, std::string_view text)
 
 std::string sha256Text(std::string_view text)
 {
-    auto checksum = lc::digestHex(lc::HashAlgorithm::Sha256, text);
+    auto checksum = lgc::digestHex(lgc::HashAlgorithm::Sha256, text);
     assert(checksum.isOk());
     return *checksum;
 }
 
 std::filesystem::path metadataPath(
     const std::filesystem::path& root,
-    const lc::BlobKey& key)
+    const lgc::BlobKey& key)
 {
     return root / key.namespace_ / (key.name_ + ".meta.json");
 }
 
 std::filesystem::path contentPath(
     const std::filesystem::path& root,
-    const lc::BlobKey& key,
+    const lgc::BlobKey& key,
     std::string_view checksum)
 {
     return root / key.namespace_ / (key.name_ + "." + std::string(checksum) + ".data");
@@ -74,8 +74,8 @@ int main()
     namespace fs = std::filesystem;
 
     {
-        lc::MemoryBlobStore store;
-        const lc::BlobKey key {
+        lgc::MemoryBlobStore store;
+        const lgc::BlobKey key {
             .namespace_ = "run-1",
             .name_ = "images/chart.png",
         };
@@ -84,7 +84,7 @@ int main()
         assert(store.put(
             key,
             data,
-            lc::BlobPutOptions {
+            lgc::BlobPutOptions {
                 .contentType_ = "image/png",
                 .metadata_ = { { "kind", "chart" } },
             })
@@ -107,28 +107,28 @@ int main()
         std::string streamed;
         assert(store.read(key, [&](std::span<const std::byte> chunk) {
             streamed.append(reinterpret_cast<const char*>(chunk.data()), chunk.size());
-            return lc::Status::ok();
-        }, lc::BlobReadOptions { .chunkBytes_ = 2 }).isOk());
+            return lgc::Status::ok();
+        }, lgc::BlobReadOptions { .chunkBytes_ = 2 }).isOk());
         assert(streamed == std::string_view("\x89PNG", 4));
-        assert(store.read(key, {}, lc::BlobReadOptions {}).status().code() == lc::StatusCode::InvalidArgument);
-        assert(lc::validateBlobReadOptions(lc::BlobReadOptions { .chunkBytes_ = 0 }).code()
-            == lc::StatusCode::InvalidArgument);
+        assert(store.read(key, {}, lgc::BlobReadOptions {}).status().code() == lgc::StatusCode::InvalidArgument);
+        assert(lgc::validateBlobReadOptions(lgc::BlobReadOptions { .chunkBytes_ = 0 }).code()
+            == lgc::StatusCode::InvalidArgument);
 
-        assert(store.put(key, data, lc::BlobPutOptions { .replace_ = false }).status().code()
-            == lc::StatusCode::AlreadyExists);
+        assert(store.put(key, data, lgc::BlobPutOptions { .replace_ = false }).status().code()
+            == lgc::StatusCode::AlreadyExists);
         assert(store.put(
                     { "run-1", "bad-content-type" },
                     data,
-                    lc::BlobPutOptions { .contentType_ = "not-a-media-type" })
+                    lgc::BlobPutOptions { .contentType_ = "not-a-media-type" })
                    .status()
                    .code()
-            == lc::StatusCode::InvalidArgument);
+            == lgc::StatusCode::InvalidArgument);
 
         assert(store.put({ "run-1", "logs/stdout.txt" }, bytesFromText("stdout")).isOk());
         assert(store.put({ "run-1", "tool/output.json" }, bytesFromText("{}")).isOk());
         assert(store.put({ "run-2", "logs/stdout.txt" }, bytesFromText("other")).isOk());
 
-        auto page = store.list(lc::BlobListOptions {
+        auto page = store.list(lgc::BlobListOptions {
             .namespace_ = "run-1",
             .limit_ = 2,
         });
@@ -136,7 +136,7 @@ int main()
         assert(page->items_.size() == 2);
         assert(!page->nextCursor_.empty());
 
-        auto next = store.list(lc::BlobListOptions {
+        auto next = store.list(lgc::BlobListOptions {
             .namespace_ = "run-1",
             .limit_ = 2,
             .cursor_ = page->nextCursor_,
@@ -144,7 +144,7 @@ int main()
         assert(next.isOk());
         assert(next->items_.size() == 1);
 
-        auto prefixed = store.list(lc::BlobListOptions {
+        auto prefixed = store.list(lgc::BlobListOptions {
             .namespace_ = "run-1",
             .namePrefix_ = "logs/",
         });
@@ -155,16 +155,16 @@ int main()
         assert(store.remove(key).isOk());
         assert(!store.get(key)->has_value());
         assert(store.clearNamespace("run-1").isOk());
-        assert(store.list(lc::BlobListOptions { .namespace_ = "run-1" })->items_.empty());
-        assert(store.list(lc::BlobListOptions { .namespace_ = "run-2" })->items_.size() == 1);
+        assert(store.list(lgc::BlobListOptions { .namespace_ = "run-1" })->items_.empty());
+        assert(store.list(lgc::BlobListOptions { .namespace_ = "run-2" })->items_.size() == 1);
     }
 
     {
         const auto source = fs::temp_directory_path() / "langgraph_cpp_blob_memory_source.txt";
         writeText(source, "memory file");
-        lc::MemoryBlobStore store;
-        const lc::BlobKey key { "run-file", "source.txt" };
-        assert(store.putFile(key, source, lc::BlobPutOptions { .contentType_ = "text/plain" }).isOk());
+        lgc::MemoryBlobStore store;
+        const lgc::BlobKey key { "run-file", "source.txt" };
+        assert(store.putFile(key, source, lgc::BlobPutOptions { .contentType_ = "text/plain" }).isOk());
         auto loaded = store.get(key);
         assert(loaded.isOk());
         assert(loaded->has_value());
@@ -173,34 +173,34 @@ int main()
     }
 
     {
-        assert(lc::validateBlobKey({ "", "x" }).code() == lc::StatusCode::InvalidArgument);
-        assert(lc::validateBlobKey({ "run", "../x" }).code() == lc::StatusCode::PermissionDenied);
-        assert(lc::validateBlobListOptions(lc::BlobListOptions { .limit_ = 0 }).code()
-            == lc::StatusCode::InvalidArgument);
-        assert(lc::validateBlobListOptions(lc::BlobListOptions { .namePrefix_ = "../x" }).code()
-            == lc::StatusCode::PermissionDenied);
-        assert(lc::decodeBlobCursor("bad").status().code() == lc::StatusCode::InvalidArgument);
+        assert(lgc::validateBlobKey({ "", "x" }).code() == lgc::StatusCode::InvalidArgument);
+        assert(lgc::validateBlobKey({ "run", "../x" }).code() == lgc::StatusCode::PermissionDenied);
+        assert(lgc::validateBlobListOptions(lgc::BlobListOptions { .limit_ = 0 }).code()
+            == lgc::StatusCode::InvalidArgument);
+        assert(lgc::validateBlobListOptions(lgc::BlobListOptions { .namePrefix_ = "../x" }).code()
+            == lgc::StatusCode::PermissionDenied);
+        assert(lgc::decodeBlobCursor("bad").status().code() == lgc::StatusCode::InvalidArgument);
     }
 
     {
         const auto root = fs::temp_directory_path() / "langgraph_cpp_blob_store_test";
         fs::remove_all(root);
 
-        lc::FileSystemBlobStore store(root);
-        const lc::BlobKey key {
+        lgc::FileSystemBlobStore store(root);
+        const lgc::BlobKey key {
             .namespace_ = "run-1",
             .name_ = "artifacts/output.txt",
         };
         assert(store.put(
             key,
             bytesFromText("hello artifact"),
-            lc::BlobPutOptions {
+            lgc::BlobPutOptions {
                 .contentType_ = "text/plain",
                 .metadata_ = { { "source", "tool" } },
             })
                 .isOk());
 
-        lc::FileSystemBlobStore reopened(root);
+        lgc::FileSystemBlobStore reopened(root);
         auto loaded = reopened.get(key);
         assert(loaded.isOk());
         assert(loaded->has_value());
@@ -216,79 +216,79 @@ int main()
         std::string streamed;
         assert(reopened.read(key, [&](std::span<const std::byte> chunk) {
             streamed.append(reinterpret_cast<const char*>(chunk.data()), chunk.size());
-            return lc::Status::ok();
-        }, lc::BlobReadOptions { .chunkBytes_ = 5 }).isOk());
+            return lgc::Status::ok();
+        }, lgc::BlobReadOptions { .chunkBytes_ = 5 }).isOk());
         assert(streamed == "hello artifact");
 
         const auto fileSource = root / "source-file.txt";
         writeText(fileSource, "file backed artifact");
-        const lc::BlobKey fileKey { "run-1", "artifacts/from-file.txt" };
+        const lgc::BlobKey fileKey { "run-1", "artifacts/from-file.txt" };
         assert(reopened.putFile(
             fileKey,
             fileSource,
-            lc::BlobPutOptions {
+            lgc::BlobPutOptions {
                 .contentType_ = "text/plain",
                 .metadata_ = { { "source", "file" } },
             }).isOk());
         streamed.clear();
         assert(reopened.read(fileKey, [&](std::span<const std::byte> chunk) {
             streamed.append(reinterpret_cast<const char*>(chunk.data()), chunk.size());
-            return lc::Status::ok();
-        }, lc::BlobReadOptions { .chunkBytes_ = 3 }).isOk());
+            return lgc::Status::ok();
+        }, lgc::BlobReadOptions { .chunkBytes_ = 3 }).isOk());
         assert(streamed == "file backed artifact");
         auto fileInfo = reopened.stat(fileKey);
         assert(fileInfo.isOk());
         assert(fileInfo->has_value());
         assert((*fileInfo)->metadata_.at("source") == "file");
 
-        auto listed = reopened.list(lc::BlobListOptions { .namespace_ = "run-1" });
+        auto listed = reopened.list(lgc::BlobListOptions { .namespace_ = "run-1" });
         assert(listed.isOk());
         assert(listed->items_.size() == 2);
 
         writeText(root / "run-1" / "notes.json", "{not-json");
         writeText(root / "run-1" / "notes.meta.json.tmp", "{not-json");
-        listed = reopened.list(lc::BlobListOptions { .namespace_ = "run-1" });
+        listed = reopened.list(lgc::BlobListOptions { .namespace_ = "run-1" });
         assert(listed.isOk());
         assert(listed->items_.size() == 2);
         fs::remove(root / "run-1" / "notes.json");
         fs::remove(root / "run-1" / "notes.meta.json.tmp");
 
-        assert(reopened.get({ "run-1", "../outside.txt" }).status().code() == lc::StatusCode::PermissionDenied);
+        assert(reopened.get({ "run-1", "../outside.txt" }).status().code() == lgc::StatusCode::PermissionDenied);
 
         const auto metadata = metadataPath(root, key);
         {
             std::ofstream file(metadata, std::ios::trunc);
             file << "{not-json";
         }
-        assert(reopened.get(key).status().code() == lc::StatusCode::DataLoss);
+        assert(reopened.get(key).status().code() == lgc::StatusCode::DataLoss);
 
         auto overwriteCorrupt = reopened.put(
             key,
             bytesFromText("restored artifact"),
-            lc::BlobPutOptions { .contentType_ = "text/plain" });
+            lgc::BlobPutOptions { .contentType_ = "text/plain" });
         assert(!overwriteCorrupt.isOk());
-        assert(overwriteCorrupt.status().code() == lc::StatusCode::DataLoss);
+        assert(overwriteCorrupt.status().code() == lgc::StatusCode::DataLoss);
 
         fs::remove(contentPath(root, key, originalChecksum));
         fs::remove(metadata);
         assert(reopened.put(
             key,
             bytesFromText("restored artifact"),
-            lc::BlobPutOptions { .contentType_ = "text/plain" })
+            lgc::BlobPutOptions { .contentType_ = "text/plain" })
                 .isOk());
         auto restored = reopened.get(key);
         assert(restored.isOk());
         assert(restored->has_value());
         const auto restoredChecksum = (*restored)->info_.checksumSha256_;
         fs::remove(contentPath(root, key, restoredChecksum));
-        assert(reopened.get(key).status().code() == lc::StatusCode::DataLoss);
+        assert(reopened.get(key).status().code() == lgc::StatusCode::DataLoss);
         fs::remove(metadata);
 
         writeText(root / "run-1" / "bad-schema.txt.data", "bad");
         writeText(
             root / "run-1" / "bad-schema.txt.meta.json",
             R"({"namespace":"run-1","name":"bad-schema.txt","size":3,"metadata":{},"created_at_unix_ms":0,"updated_at_unix_ms":0})");
-        assert(reopened.get({ "run-1", "bad-schema.txt" }).status().code() == lc::StatusCode::DataLoss);
+        assert(reopened.get({ "run-1", "bad-schema.txt" }).status().code() == lgc::StatusCode::DataLoss);
         fs::remove(root / "run-1" / "bad-schema.txt.data");
         fs::remove(root / "run-1" / "bad-schema.txt.meta.json");
 
@@ -300,11 +300,11 @@ int main()
                 + emptyChecksum
                 + "\",\"metadata\":{},\"created_at_unix_ms\":0,\"updated_at_unix_ms\":0}");
         writeText(contentPath(root, { "run-1", "bad-content-type.txt" }, emptyChecksum), "");
-        assert(reopened.get({ "run-1", "bad-content-type.txt" }).status().code() == lc::StatusCode::DataLoss);
+        assert(reopened.get({ "run-1", "bad-content-type.txt" }).status().code() == lgc::StatusCode::DataLoss);
         fs::remove(root / "run-1" / "bad-content-type.txt.meta.json");
         fs::remove(contentPath(root, { "run-1", "bad-content-type.txt" }, emptyChecksum));
 
-        const lc::BlobKey badSizeKey { "run-1", "bad-size.txt" };
+        const lgc::BlobKey badSizeKey { "run-1", "bad-size.txt" };
         const auto badSizeChecksum = sha256Text("abc");
         writeText(contentPath(root, badSizeKey, badSizeChecksum), "abc");
         writeText(
@@ -313,9 +313,9 @@ int main()
             "\"checksum_sha256\":\""
                 + badSizeChecksum
                 + "\",\"metadata\":{},\"created_at_unix_ms\":0,\"updated_at_unix_ms\":0}");
-        assert(reopened.get(badSizeKey).status().code() == lc::StatusCode::DataLoss);
-        assert(reopened.list(lc::BlobListOptions { .namespace_ = "run-1" }).status().code()
-            == lc::StatusCode::DataLoss);
+        assert(reopened.get(badSizeKey).status().code() == lgc::StatusCode::DataLoss);
+        assert(reopened.list(lgc::BlobListOptions { .namespace_ = "run-1" }).status().code()
+            == lgc::StatusCode::DataLoss);
         fs::remove(contentPath(root, badSizeKey, badSizeChecksum));
         fs::remove(metadataPath(root, badSizeKey));
 
@@ -326,8 +326,8 @@ int main()
                 + emptyChecksum
                 + "\",\"metadata\":{},\"created_at_unix_ms\":0,\"updated_at_unix_ms\":0}");
         writeText(contentPath(root, { "run-1", "other.txt" }, emptyChecksum), "");
-        assert(reopened.list(lc::BlobListOptions { .namespace_ = "run-1" }).status().code()
-            == lc::StatusCode::DataLoss);
+        assert(reopened.list(lgc::BlobListOptions { .namespace_ = "run-1" }).status().code()
+            == lgc::StatusCode::DataLoss);
         fs::remove(root / "run-1" / "wrong-path.meta.json");
         fs::remove(contentPath(root, { "run-1", "other.txt" }, emptyChecksum));
 
@@ -343,7 +343,7 @@ int main()
         assert(!fs::exists(orphanPath));
         assert(!fs::exists(tempPath));
 
-        const lc::BlobKey missingDataKey { "run-1", "missing-data.txt" };
+        const lgc::BlobKey missingDataKey { "run-1", "missing-data.txt" };
         const auto missingDataChecksum = sha256Text("missing");
         writeText(
             metadataPath(root, missingDataKey),
@@ -351,9 +351,9 @@ int main()
             "\"checksum_sha256\":\""
                 + missingDataChecksum
                 + "\",\"metadata\":{},\"created_at_unix_ms\":0,\"updated_at_unix_ms\":0}");
-        assert(reopened.get(missingDataKey).status().code() == lc::StatusCode::DataLoss);
-        assert(reopened.list(lc::BlobListOptions { .namespace_ = "run-1" }).status().code()
-            == lc::StatusCode::DataLoss);
+        assert(reopened.get(missingDataKey).status().code() == lgc::StatusCode::DataLoss);
+        assert(reopened.list(lgc::BlobListOptions { .namespace_ = "run-1" }).status().code()
+            == lgc::StatusCode::DataLoss);
         fs::remove(metadataPath(root, missingDataKey));
 
         assert(reopened.put({ "run-1", "tamper.txt" }, bytesFromText("abcd")).isOk());
@@ -361,7 +361,7 @@ int main()
         assert(tampered.isOk());
         assert(tampered->has_value());
         writeText(contentPath(root, { "run-1", "tamper.txt" }, (*tampered)->info_.checksumSha256_), "wxyz");
-        assert(reopened.get({ "run-1", "tamper.txt" }).status().code() == lc::StatusCode::DataLoss);
+        assert(reopened.get({ "run-1", "tamper.txt" }).status().code() == lgc::StatusCode::DataLoss);
         fs::remove(metadataPath(root, { "run-1", "tamper.txt" }));
         fs::remove(contentPath(root, { "run-1", "tamper.txt" }, (*tampered)->info_.checksumSha256_));
 
@@ -372,15 +372,15 @@ int main()
             "\"checksum_sha256\":\""
                 + foreignChecksum
                 + "\",\"metadata\":{},\"created_at_unix_ms\":0,\"updated_at_unix_ms\":0}");
-        auto scopedList = reopened.list(lc::BlobListOptions { .namespace_ = "run-1" });
+        auto scopedList = reopened.list(lgc::BlobListOptions { .namespace_ = "run-1" });
         assert(scopedList.isOk());
-        assert(reopened.list().status().code() == lc::StatusCode::DataLoss);
+        assert(reopened.list().status().code() == lgc::StatusCode::DataLoss);
         fs::remove_all(root / "run-2");
 
         assert(reopened.put(
             key,
             bytesFromText("hello artifact"),
-            lc::BlobPutOptions { .contentType_ = "text/plain" })
+            lgc::BlobPutOptions { .contentType_ = "text/plain" })
                 .isOk());
         assert(reopened.remove(key).isOk());
         assert(!reopened.get(key)->has_value());
@@ -396,7 +396,7 @@ int main()
         std::string cursor;
         int seen = 0;
         do {
-            auto page = reopened.list(lc::BlobListOptions {
+            auto page = reopened.list(lgc::BlobListOptions {
                 .namespace_ = "run-page",
                 .namePrefix_ = "checkpoint-",
                 .limit_ = 7,
@@ -409,7 +409,7 @@ int main()
         assert(seen == 64);
 
         assert(reopened.clearNamespace("run-1").isOk());
-        assert(reopened.list(lc::BlobListOptions { .namespace_ = "run-1" })->items_.empty());
+        assert(reopened.list(lgc::BlobListOptions { .namespace_ = "run-1" })->items_.empty());
         assert(reopened.clearNamespace("run-page").isOk());
 
         fs::remove_all(root);
@@ -420,8 +420,8 @@ int main()
         fs::remove_all(root);
         writeText(root / "run-1" / "important.txt", "do not delete");
 
-        lc::FileSystemBlobStore store(root);
-        assert(store.clearNamespace("run-1").status().code() == lc::StatusCode::FailedPrecondition);
+        lgc::FileSystemBlobStore store(root);
+        assert(store.clearNamespace("run-1").status().code() == lgc::StatusCode::FailedPrecondition);
         assert(fs::exists(root / "run-1" / "important.txt"));
 
         assert(store.put({ "run-1", "artifact.txt" }, bytesFromText("value")).isOk());
@@ -437,48 +437,48 @@ int main()
         fs::remove_all(root);
         writeText(root / ".langgraph-blob-store", "not this store\n");
 
-        lc::FileSystemBlobStore store(root);
+        lgc::FileSystemBlobStore store(root);
         assert(store.put({ "run-1", "artifact.txt" }, bytesFromText("value")).status().code()
-            == lc::StatusCode::FailedPrecondition);
-        assert(store.clearNamespace("run-1").status().code() == lc::StatusCode::FailedPrecondition);
+            == lgc::StatusCode::FailedPrecondition);
+        assert(store.clearNamespace("run-1").status().code() == lgc::StatusCode::FailedPrecondition);
 
         fs::remove_all(root);
     }
 
     {
-        lc::MemoryBlobStore store(lc::BlobStoreOptions { .maxBlobBytes_ = 4 });
+        lgc::MemoryBlobStore store(lgc::BlobStoreOptions { .maxBlobBytes_ = 4 });
         assert(store.put({ "limit", "too-large" }, bytesFromText("12345")).status().code()
-            == lc::StatusCode::ResourceExhausted);
+            == lgc::StatusCode::ResourceExhausted);
         assert(store.put({ "limit", "ok" }, bytesFromText("1234")).isOk());
     }
 
     {
-        lc::MemoryBlobStore store(lc::BlobStoreOptions { .maxListItems_ = 1 });
+        lgc::MemoryBlobStore store(lgc::BlobStoreOptions { .maxListItems_ = 1 });
         assert(store.put({ "limit", "a" }, bytesFromText("a")).isOk());
-        assert(store.list(lc::BlobListOptions { .namespace_ = "limit", .limit_ = 2 }).status().code()
-            == lc::StatusCode::ResourceExhausted);
+        assert(store.list(lgc::BlobListOptions { .namespace_ = "limit", .limit_ = 2 }).status().code()
+            == lgc::StatusCode::ResourceExhausted);
     }
 
     {
-        lc::MemoryBlobStore store(lc::BlobStoreOptions { .maxMetadataEntries_ = 1 });
+        lgc::MemoryBlobStore store(lgc::BlobStoreOptions { .maxMetadataEntries_ = 1 });
         assert(store.put(
                     { "limit", "too-many-metadata" },
                     bytesFromText("x"),
-                    lc::BlobPutOptions {
+                    lgc::BlobPutOptions {
                         .metadata_ = { { "a", "1" }, { "b", "2" } },
                     })
                    .status()
                    .code()
-            == lc::StatusCode::ResourceExhausted);
+            == lgc::StatusCode::ResourceExhausted);
     }
 
     {
         const auto root = fs::temp_directory_path() / "langgraph_cpp_blob_store_limit_test";
         fs::remove_all(root);
 
-        lc::FileSystemBlobStore store(root, lc::BlobStoreOptions { .maxBlobBytes_ = 4 });
+        lgc::FileSystemBlobStore store(root, lgc::BlobStoreOptions { .maxBlobBytes_ = 4 });
         assert(store.put({ "limit", "too-large" }, bytesFromText("12345")).status().code()
-            == lc::StatusCode::ResourceExhausted);
+            == lgc::StatusCode::ResourceExhausted);
         assert(store.put({ "limit", "ok" }, bytesFromText("1234")).isOk());
         assert(store.get({ "limit", "ok" }).isOk());
 
@@ -486,13 +486,13 @@ int main()
     }
 
     {
-        lc::MemoryBlobStore store;
+        lgc::MemoryBlobStore store;
         std::atomic<int> failures { 0 };
         std::vector<std::thread> workers;
         for (int worker = 0; worker < 4; ++worker) {
             workers.emplace_back([&store, &failures, worker] {
                 for (int i = 0; i < 100; ++i) {
-                    const lc::BlobKey key {
+                    const lgc::BlobKey key {
                         .namespace_ = "worker-" + std::to_string(worker),
                         .name_ = "blob-" + std::to_string(i),
                     };
@@ -516,15 +516,15 @@ int main()
         const auto root = fs::temp_directory_path() / "langgraph_cpp_blob_store_concurrency_test";
         fs::remove_all(root);
 
-        lc::FileSystemBlobStore storeA(root);
-        lc::FileSystemBlobStore storeB(root);
+        lgc::FileSystemBlobStore storeA(root);
+        lgc::FileSystemBlobStore storeB(root);
         std::atomic<int> failures { 0 };
         std::vector<std::thread> workers;
         for (int worker = 0; worker < 4; ++worker) {
             workers.emplace_back([&storeA, &storeB, &failures, worker] {
                 auto& store = (worker % 2 == 0) ? storeA : storeB;
                 for (int i = 0; i < 30; ++i) {
-                    const lc::BlobKey key {
+                    const lgc::BlobKey key {
                         .namespace_ = "worker-" + std::to_string(worker),
                         .name_ = "blob-" + std::to_string(i),
                     };

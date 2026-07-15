@@ -14,17 +14,17 @@ class IEdgeRepairAdapter {
 public:
     virtual ~IEdgeRepairAdapter() = default;
 
-    [[nodiscard]] virtual lc::Result<nlohmann::json> readTemperature(
+    [[nodiscard]] virtual lgc::Result<nlohmann::json> readTemperature(
         const nlohmann::json& input) = 0;
-    [[nodiscard]] virtual lc::Result<nlohmann::json> setRelay(
+    [[nodiscard]] virtual lgc::Result<nlohmann::json> setRelay(
         const nlohmann::json& input) = 0;
-    [[nodiscard]] virtual lc::Result<nlohmann::json> manualReset(
+    [[nodiscard]] virtual lgc::Result<nlohmann::json> manualReset(
         const nlohmann::json& input) = 0;
 };
 
 class MockEdgeRepairAdapter final : public IEdgeRepairAdapter {
 public:
-    [[nodiscard]] lc::Result<nlohmann::json> readTemperature(
+    [[nodiscard]] lgc::Result<nlohmann::json> readTemperature(
         const nlohmann::json& input) override
     {
         const auto sensor = input.at("sensor").get<std::string>();
@@ -55,7 +55,7 @@ public:
         };
     }
 
-    [[nodiscard]] lc::Result<nlohmann::json> setRelay(
+    [[nodiscard]] lgc::Result<nlohmann::json> setRelay(
         const nlohmann::json& input) override
     {
         relayEnabled_ = input.at("enabled").get<bool>();
@@ -66,7 +66,7 @@ public:
         };
     }
 
-    [[nodiscard]] lc::Result<nlohmann::json> manualReset(
+    [[nodiscard]] lgc::Result<nlohmann::json> manualReset(
         const nlohmann::json& input) override
     {
         manualResetDone_ = true;
@@ -81,7 +81,7 @@ private:
     bool manualResetDone_ { false };
 };
 
-void require(lc::Result<void> result)
+void require(lgc::Result<void> result)
 {
     if (!result.isOk()) {
         std::cerr << result.status() << '\n';
@@ -89,27 +89,27 @@ void require(lc::Result<void> result)
     }
 }
 
-[[nodiscard]] std::string runStatusName(lc::RunStatus status)
+[[nodiscard]] std::string runStatusName(lgc::RunStatus status)
 {
     switch (status) {
-    case lc::RunStatus::Completed:
+    case lgc::RunStatus::Completed:
         return "completed";
-    case lc::RunStatus::Paused:
+    case lgc::RunStatus::Paused:
         return "paused";
-    case lc::RunStatus::Failed:
+    case lgc::RunStatus::Failed:
         return "failed";
-    case lc::RunStatus::Cancelled:
+    case lgc::RunStatus::Cancelled:
         return "cancelled";
-    case lc::RunStatus::MaxStepsExceeded:
+    case lgc::RunStatus::MaxStepsExceeded:
         return "max_steps_exceeded";
     }
     return "failed";
 }
 
-[[nodiscard]] nlohmann::json eventToJson(const lc::RuntimeEvent& event)
+[[nodiscard]] nlohmann::json eventToJson(const lgc::RuntimeEvent& event)
 {
     nlohmann::json value {
-        { "type", std::string(lc::runtimeEventTypeName(event.type_)) },
+        { "type", std::string(lgc::runtimeEventTypeName(event.type_)) },
         { "run_id", event.runId_ },
         { "thread_id", event.threadId_ },
         { "step", event.step_ },
@@ -126,107 +126,107 @@ void require(lc::Result<void> result)
     return value;
 }
 
-void appendEvents(nlohmann::json& target, const std::vector<lc::RuntimeEvent>& events)
+void appendEvents(nlohmann::json& target, const std::vector<lgc::RuntimeEvent>& events)
 {
     for (const auto& event : events)
         target.push_back(eventToJson(event));
 }
 
-[[nodiscard]] lc::Result<nlohmann::json> latestToolResult(
-    const lc::State& state,
+[[nodiscard]] lgc::Result<nlohmann::json> latestToolResult(
+    const lgc::State& state,
     std::string_view toolName)
 {
     auto json = state.toJson();
     if (!json.isOk())
         return json.status();
 
-    auto messages = lc::messagesFromStateJson(*json);
+    auto messages = lgc::messagesFromStateJson(*json);
     if (!messages.isOk())
         return messages.status();
 
     for (auto it = messages->rbegin(); it != messages->rend(); ++it) {
-        if (it->type_ != lc::MessageType::Tool || it->name_ != toolName)
+        if (it->type_ != lgc::MessageType::Tool || it->name_ != toolName)
             continue;
 
         auto content = nlohmann::json::parse(it->content_, nullptr, false);
         if (content.is_discarded())
-            return lc::Status::invalidArgument("tool message content is not valid JSON");
+            return lgc::Status::invalidArgument("tool message content is not valid JSON");
 
-        auto toolResult = lc::toolResultFromJson(content);
+        auto toolResult = lgc::toolResultFromJson(content);
         if (!toolResult.isOk())
             return toolResult.status();
         if (!toolResult->ok_) {
             if (toolResult->error_.has_value())
-                return lc::Status::failedPrecondition(toolResult->error_->message_);
-            return lc::Status::failedPrecondition("tool returned an error");
+                return lgc::Status::failedPrecondition(toolResult->error_->message_);
+            return lgc::Status::failedPrecondition("tool returned an error");
         }
         return toolResult->result_;
     }
 
-    return lc::Status::notFound("tool result not found");
+    return lgc::Status::notFound("tool result not found");
 }
 
-[[nodiscard]] lc::Result<lc::StateUpdate> appendAssistantToolCall(
-    lc::ToolCall toolCall,
+[[nodiscard]] lgc::Result<lgc::StateUpdate> appendAssistantToolCall(
+    lgc::ToolCall toolCall,
     nlohmann::json extra = nlohmann::json::object())
 {
-    extra["messages"] = lc::messagesToJson({
-        lc::BaseMessage::ai("", { std::move(toolCall) }),
+    extra["messages"] = lgc::messagesToJson({
+        lgc::BaseMessage::ai("", { std::move(toolCall) }),
     });
-    return lc::StateUpdate::fromJsonValue(extra);
+    return lgc::StateUpdate::fromJsonValue(extra);
 }
 
-std::shared_ptr<lc::ToolRegistry> makeToolRegistry(
+std::shared_ptr<lgc::ToolRegistry> makeToolRegistry(
     std::shared_ptr<IEdgeRepairAdapter> adapter)
 {
-    auto registry = std::make_shared<lc::ToolRegistry>();
+    auto registry = std::make_shared<lgc::ToolRegistry>();
 
-    require(registry->add(lc::Tool {
+    require(registry->add(lgc::Tool {
         .name_ = "edge.read_temperature",
         .description_ = "Read the cooling-loop temperature sensor.",
-        .inputSchema_ = lc::JsonSchema::object()
-                            .property("sensor", lc::JsonSchema::string(), true)
+        .inputSchema_ = lgc::JsonSchema::object()
+                            .property("sensor", lgc::JsonSchema::string(), true)
                             .additionalProperties(false),
-        .outputSchema_ = lc::JsonSchema::object()
-                             .property("sensor", lc::JsonSchema::string(), true)
-                             .property("celsius", lc::JsonSchema::number(), true)
-                             .property("healthy", lc::JsonSchema::boolean(), true)
-                             .property("fault", lc::JsonSchema::any(), true)
+        .outputSchema_ = lgc::JsonSchema::object()
+                             .property("sensor", lgc::JsonSchema::string(), true)
+                             .property("celsius", lgc::JsonSchema::number(), true)
+                             .property("healthy", lgc::JsonSchema::boolean(), true)
+                             .property("fault", lgc::JsonSchema::any(), true)
                              .additionalProperties(false),
-        .callable_ = [device = adapter](const nlohmann::json& input) -> lc::Result<nlohmann::json> {
+        .callable_ = [device = adapter](const nlohmann::json& input) -> lgc::Result<nlohmann::json> {
             return device->readTemperature(input);
         },
     }));
 
-    require(registry->add(lc::Tool {
+    require(registry->add(lgc::Tool {
         .name_ = "edge.set_relay",
         .description_ = "Enable or disable an edge relay.",
-        .inputSchema_ = lc::JsonSchema::object()
-                            .property("relay", lc::JsonSchema::string(), true)
-                            .property("enabled", lc::JsonSchema::boolean(), true)
+        .inputSchema_ = lgc::JsonSchema::object()
+                            .property("relay", lgc::JsonSchema::string(), true)
+                            .property("enabled", lgc::JsonSchema::boolean(), true)
                             .additionalProperties(false),
-        .outputSchema_ = lc::JsonSchema::object()
-                             .property("relay", lc::JsonSchema::string(), true)
-                             .property("enabled", lc::JsonSchema::boolean(), true)
-                             .property("accepted", lc::JsonSchema::boolean(), true)
+        .outputSchema_ = lgc::JsonSchema::object()
+                             .property("relay", lgc::JsonSchema::string(), true)
+                             .property("enabled", lgc::JsonSchema::boolean(), true)
+                             .property("accepted", lgc::JsonSchema::boolean(), true)
                              .additionalProperties(false),
-        .callable_ = [device = adapter](const nlohmann::json& input) -> lc::Result<nlohmann::json> {
+        .callable_ = [device = adapter](const nlohmann::json& input) -> lgc::Result<nlohmann::json> {
             return device->setRelay(input);
         },
     }));
 
-    require(registry->add(lc::Tool {
+    require(registry->add(lgc::Tool {
         .name_ = "edge.manual_reset",
         .description_ = "Simulate an operator-assisted controller reset.",
-        .inputSchema_ = lc::JsonSchema::object()
-                            .property("component", lc::JsonSchema::string(), true)
+        .inputSchema_ = lgc::JsonSchema::object()
+                            .property("component", lgc::JsonSchema::string(), true)
                             .additionalProperties(false),
-        .outputSchema_ = lc::JsonSchema::object()
-                             .property("component", lc::JsonSchema::string(), true)
-                             .property("reset", lc::JsonSchema::boolean(), true)
+        .outputSchema_ = lgc::JsonSchema::object()
+                             .property("component", lgc::JsonSchema::string(), true)
+                             .property("reset", lgc::JsonSchema::boolean(), true)
                              .additionalProperties(false),
         .callable_ = [device = std::move(adapter)](
-                         const nlohmann::json& input) -> lc::Result<nlohmann::json> {
+                         const nlohmann::json& input) -> lgc::Result<nlohmann::json> {
             return device->manualReset(input);
         },
     }));
@@ -234,18 +234,18 @@ std::shared_ptr<lc::ToolRegistry> makeToolRegistry(
     return registry;
 }
 
-[[nodiscard]] lc::CompiledStateGraph buildGraph(std::shared_ptr<lc::ToolRegistry> registry)
+[[nodiscard]] lgc::CompiledStateGraph buildGraph(std::shared_ptr<lgc::ToolRegistry> registry)
 {
-    lc::StateGraph graph;
+    lgc::StateGraph graph;
 
-    require(graph.addNode("diagnose", [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::StateUpdate> {
+    require(graph.addNode("diagnose", [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
         auto json = state.toJson();
         if (!json.isOk())
             return json.status();
 
         const int cycle = json->value("diagnostic_cycles", 0) + 1;
         return appendAssistantToolCall(
-            lc::ToolCall {
+            lgc::ToolCall {
                 .id_ = "read-temperature-" + std::to_string(cycle),
                 .name_ = "edge.read_temperature",
                 .args_ = {
@@ -260,11 +260,11 @@ std::shared_ptr<lc::ToolRegistry> makeToolRegistry(
 
     require(graph.addNode(
         "read_tools",
-        lc::ToolNode(registry, lc::ToolNodeOptions {
+        lgc::ToolNode(registry, lgc::ToolNodeOptions {
             .validateOutput_ = true,
         })));
 
-    require(graph.addNode("evaluate", [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::StateUpdate> {
+    require(graph.addNode("evaluate", [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
         auto stateJson = state.toJson();
         if (!stateJson.isOk())
             return stateJson.status();
@@ -282,17 +282,17 @@ std::shared_ptr<lc::ToolRegistry> makeToolRegistry(
             { "repair_status", healthy ? "repaired" : (attempts == 0 ? "needs_auto_repair" : "needs_operator") },
         };
 
-        return lc::StateUpdate::fromJsonValue(update);
+        return lgc::StateUpdate::fromJsonValue(update);
     }));
 
-    require(graph.addNode("auto_repair", [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::StateUpdate> {
+    require(graph.addNode("auto_repair", [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
         auto json = state.toJson();
         if (!json.isOk())
             return json.status();
 
         const int attempts = json->value("repair_attempts", 0) + 1;
         return appendAssistantToolCall(
-            lc::ToolCall {
+            lgc::ToolCall {
                 .id_ = "enable-relay-" + std::to_string(attempts),
                 .name_ = "edge.set_relay",
                 .args_ = {
@@ -308,17 +308,17 @@ std::shared_ptr<lc::ToolRegistry> makeToolRegistry(
 
     require(graph.addNode(
         "repair_tools",
-        lc::ToolNode(registry, lc::ToolNodeOptions {
+        lgc::ToolNode(registry, lgc::ToolNodeOptions {
             .validateOutput_ = true,
         })));
 
-    require(graph.addNode("operator_gate", [](const lc::State& state, lc::Runtime& context) -> lc::Result<lc::NodeOutput> {
+    require(graph.addNode("operator_gate", [](const lgc::State& state, lgc::Runtime& context) -> lgc::Result<lgc::NodeOutput> {
         if (!context.hasResumeValue()) {
             auto json = state.toJson();
             if (!json.isOk())
                 return json.status();
 
-            return lc::NodeOutput::interrupt(lc::Interrupt {
+            return lgc::NodeOutput::interrupt(lgc::Interrupt {
                 .id_ = "operator_manual_reset_required",
                 .value_ = {
                     { "component", "fan-controller" },
@@ -330,18 +330,18 @@ std::shared_ptr<lc::ToolRegistry> makeToolRegistry(
         }
 
         const bool approved = context.resumeValue().value("approved", false);
-        auto update = lc::StateUpdate::fromJsonValue({
+        auto update = lgc::StateUpdate::fromJsonValue({
             { "operator_approved", approved },
             { "repair_status", approved ? "operator_approved" : "operator_rejected" },
         });
         if (!update.isOk())
             return update.status();
-        return lc::NodeOutput::update(std::move(*update));
+        return lgc::NodeOutput::update(std::move(*update));
     }));
 
-    require(graph.addNode("manual_reset", [](const lc::State&, lc::Runtime&) -> lc::Result<lc::StateUpdate> {
+    require(graph.addNode("manual_reset", [](const lgc::State&, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
         return appendAssistantToolCall(
-            lc::ToolCall {
+            lgc::ToolCall {
                 .id_ = "manual-reset-1",
                 .name_ = "edge.manual_reset",
                 .args_ = {
@@ -355,39 +355,39 @@ std::shared_ptr<lc::ToolRegistry> makeToolRegistry(
 
     require(graph.addNode(
         "reset_tools",
-        lc::ToolNode(registry, lc::ToolNodeOptions {
+        lgc::ToolNode(registry, lgc::ToolNodeOptions {
             .validateOutput_ = true,
         })));
 
-    require(graph.addEdge(std::string(lc::START), "diagnose"));
+    require(graph.addEdge(std::string(lgc::START), "diagnose"));
     require(graph.addEdge("diagnose", "read_tools"));
     require(graph.addEdge("read_tools", "evaluate"));
     require(graph.addConditionalEdges(
         "evaluate",
-        [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::NodeId> {
+        [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::NodeId> {
             auto json = state.toJson();
             if (!json.isOk())
                 return json.status();
             if (json->value("device_healthy", false))
-                return std::string(lc::END);
+                return std::string(lgc::END);
             if (json->value("repair_attempts", 0) == 0)
                 return std::string("auto_repair");
             return std::string("operator_gate");
         },
-        { "auto_repair", "operator_gate", std::string(lc::END) }));
+        { "auto_repair", "operator_gate", std::string(lgc::END) }));
     require(graph.addEdge("auto_repair", "repair_tools"));
     require(graph.addEdge("repair_tools", "diagnose"));
     require(graph.addConditionalEdges(
         "operator_gate",
-        [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::NodeId> {
+        [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::NodeId> {
             auto json = state.toJson();
             if (!json.isOk())
                 return json.status();
             if (json->value("operator_approved", false))
                 return std::string("manual_reset");
-            return std::string(lc::END);
+            return std::string(lgc::END);
         },
-        { "manual_reset", std::string(lc::END) }));
+        { "manual_reset", std::string(lgc::END) }));
     require(graph.addEdge("manual_reset", "reset_tools"));
     require(graph.addEdge("reset_tools", "diagnose"));
 
@@ -405,18 +405,18 @@ int main()
 {
     auto registry = makeToolRegistry(std::make_shared<MockEdgeRepairAdapter>());
     auto graph = buildGraph(registry);
-    auto checkpointer = std::make_shared<lc::InMemorySaver>();
+    auto checkpointer = std::make_shared<lgc::InMemorySaver>();
 
-    lc::RunOptions options;
+    lgc::RunOptions options;
     options.threadId_ = "mock-edge-repair-demo";
     options.checkpointer_ = checkpointer;
-    options.reducers_.set("messages", lc::ReducerKind::AddMessages);
+    options.reducers_.set("messages", lgc::ReducerKind::AddMessages);
 
-    auto input = lc::State::fromJsonValue({
+    auto input = lgc::State::fromJsonValue({
         { "repair_attempts", 0 },
         { "diagnostic_cycles", 0 },
-        { "messages", lc::messagesToJson({
-            lc::BaseMessage::human("Repair the cooling loop and pause for operator help if automation fails."),
+        { "messages", lgc::messagesToJson({
+            lgc::BaseMessage::human("Repair the cooling loop and pause for operator help if automation fails."),
         }) },
     });
     if (!input.isOk()) {
@@ -429,15 +429,15 @@ int main()
         std::cerr << paused.status() << '\n';
         return 1;
     }
-    if (paused->status_ != lc::RunStatus::Paused) {
+    if (paused->status_ != lgc::RunStatus::Paused) {
         std::cerr << "expected workflow to pause for operator approval\n";
         return 1;
     }
 
-    lc::RunOptions resumeOptions;
+    lgc::RunOptions resumeOptions;
     resumeOptions.checkpointer_ = checkpointer;
-    resumeOptions.reducers_.set("messages", lc::ReducerKind::AddMessages);
-    resumeOptions.command_ = lc::Command::resume({
+    resumeOptions.reducers_.set("messages", lgc::ReducerKind::AddMessages);
+    resumeOptions.command_ = lgc::Command::resume({
         { "approved", true },
     });
 
@@ -447,10 +447,10 @@ int main()
         return 1;
     }
 
-    auto checkpoints = checkpointer->list(lc::CheckpointListOptions {
+    auto checkpoints = checkpointer->list(lgc::CheckpointListOptions {
         .threadId_ = "mock-edge-repair-demo",
         .checkpointNamespace_ = std::string(),
-        .order_ = lc::CheckpointListOrder::OldestFirst,
+        .order_ = lgc::CheckpointListOrder::OldestFirst,
     });
     if (!checkpoints.isOk()) {
         std::cerr << checkpoints.status() << '\n';

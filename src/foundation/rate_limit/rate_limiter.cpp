@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <limits>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] std::uint64_t intervalsForTokens(std::uint64_t tokens, std::uint64_t refill) noexcept
@@ -147,4 +147,4 @@ Clock::Duration TokenBucketRateLimiter::retryAfter(std::uint64_t permits, Clock:
     return readyAt - now;
 }
 
-} // namespace lc
+} // namespace lgc

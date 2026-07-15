@@ -9,7 +9,7 @@
 #include <memory>
 #include <mutex>
 
-namespace lc {
+namespace lgc {
 
 enum class CircuitState : std::uint8_t {
     Closed,
@@ -73,4 +73,4 @@ private:
     Clock::TimePoint openedAt_ {};
 };
 
-} // namespace lc
+} // namespace lgc

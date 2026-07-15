@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] Status combineStatus(Status current, const Status& next)
@@ -493,4 +493,4 @@ std::string_view stateName(LifecycleState state) noexcept
     return "unknown";
 }
 
-} // namespace lc
+} // namespace lgc

@@ -4,7 +4,7 @@
 
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 using tracing_detail::normalizeOptions;
 using tracing_detail::redactSpan;
@@ -80,4 +80,4 @@ void InMemoryTraceSink::clear()
     spans_.clear();
 }
 
-} // namespace lc
+} // namespace lgc

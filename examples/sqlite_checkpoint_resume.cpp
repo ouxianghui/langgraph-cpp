@@ -10,7 +10,7 @@
 
 namespace {
 
-void require(lc::Result<void> result)
+void require(lgc::Result<void> result)
 {
     if (!result.isOk()) {
         std::cerr << result.status() << '\n';
@@ -18,31 +18,31 @@ void require(lc::Result<void> result)
     }
 }
 
-lc::CompiledStateGraph buildGraph()
+lgc::CompiledStateGraph buildGraph()
 {
-    lc::StateGraph graph;
+    lgc::StateGraph graph;
 
-    require(graph.addNode("tick", [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::StateUpdate> {
+    require(graph.addNode("tick", [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
         auto json = state.toJson();
         if (!json.isOk())
             return json.status();
-        return lc::StateUpdate::fromJsonValue({
+        return lgc::StateUpdate::fromJsonValue({
             { "count", json->value("count", 0) + 1 },
         });
     }));
 
-    require(graph.addEdge(std::string(lc::START), "tick"));
+    require(graph.addEdge(std::string(lgc::START), "tick"));
     require(graph.addConditionalEdges(
         "tick",
-        [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::NodeId> {
+        [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::NodeId> {
             auto json = state.toJson();
             if (!json.isOk())
                 return json.status();
             if (json->value("count", 0) >= 4)
-                return std::string(lc::END);
+                return std::string(lgc::END);
             return std::string("tick");
         },
-        { "tick", std::string(lc::END) }));
+        { "tick", std::string(lgc::END) }));
 
     auto compiled = graph.compile();
     if (!compiled.isOk()) {
@@ -69,15 +69,15 @@ int main()
     auto graph = buildGraph();
 
     {
-        auto storage = std::make_shared<lc::SQLiteStorage>(dbPath.string());
-        auto checkpointer = std::make_shared<lc::StorageSaver>(storage);
+        auto storage = std::make_shared<lgc::SQLiteStorage>(dbPath.string());
+        auto checkpointer = std::make_shared<lgc::StorageSaver>(storage);
 
-        lc::RunOptions firstRun;
+        lgc::RunOptions firstRun;
         firstRun.threadId_ = threadId;
         firstRun.checkpointer_ = checkpointer;
-        firstRun.limits_ = lc::ResourceLimits {}.maxSteps(2);
+        firstRun.limits_ = lgc::ResourceLimits {}.maxSteps(2);
 
-        auto input = lc::State::fromJson(R"({"count":0})");
+        auto input = lgc::State::fromJson(R"({"count":0})");
         if (!input.isOk()) {
             std::cerr << input.status() << '\n';
             return 1;
@@ -90,12 +90,12 @@ int main()
         }
     }
 
-    auto reopenedStorage = std::make_shared<lc::SQLiteStorage>(dbPath.string());
-    auto reopenedCheckpointer = std::make_shared<lc::StorageSaver>(reopenedStorage);
+    auto reopenedStorage = std::make_shared<lgc::SQLiteStorage>(dbPath.string());
+    auto reopenedCheckpointer = std::make_shared<lgc::StorageSaver>(reopenedStorage);
 
-    lc::RunOptions resumeRun;
+    lgc::RunOptions resumeRun;
     resumeRun.checkpointer_ = reopenedCheckpointer;
-    resumeRun.limits_ = lc::ResourceLimits {}.maxSteps(10);
+    resumeRun.limits_ = lgc::ResourceLimits {}.maxSteps(10);
 
     auto resumed = graph.resume(threadId, resumeRun);
     if (!resumed.isOk()) {
@@ -103,10 +103,10 @@ int main()
         return 1;
     }
 
-    auto checkpoints = reopenedCheckpointer->list(lc::CheckpointListOptions {
+    auto checkpoints = reopenedCheckpointer->list(lgc::CheckpointListOptions {
         .threadId_ = threadId,
         .checkpointNamespace_ = std::string(),
-        .order_ = lc::CheckpointListOrder::OldestFirst,
+        .order_ = lgc::CheckpointListOrder::OldestFirst,
     });
     if (!checkpoints.isOk()) {
         std::cerr << checkpoints.status() << '\n';

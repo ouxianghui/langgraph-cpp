@@ -27,6 +27,7 @@
 - [ ] Focused tests run
 - [ ] Broader CTest or CI gate run
 - [ ] `scripts/check-dependency-policy.sh` run when layering/build shape changed
+- [ ] `scripts/check-context-skills.sh` run when `context/` skills, authority pins, or agent entrypoints changed
 - [ ] `scripts/run-examples.sh` run when public API, examples, stream/checkpoint/runtime behavior changed
 - [ ] `scripts/generate-quality-report.sh` run for release-readiness or quality evidence changes
 - [ ] Docs snippet compile run when README/API docs changed

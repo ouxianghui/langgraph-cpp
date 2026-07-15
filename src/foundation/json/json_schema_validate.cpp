@@ -11,7 +11,7 @@
 #include <string_view>
 #include <utility>
 
-namespace lc::json_schema_detail {
+namespace lgc::json_schema_detail {
 
 struct ValidationContext {
     const ValidationOptions& options_;
@@ -520,9 +520,9 @@ void validateValue(
 }
 
 
-} // namespace lc::json_schema_detail
+} // namespace lgc::json_schema_detail
 
-namespace lc {
+namespace lgc {
 using namespace json_schema_detail;
 
 ValidationResult SchemaValidator::validate(
@@ -597,4 +597,4 @@ Result<void> SchemaValidator::checkText(
     return okResult();
 }
 
-} // namespace lc
+} // namespace lgc

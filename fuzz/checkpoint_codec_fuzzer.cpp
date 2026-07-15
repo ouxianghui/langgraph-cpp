@@ -8,9 +8,9 @@
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size)
 {
     try {
-        const auto input = lc::fuzz::inputToString(data, size);
-        const auto parts = lc::fuzz::splitInput(input, 2);
-        const lc::JsonDecodeLimits limits {
+        const auto input = lgc::fuzz::inputToString(data, size);
+        const auto parts = lgc::fuzz::splitInput(input, 2);
+        const lgc::JsonDecodeLimits limits {
             .maxBytes_ = 64 * 1024,
             .maxDepth_ = 32,
             .maxStringBytes_ = 16 * 1024,
@@ -18,9 +18,9 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
             .maxObjectFields_ = 4096,
             .maxNodes_ = 16 * 1024,
         };
-        lc::JsonCheckpointCodec codec(limits);
+        lgc::JsonCheckpointCodec codec(limits);
 
-        const lc::Payload checkpointPayload {
+        const lgc::Payload checkpointPayload {
             .contentType_ = "application/vnd.langgraph.checkpoint+json",
             .data_ = parts[0],
         };
@@ -31,7 +31,7 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
                 (void)codec.decode(*encoded);
         }
 
-        const lc::Payload writePayload {
+        const lgc::Payload writePayload {
             .contentType_ = "application/vnd.langgraph.checkpoint.write+json",
             .data_ = parts[1],
         };
@@ -42,9 +42,9 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
                 (void)codec.decodeWrite(*encoded);
         }
 
-        auto state = lc::State::fromJson(parts[0], limits);
+        auto state = lgc::State::fromJson(parts[0], limits);
         if (state.isOk()) {
-            auto synthetic = codec.encode(lc::Checkpoint {
+            auto synthetic = codec.encode(lgc::Checkpoint {
                 .threadId_ = "fuzz-thread",
                 .checkpointId_ = "fuzz-checkpoint",
                 .step_ = 1,

@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 class ExecutorLifecycleComponent final : public NamedLifecycleComponent {
@@ -315,4 +315,4 @@ std::shared_ptr<ILifecycle> makeLifecycleComponent(
     return std::make_shared<HttpClientLifecycleComponent>(std::move(name), std::move(httpClient));
 }
 
-} // namespace lc
+} // namespace lgc

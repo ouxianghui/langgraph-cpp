@@ -4,7 +4,7 @@
 
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 using namespace cache_detail;
 }
@@ -174,4 +174,4 @@ void MemoryCache::evictOverflow()
     }
 }
 
-} // namespace lc
+} // namespace lgc

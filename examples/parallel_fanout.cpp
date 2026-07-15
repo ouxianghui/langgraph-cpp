@@ -4,10 +4,10 @@
 
 int main()
 {
-    lc::StateGraph graph;
+    lgc::StateGraph graph;
 
-    if (auto status = graph.addNode("sense_temperature", [](const lc::State&, lc::Runtime&) {
-            return lc::StateUpdate::fromJson(R"({
+    if (auto status = graph.addNode("sense_temperature", [](const lgc::State&, lgc::Runtime&) {
+            return lgc::StateUpdate::fromJson(R"({
                 "checks": ["temperature"],
                 "facts": {
                     "temperature_c": 42.5
@@ -19,8 +19,8 @@ int main()
         return 1;
     }
 
-    if (auto status = graph.addNode("sense_power", [](const lc::State&, lc::Runtime&) {
-            return lc::StateUpdate::fromJson(R"({
+    if (auto status = graph.addNode("sense_power", [](const lgc::State&, lgc::Runtime&) {
+            return lgc::StateUpdate::fromJson(R"({
                 "checks": ["power"],
                 "facts": {
                     "voltage_v": 12.1
@@ -32,11 +32,11 @@ int main()
         return 1;
     }
 
-    if (auto status = graph.addNode("decide", [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::StateUpdate> {
+    if (auto status = graph.addNode("decide", [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
             const auto& facts = state.view().at("facts");
             const bool healthy = facts.at("temperature_c").get<double>() < 60.0
                 && facts.at("voltage_v").get<double>() >= 12.0;
-            return lc::StateUpdate::fromJsonValue({
+            return lgc::StateUpdate::fromJsonValue({
                 { "healthy", healthy },
                 { "decision", healthy ? "continue" : "inspect" },
             });
@@ -47,11 +47,11 @@ int main()
     }
 
     const auto edgeStatuses = {
-        graph.addEdge(std::string(lc::START), "sense_temperature"),
-        graph.addEdge(std::string(lc::START), "sense_power"),
+        graph.addEdge(std::string(lgc::START), "sense_temperature"),
+        graph.addEdge(std::string(lgc::START), "sense_power"),
         graph.addEdge("sense_temperature", "decide"),
         graph.addEdge("sense_power", "decide"),
-        graph.addEdge("decide", std::string(lc::END)),
+        graph.addEdge("decide", std::string(lgc::END)),
     };
     for (const auto& status : edgeStatuses) {
         if (!status.isOk()) {
@@ -66,12 +66,12 @@ int main()
         return 1;
     }
 
-    lc::RunOptions options;
+    lgc::RunOptions options;
     options.reducers_
-        .set("checks", lc::ReducerKind::Append)
-        .set("facts", lc::ReducerKind::MergeObject);
+        .set("checks", lgc::ReducerKind::Append)
+        .set("facts", lgc::ReducerKind::MergeObject);
 
-    auto input = lc::State::fromJson("{}");
+    auto input = lgc::State::fromJson("{}");
     if (!input.isOk()) {
         std::cerr << input.status() << '\n';
         return 1;

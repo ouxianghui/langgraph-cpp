@@ -4,7 +4,7 @@
 #include <string_view>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] bool validLineName(std::string_view line)
@@ -126,4 +126,4 @@ Result<void> SysfsGpioAdapter::ensureExported(std::string_view line) const
     return writeText(options_.root_ / "export", exportName(line));
 }
 
-} // namespace lc
+} // namespace lgc

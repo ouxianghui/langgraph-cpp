@@ -9,7 +9,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 inline constexpr std::string_view kOverwriteType = "__overwrite__";
 
@@ -50,4 +50,4 @@ private:
     nlohmann::json value_ { nlohmann::json::object() };
 };
 
-} // namespace lc
+} // namespace lgc

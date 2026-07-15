@@ -24,7 +24,7 @@
 #include <unistd.h>
 #endif
 
-namespace lc {
+namespace lgc {
 namespace fs = std::filesystem;
 
 class TempFileHandle final {
@@ -396,4 +396,4 @@ std::filesystem::path TempFile::release() noexcept
     return std::move(path_);
 }
 
-} // namespace lc
+} // namespace lgc

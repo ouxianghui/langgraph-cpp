@@ -15,7 +15,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 /// Options for the optional llama.cpp-backed chat model adapter.
 struct LlamaCppChatModelOptions {
@@ -66,6 +66,6 @@ private:
     mutable std::mutex mutex_;
 };
 
-} // namespace lc
+} // namespace lgc
 
 #endif // LANGGRAPH_CPP_WITH_LLAMA_CPP

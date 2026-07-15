@@ -9,7 +9,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 class StateGraph;
 
@@ -113,4 +113,4 @@ private:
     std::shared_ptr<const StateGraph> graph_;
 };
 
-} // namespace lc
+} // namespace lgc

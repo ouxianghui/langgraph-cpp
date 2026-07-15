@@ -7,7 +7,7 @@
 #include <limits>
 #include <utility>
 
-namespace lc::tracing_detail {
+namespace lgc::tracing_detail {
 
 [[nodiscard]] Status validateTraceId(std::string_view value)
 {
@@ -184,9 +184,9 @@ namespace lc::tracing_detail {
     return bytes;
 }
 
-} // namespace lc::tracing_detail
+} // namespace lgc::tracing_detail
 
-namespace lc {
+namespace lgc {
 namespace {
 using tracing_detail::approxSpanBytes;
 using tracing_detail::kDefaultTraceFlags;
@@ -252,4 +252,4 @@ Status validateSpanRecord(const SpanRecord& span, const TraceLimits& limits)
     return Status::ok();
 }
 
-} // namespace lc
+} // namespace lgc

@@ -6,7 +6,7 @@
 #include <set>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 using namespace detail;
 
@@ -283,4 +283,4 @@ Result<DeltaChannelHistories> InMemorySaver::getDeltaChannelHistory(
     return getDeltaChannelHistoryWith(*this, std::move(query));
 }
 
-} // namespace lc
+} // namespace lgc

@@ -6,8 +6,8 @@
 
 int main()
 {
-    const lc::JsonStateCodec stateCodec;
-    auto state = lc::State::fromJson(R"({"messages":[],"step":1})");
+    const lgc::JsonStateCodec stateCodec;
+    auto state = lgc::State::fromJson(R"({"messages":[],"step":1})");
     assert(state.isOk());
     assert(state->json() == R"({"messages":[],"step":1})");
 
@@ -19,12 +19,12 @@ int main()
     assert(decodedState.isOk());
     assert(*decodedState == *state);
 
-    auto invalidState = lc::State::fromJson(R"(["not","object"])");
+    auto invalidState = lgc::State::fromJson(R"(["not","object"])");
     assert(!invalidState.isOk());
-    assert(invalidState.status().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidState.status().code() == lgc::StatusCode::InvalidArgument);
 
     const auto createdAt = std::chrono::system_clock::time_point(std::chrono::milliseconds(123456));
-    lc::Checkpoint checkpoint {
+    lgc::Checkpoint checkpoint {
         .threadId_ = "thread-1",
         .checkpointId_ = "checkpoint-1",
         .parentCheckpointId_ = std::string("checkpoint-0"),
@@ -32,25 +32,25 @@ int main()
         .state_ = *state,
         .nextNodes_ = { "model", "tools" },
         .nextTasks_ = {
-            lc::CheckpointTask {
+            lgc::CheckpointTask {
                 .nodeId_ = "model",
                 .order_ = 0,
             },
-            lc::CheckpointTask {
+            lgc::CheckpointTask {
                 .nodeId_ = "tools",
-                .state_ = *lc::State::fromJson(R"({"tool":"calculator"})"),
+                .state_ = *lgc::State::fromJson(R"({"tool":"calculator"})"),
                 .order_ = 1,
             },
         },
         .writes_ = {
-            lc::CheckpointWrite {
+            lgc::CheckpointWrite {
                 .taskPath_ = "root/model",
                 .nodeId_ = "model",
-                .update_ = *lc::State::fromJson(R"({"messages":[{"role":"assistant"}]})"),
+                .update_ = *lgc::State::fromJson(R"({"messages":[{"role":"assistant"}]})"),
                 .order_ = 0,
                 .hasNextTasks_ = true,
                 .nextTasks_ = {
-                    lc::CheckpointTask {
+                    lgc::CheckpointTask {
                         .nodeId_ = "tools",
                         .order_ = 1,
                     },
@@ -58,10 +58,10 @@ int main()
             },
         },
         .pendingWrites_ = {
-            lc::CheckpointWrite {
+            lgc::CheckpointWrite {
                 .taskPath_ = "root/sensor",
                 .nodeId_ = "sensor",
-                .update_ = *lc::State::fromJson(R"({"readings":["ok"]})"),
+                .update_ = *lgc::State::fromJson(R"({"readings":["ok"]})"),
                 .order_ = 2,
             },
         },
@@ -76,7 +76,7 @@ int main()
         .createdAt_ = createdAt,
     };
 
-    const lc::JsonCheckpointCodec checkpointCodec;
+    const lgc::JsonCheckpointCodec checkpointCodec;
     auto encodedCheckpoint = checkpointCodec.encode(checkpoint);
     assert(encodedCheckpoint.isOk());
     assert(encodedCheckpoint->contentType_ == "application/vnd.langgraph-cpp.checkpoint+json");
@@ -104,36 +104,36 @@ int main()
     assert(decodedWrite.isOk());
     assert(*decodedWrite == checkpoint.writes_.front());
 
-    auto invalidCheckpoint = checkpointCodec.decode(lc::Payload {
+    auto invalidCheckpoint = checkpointCodec.decode(lgc::Payload {
         .contentType_ = "application/vnd.langgraph-cpp.checkpoint+json",
         .data_ = R"({"thread_id":"","checkpoint_id":"c1","step":1,"state":{}})",
     });
     assert(!invalidCheckpoint.isOk());
-    assert(invalidCheckpoint.status().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidCheckpoint.status().code() == lgc::StatusCode::InvalidArgument);
 
-    auto wrongContentType = stateCodec.decode(lc::Payload {
+    auto wrongContentType = stateCodec.decode(lgc::Payload {
         .contentType_ = "text/plain",
         .data_ = "{}",
     });
     assert(!wrongContentType.isOk());
-    assert(wrongContentType.status().code() == lc::StatusCode::InvalidArgument);
+    assert(wrongContentType.status().code() == lgc::StatusCode::InvalidArgument);
 
-    lc::JsonDecodeLimits tinyLimits;
+    lgc::JsonDecodeLimits tinyLimits;
     tinyLimits.maxBytes_ = 8;
-    const lc::JsonStateCodec limitedStateCodec(tinyLimits);
-    auto tooLargeState = limitedStateCodec.decode(lc::Payload {
+    const lgc::JsonStateCodec limitedStateCodec(tinyLimits);
+    auto tooLargeState = limitedStateCodec.decode(lgc::Payload {
         .contentType_ = "application/json",
         .data_ = R"({"too":"large"})",
     });
     assert(!tooLargeState.isOk());
-    assert(tooLargeState.status().code() == lc::StatusCode::ResourceExhausted);
+    assert(tooLargeState.status().code() == lgc::StatusCode::ResourceExhausted);
 
-    auto unknownCheckpointField = checkpointCodec.decode(lc::Payload {
+    auto unknownCheckpointField = checkpointCodec.decode(lgc::Payload {
         .contentType_ = "application/vnd.langgraph-cpp.checkpoint+json",
         .data_ = R"({"thread_id":"t","checkpoint_id":"c","step":1,"state":{},"extra":true})",
     });
     assert(!unknownCheckpointField.isOk());
-    assert(unknownCheckpointField.status().code() == lc::StatusCode::InvalidArgument);
+    assert(unknownCheckpointField.status().code() == lgc::StatusCode::InvalidArgument);
 
     return 0;
 }

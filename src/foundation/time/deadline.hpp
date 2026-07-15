@@ -7,7 +7,7 @@
 #include <optional>
 #include <string>
 
-namespace lc {
+namespace lgc {
 
 /// Optional monotonic deadline.
 ///
@@ -42,4 +42,4 @@ private:
     std::optional<TimePoint> timePoint_;
 };
 
-} // namespace lc
+} // namespace lgc

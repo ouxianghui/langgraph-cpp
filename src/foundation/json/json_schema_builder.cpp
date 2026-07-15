@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 using namespace json_schema_detail;
 namespace {
 
@@ -281,4 +281,4 @@ std::string JsonSchema::toJsonString(int indent) const
     return schema_.dump(indent);
 }
 
-} // namespace lc
+} // namespace lgc

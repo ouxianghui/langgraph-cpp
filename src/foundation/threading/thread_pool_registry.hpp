@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 /// Owns named `ThreadPool` instances (`IThreadPool`) for modules that share parallel workers by name.
 ///
@@ -76,4 +76,4 @@ private:
     std::shared_ptr<ILogger> logger_;
 };
 
-} // namespace lc
+} // namespace lgc

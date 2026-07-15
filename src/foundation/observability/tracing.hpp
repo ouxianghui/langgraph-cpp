@@ -16,7 +16,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 class Redactor;
 
@@ -196,4 +196,4 @@ private:
 [[nodiscard]] Result<TraceContext> makeRootContext();
 [[nodiscard]] Result<TraceContext> makeChildContext(const TraceContext& parent);
 
-} // namespace lc
+} // namespace lgc

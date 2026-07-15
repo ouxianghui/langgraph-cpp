@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 void RunControl::requestDrain(std::string reason)
 {
@@ -206,4 +206,4 @@ const std::vector<nlohmann::json>& Runtime::requestedInterrupts() const noexcept
     return requestedInterrupts_;
 }
 
-} // namespace lc
+} // namespace lgc

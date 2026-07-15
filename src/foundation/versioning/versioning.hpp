@@ -11,12 +11,12 @@
 #include <string_view>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 using Version = std::uint32_t;
 
-inline constexpr Version kApiContractVersion = 25;
-inline constexpr Version kMinApiContractVersion = 25;
+inline constexpr Version kApiContractVersion = 26;
+inline constexpr Version kMinApiContractVersion = 26;
 inline constexpr Version kSchemaContractVersion = 1;
 inline constexpr Version kMinSchemaContractVersion = 1;
 inline constexpr Version kCheckpointSchemaVersion = 3;
@@ -151,4 +151,4 @@ private:
     std::vector<StorageMigration> migrations_;
 };
 
-} // namespace lc
+} // namespace lgc

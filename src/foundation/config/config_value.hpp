@@ -11,7 +11,7 @@
 #include <variant>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 enum class ConfigValueType : std::uint8_t {
     String,
@@ -117,4 +117,4 @@ private:
 
 [[nodiscard]] Status validateConfigKey(std::string_view key);
 
-} // namespace lc
+} // namespace lgc

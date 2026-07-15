@@ -17,7 +17,7 @@
 #include <unistd.h>
 #endif
 
-namespace lc::cache_detail {
+namespace lgc::cache_detail {
 
 CacheFileLock::CacheFileLock() = default;
 
@@ -371,4 +371,4 @@ void CacheFileLock::release() noexcept
     return files;
 }
 
-} // namespace lc::cache_detail
+} // namespace lgc::cache_detail

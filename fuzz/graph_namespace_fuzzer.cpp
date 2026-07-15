@@ -7,8 +7,8 @@
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size)
 {
     try {
-        const auto input = lc::fuzz::inputToString(data, size);
-        (void)lc::detail::namespacePathFromString(input);
+        const auto input = lgc::fuzz::inputToString(data, size);
+        (void)lgc::detail::namespacePathFromString(input);
     } catch (...) {
     }
     return 0;

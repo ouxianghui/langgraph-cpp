@@ -11,7 +11,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 enum class JsonSchemaType : std::uint8_t {
     Any,
@@ -154,4 +154,4 @@ public:
 
 [[nodiscard]] std::string jsonSchemaTypeName(JsonSchemaType type);
 
-} // namespace lc
+} // namespace lgc

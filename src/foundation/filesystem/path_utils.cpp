@@ -9,7 +9,7 @@
 #include <system_error>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace fs = std::filesystem;
 
 namespace filesystem_detail {
@@ -322,4 +322,4 @@ Result<std::string> readFile(const std::filesystem::path& path, const ReadFileOp
     return text;
 }
 
-} // namespace lc
+} // namespace lgc

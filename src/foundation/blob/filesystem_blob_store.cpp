@@ -24,7 +24,7 @@
 #include <unistd.h>
 #endif
 
-namespace lc {
+namespace lgc {
 using namespace blob_detail;
 namespace {
 
@@ -1073,4 +1073,4 @@ Result<BlobInfo> FileSystemBlobStore::readInfo(const BlobKey& key) const
     return info;
 }
 
-} // namespace lc
+} // namespace lgc

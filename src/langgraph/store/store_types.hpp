@@ -9,7 +9,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 using StoreNamespace = std::vector<std::string>;
 
@@ -93,4 +93,4 @@ using StoreBatchResult = std::variant<
     std::vector<StoreSearchItem>,
     std::vector<StoreNamespace>>;
 
-} // namespace lc
+} // namespace lgc

@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc::process_detail {
+namespace lgc::process_detail {
 
 std::string lowerAscii(std::string_view value)
 {
@@ -20,9 +20,9 @@ std::string lowerAscii(std::string_view value)
     return out;
 }
 
-} // namespace lc::process_detail
+} // namespace lgc::process_detail
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] bool isValidEnvironmentName(std::string_view name) noexcept
@@ -79,4 +79,4 @@ Status validateProcessOptions(const ProcessOptions& options)
     return Status::ok();
 }
 
-} // namespace lc
+} // namespace lgc

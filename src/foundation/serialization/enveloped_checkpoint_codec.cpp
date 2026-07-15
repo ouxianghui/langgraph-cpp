@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 EnvelopedCheckpointCodec::EnvelopedCheckpointCodec(
     std::shared_ptr<ICheckpointCodec> inner,
@@ -49,4 +49,4 @@ Result<CheckpointWrite> EnvelopedCheckpointCodec::decodeWrite(const Payload& pay
     return inner_->decodeWrite(*decoded);
 }
 
-} // namespace lc
+} // namespace lgc

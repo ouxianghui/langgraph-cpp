@@ -8,7 +8,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc::state_codec_detail {
+namespace lgc::state_codec_detail {
 
 using nlohmann::json;
 
@@ -35,4 +35,4 @@ inline constexpr std::string_view kCheckpointWriteJsonContentType = "application
 [[nodiscard]] Result<CheckpointWrite> writeFromJson(const json& writeValue, const JsonDecodeLimits& limits);
 [[nodiscard]] Result<Version> checkpointSchemaVersionFromJson(const json& input);
 
-} // namespace lc::state_codec_detail
+} // namespace lgc::state_codec_detail

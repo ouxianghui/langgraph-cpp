@@ -4,31 +4,31 @@
 
 int main()
 {
-    auto require = [](lc::Result<void> result) {
+    auto require = [](lgc::Result<void> result) {
         if (!result.isOk())
             std::cerr << result.status() << '\n';
         return result.isOk();
     };
 
-    lc::StateGraph graph;
-    if (!require(graph.addNode("classify", [](const lc::State&, lc::Runtime&) {
-        return lc::StateUpdate::fromJson(R"({"priority":"high"})");
+    lgc::StateGraph graph;
+    if (!require(graph.addNode("classify", [](const lgc::State&, lgc::Runtime&) {
+        return lgc::StateUpdate::fromJson(R"({"priority":"high"})");
     })))
         return 1;
-    if (!require(graph.addNode("fast_path", [](const lc::State&, lc::Runtime&) {
-        return lc::StateUpdate::fromJson(R"({"route":"fast"})");
+    if (!require(graph.addNode("fast_path", [](const lgc::State&, lgc::Runtime&) {
+        return lgc::StateUpdate::fromJson(R"({"route":"fast"})");
     })))
         return 1;
-    if (!require(graph.addNode("normal_path", [](const lc::State&, lc::Runtime&) {
-        return lc::StateUpdate::fromJson(R"({"route":"normal"})");
+    if (!require(graph.addNode("normal_path", [](const lgc::State&, lgc::Runtime&) {
+        return lgc::StateUpdate::fromJson(R"({"route":"normal"})");
     })))
         return 1;
 
-    if (!require(graph.addEdge(std::string(lc::START), "classify")))
+    if (!require(graph.addEdge(std::string(lgc::START), "classify")))
         return 1;
     if (!require(graph.addConditionalEdges(
         "classify",
-        [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::NodeId> {
+        [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::NodeId> {
             auto json = state.toJson();
             if (!json.isOk())
                 return json.status();
@@ -38,9 +38,9 @@ int main()
         },
         { "fast_path", "normal_path" })))
         return 1;
-    if (!require(graph.addEdge("fast_path", std::string(lc::END))))
+    if (!require(graph.addEdge("fast_path", std::string(lgc::END))))
         return 1;
-    if (!require(graph.addEdge("normal_path", std::string(lc::END))))
+    if (!require(graph.addEdge("normal_path", std::string(lgc::END))))
         return 1;
 
     auto compiled = graph.compile();
@@ -49,7 +49,7 @@ int main()
         return 1;
     }
 
-    auto input = lc::State::fromJson("{}");
+    auto input = lgc::State::fromJson("{}");
     auto result = compiled->invoke(*input);
     if (!result.isOk()) {
         std::cerr << result.status() << '\n';

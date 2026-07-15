@@ -10,7 +10,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc {
+namespace lgc {
 
 struct PathPolicy {
     std::size_t maxPathLength_ { 4096 };
@@ -117,4 +117,4 @@ private:
     const std::filesystem::path& path,
     const ReadFileOptions& options = {});
 
-} // namespace lc
+} // namespace lgc

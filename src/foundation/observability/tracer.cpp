@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 using tracing_detail::makeChildContext;
 using tracing_detail::makeRootContext;
@@ -208,4 +208,4 @@ Result<Span> Tracer::startSpan(
     return Span(std::make_shared<Span::State>(std::move(data), sink_, options_));
 }
 
-} // namespace lc
+} // namespace lgc

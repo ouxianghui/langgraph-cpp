@@ -8,7 +8,7 @@
 #include <string>
 #include <utility>
 
-namespace lc::http_client_detail {
+namespace lgc::http_client_detail {
 
 HttpObservation::HttpObservation(
     std::shared_ptr<IMetricRecorder> metrics,
@@ -114,4 +114,4 @@ void HttpObservation::finishUnsafe()
     }
 }
 
-} // namespace lc::http_client_detail
+} // namespace lgc::http_client_detail

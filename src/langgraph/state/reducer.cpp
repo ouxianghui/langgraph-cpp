@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] Result<void> applyAppend(
@@ -202,4 +202,4 @@ Result<State> applyStateUpdate(
     return State::fromJsonValue(merged);
 }
 
-} // namespace lc
+} // namespace lgc

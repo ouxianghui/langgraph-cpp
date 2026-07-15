@@ -5,7 +5,7 @@
 
 namespace {
 
-bool ok(const lc::Result<void>& result)
+bool ok(const lgc::Result<void>& result)
 {
     if (result.isOk())
         return true;
@@ -17,27 +17,27 @@ bool ok(const lc::Result<void>& result)
 
 int main()
 {
-    lc::StateGraph graph;
+    lgc::StateGraph graph;
 
-    if (!ok(graph.addNode("decide", [](const lc::State&, lc::Runtime&) -> lc::Result<lc::NodeOutput> {
-            auto update = lc::StateUpdate::fromJson(R"({"decision":"repair"})");
+    if (!ok(graph.addNode("decide", [](const lgc::State&, lgc::Runtime&) -> lgc::Result<lgc::NodeOutput> {
+            auto update = lgc::StateUpdate::fromJson(R"({"decision":"repair"})");
             if (!update.isOk())
                 return update.status();
-            return lc::NodeOutput::command(lc::Command::gotoNode("repair", std::move(*update)));
+            return lgc::NodeOutput::command(lgc::Command::gotoNode("repair", std::move(*update)));
         }))) {
         return 1;
     }
-    if (!ok(graph.addNode("repair", [](const lc::State&, lc::Runtime&) {
-            return lc::StateUpdate::fromJson(R"({"repaired":true})");
+    if (!ok(graph.addNode("repair", [](const lgc::State&, lgc::Runtime&) {
+            return lgc::StateUpdate::fromJson(R"({"repaired":true})");
         }))) {
         return 1;
     }
 
-    if (!ok(graph.addEdge(std::string(lc::START), "decide")))
+    if (!ok(graph.addEdge(std::string(lgc::START), "decide")))
         return 1;
     if (!ok(graph.addCommandRoute("decide", { "repair" })))
         return 1;
-    if (!ok(graph.addEdge("repair", std::string(lc::END))))
+    if (!ok(graph.addEdge("repair", std::string(lgc::END))))
         return 1;
 
     auto compiled = graph.compile();
@@ -46,7 +46,7 @@ int main()
         return 1;
     }
 
-    auto input = lc::State::fromJson("{}");
+    auto input = lgc::State::fromJson("{}");
     if (!input.isOk()) {
         std::cerr << input.status().toString() << '\n';
         return 1;

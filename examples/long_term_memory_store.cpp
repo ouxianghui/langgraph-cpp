@@ -5,18 +5,18 @@
 
 int main()
 {
-    auto store = std::make_shared<lc::InMemoryStore>();
+    auto store = std::make_shared<lgc::InMemoryStore>();
 
-    lc::StateGraph graph;
-    if (auto status = graph.addNode("profile_memory", [](const lc::State& state, lc::Runtime& context)
-            -> lc::Result<lc::StateUpdate> {
+    lgc::StateGraph graph;
+    if (auto status = graph.addNode("profile_memory", [](const lgc::State& state, lgc::Runtime& context)
+            -> lgc::Result<lgc::StateUpdate> {
             auto store = context.store();
             if (!store)
-                return lc::Status::failedPrecondition("store missing");
+                return lgc::Status::failedPrecondition("store missing");
 
             const auto& input = state.view();
             const auto operatorId = input.value("operator_id", "operator-1");
-            const lc::StoreNamespace nameSpace { "operators", operatorId };
+            const lgc::StoreNamespace nameSpace { "operators", operatorId };
 
             if (input.contains("remember_profile")) {
                 if (auto saved = store->put(nameSpace, "profile", input.at("remember_profile")); !saved.isOk())
@@ -36,7 +36,7 @@ int main()
                 update["recommended_mode"] = (*profile)->value_.value("preferred_mode", "normal");
             }
 
-            return lc::StateUpdate::fromJsonValue(std::move(update));
+            return lgc::StateUpdate::fromJsonValue(std::move(update));
         });
         !status.isOk()) {
         std::cerr << status.status() << '\n';
@@ -44,8 +44,8 @@ int main()
     }
 
     const auto edgeStatuses = {
-        graph.addEdge(std::string(lc::START), "profile_memory"),
-        graph.addEdge("profile_memory", std::string(lc::END)),
+        graph.addEdge(std::string(lgc::START), "profile_memory"),
+        graph.addEdge("profile_memory", std::string(lgc::END)),
     };
     for (const auto& status : edgeStatuses) {
         if (!status.isOk()) {
@@ -60,11 +60,11 @@ int main()
         return 1;
     }
 
-    lc::RunOptions firstRun;
+    lgc::RunOptions firstRun;
     firstRun.threadId_ = "store-demo-onboarding";
     firstRun.store_ = store;
 
-    auto firstInput = lc::State::fromJson(R"({
+    auto firstInput = lgc::State::fromJson(R"({
         "operator_id": "operator-1",
         "remember_profile": {
             "name": "Mira",
@@ -83,11 +83,11 @@ int main()
         return 1;
     }
 
-    lc::RunOptions secondRun;
+    lgc::RunOptions secondRun;
     secondRun.threadId_ = "store-demo-followup";
     secondRun.store_ = store;
 
-    auto secondInput = lc::State::fromJson(R"({"operator_id":"operator-1"})");
+    auto secondInput = lgc::State::fromJson(R"({"operator_id":"operator-1"})");
     if (!secondInput.isOk()) {
         std::cerr << secondInput.status() << '\n';
         return 1;
@@ -99,7 +99,7 @@ int main()
         return 1;
     }
 
-    auto memories = store->search(lc::StoreSearchOptions {
+    auto memories = store->search(lgc::StoreSearchOptions {
         .namespacePrefix_ = { "operators" },
     });
     if (!memories.isOk()) {

@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 /// Thread-safe in-memory namespaced key-value store for edge runtime tests and local workflows.
 class InMemoryStore final : public BaseStore {
@@ -31,4 +31,4 @@ private:
     std::map<StoreNamespace, std::map<std::string, StoreItem>, NamespaceLess> items_;
 };
 
-} // namespace lc
+} // namespace lgc

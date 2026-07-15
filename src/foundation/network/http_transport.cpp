@@ -10,7 +10,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc::http_client_detail {
+namespace lgc::http_client_detail {
 namespace {
 
 std::string lowerAscii(std::string_view input)
@@ -297,4 +297,4 @@ void configureClientTimeouts(
         client.set_write_timeout(CPPHTTPLIB_CLIENT_WRITE_TIMEOUT_SECOND, CPPHTTPLIB_CLIENT_WRITE_TIMEOUT_USECOND);
 }
 
-} // namespace lc::http_client_detail
+} // namespace lgc::http_client_detail

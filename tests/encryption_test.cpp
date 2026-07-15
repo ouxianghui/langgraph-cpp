@@ -18,153 +18,153 @@ int main()
     using namespace std::chrono_literals;
     using nlohmann::json;
 
-    auto key = lc::AesGcm::generateKey();
+    auto key = lgc::AesGcm::generateKey();
     assert(key.isOk());
     assert(key->size() == 32);
 
-    lc::AesGcm encryptor(key->clone(), "local-key");
-    assert(encryptor.supports(lc::EncryptionAlgorithm::AesGcm));
+    lgc::AesGcm encryptor(key->clone(), "local-key");
+    assert(encryptor.supports(lgc::EncryptionAlgorithm::AesGcm));
     assert(encryptor.defaultKeyId() == "local-key");
-    assert(lc::encryptionName(lc::EncryptionAlgorithm::AesGcm) == "aes-gcm");
+    assert(lgc::encryptionName(lgc::EncryptionAlgorithm::AesGcm) == "aes-gcm");
 
     const std::string plaintext = R"({"state":"ready","step":1})";
-    lc::EncryptionOptions options {
+    lgc::EncryptionOptions options {
         .keyId_ = "checkpoint-key",
         .associatedData_ = { 1, 2, 3, 4 },
     };
-    const lc::DecryptionOptions decryptionOptions {
+    const lgc::DecryptionOptions decryptionOptions {
         .associatedData_ = options.associatedData_,
     };
-    auto encrypted = lc::encryptText(encryptor, plaintext, options);
+    auto encrypted = lgc::encryptText(encryptor, plaintext, options);
     assert(encrypted.isOk());
     assert(encrypted->keyId_ == "checkpoint-key");
     assert(encrypted->nonce_.size() == 12);
     assert(encrypted->tag_.size() == 16);
     assert(!encrypted->ciphertext_.empty());
 
-    auto decrypted = lc::decryptText(encryptor, *encrypted, decryptionOptions);
+    auto decrypted = lgc::decryptText(encryptor, *encrypted, decryptionOptions);
     assert(decrypted.isOk());
     assert(*decrypted == plaintext);
 
-    auto serialized = lc::encodeEncrypted(*encrypted);
+    auto serialized = lgc::encodeEncrypted(*encrypted);
     assert(serialized.isOk());
     assert(serialized->find("aad_hex") == std::string::npos);
-    auto parsed = lc::decodeEncrypted(*serialized);
+    auto parsed = lgc::decodeEncrypted(*serialized);
     assert(parsed.isOk());
     assert(parsed->associatedData_.empty());
-    assert(lc::decryptText(encryptor, *parsed, decryptionOptions).value() == plaintext);
+    assert(lgc::decryptText(encryptor, *parsed, decryptionOptions).value() == plaintext);
 
-    auto missingAad = lc::decryptText(encryptor, *parsed);
+    auto missingAad = lgc::decryptText(encryptor, *parsed);
     assert(!missingAad.isOk());
-    assert(missingAad.status().code() == lc::StatusCode::Unauthenticated);
+    assert(missingAad.status().code() == lgc::StatusCode::Unauthenticated);
 
-    auto emptyPlaintext = lc::encryptText(encryptor, "");
+    auto emptyPlaintext = lgc::encryptText(encryptor, "");
     assert(emptyPlaintext.isOk());
-    auto emptyDecrypted = lc::decryptText(encryptor, *emptyPlaintext);
+    auto emptyDecrypted = lgc::decryptText(encryptor, *emptyPlaintext);
     assert(emptyDecrypted.isOk());
     assert(emptyDecrypted->empty());
 
-    auto wrongAad = lc::decryptText(
+    auto wrongAad = lgc::decryptText(
         encryptor,
         *parsed,
-        lc::DecryptionOptions {
+        lgc::DecryptionOptions {
             .associatedData_ = { 4, 3, 2, 1 },
         });
     assert(!wrongAad.isOk());
-    assert(wrongAad.status().code() == lc::StatusCode::Unauthenticated);
+    assert(wrongAad.status().code() == lgc::StatusCode::Unauthenticated);
 
-    auto wrongKey = lc::AesGcm::generateKey();
+    auto wrongKey = lgc::AesGcm::generateKey();
     assert(wrongKey.isOk());
-    lc::AesGcm wrongEncryptor(std::move(*wrongKey), "wrong-key");
-    auto wrongKeyResult = lc::decryptText(wrongEncryptor, *parsed, decryptionOptions);
+    lgc::AesGcm wrongEncryptor(std::move(*wrongKey), "wrong-key");
+    auto wrongKeyResult = lgc::decryptText(wrongEncryptor, *parsed, decryptionOptions);
     assert(!wrongKeyResult.isOk());
-    assert(wrongKeyResult.status().code() == lc::StatusCode::Unauthenticated);
+    assert(wrongKeyResult.status().code() == lgc::StatusCode::Unauthenticated);
 
     auto tamperedCiphertext = *parsed;
     tamperedCiphertext.ciphertext_.front() ^= 0x01U;
-    auto tamperedCiphertextResult = lc::decryptText(encryptor, tamperedCiphertext, decryptionOptions);
+    auto tamperedCiphertextResult = lgc::decryptText(encryptor, tamperedCiphertext, decryptionOptions);
     assert(!tamperedCiphertextResult.isOk());
-    assert(tamperedCiphertextResult.status().code() == lc::StatusCode::Unauthenticated);
+    assert(tamperedCiphertextResult.status().code() == lgc::StatusCode::Unauthenticated);
 
     auto tamperedTag = *parsed;
     tamperedTag.tag_.front() ^= 0x01U;
-    auto tamperedTagResult = lc::decryptText(encryptor, tamperedTag, decryptionOptions);
+    auto tamperedTagResult = lgc::decryptText(encryptor, tamperedTag, decryptionOptions);
     assert(!tamperedTagResult.isOk());
-    assert(tamperedTagResult.status().code() == lc::StatusCode::Unauthenticated);
+    assert(tamperedTagResult.status().code() == lgc::StatusCode::Unauthenticated);
 
     auto tamperedNonce = *parsed;
     tamperedNonce.nonce_.front() ^= 0x01U;
-    auto tamperedNonceResult = lc::decryptText(encryptor, tamperedNonce, decryptionOptions);
+    auto tamperedNonceResult = lgc::decryptText(encryptor, tamperedNonce, decryptionOptions);
     assert(!tamperedNonceResult.isOk());
-    assert(tamperedNonceResult.status().code() == lc::StatusCode::Unauthenticated);
+    assert(tamperedNonceResult.status().code() == lgc::StatusCode::Unauthenticated);
 
     auto invalidNonce = *parsed;
     invalidNonce.nonce_.pop_back();
-    assert(lc::encodeEncrypted(invalidNonce).status().code() == lc::StatusCode::InvalidArgument);
-    assert(lc::decryptText(encryptor, invalidNonce, decryptionOptions).status().code()
-        == lc::StatusCode::InvalidArgument);
+    assert(lgc::encodeEncrypted(invalidNonce).status().code() == lgc::StatusCode::InvalidArgument);
+    assert(lgc::decryptText(encryptor, invalidNonce, decryptionOptions).status().code()
+        == lgc::StatusCode::InvalidArgument);
 
     auto invalidTag = *parsed;
     invalidTag.tag_.pop_back();
-    assert(lc::encodeEncrypted(invalidTag).status().code() == lc::StatusCode::InvalidArgument);
-    assert(lc::decryptText(encryptor, invalidTag, decryptionOptions).status().code()
-        == lc::StatusCode::InvalidArgument);
+    assert(lgc::encodeEncrypted(invalidTag).status().code() == lgc::StatusCode::InvalidArgument);
+    assert(lgc::decryptText(encryptor, invalidTag, decryptionOptions).status().code()
+        == lgc::StatusCode::InvalidArgument);
 
-    assert(lc::decodeEncrypted("{").status().code() == lc::StatusCode::InvalidArgument);
+    assert(lgc::decodeEncrypted("{").status().code() == lgc::StatusCode::InvalidArgument);
 
     auto payloadJson = json::parse(*serialized);
     auto unknownVersion = payloadJson;
     unknownVersion["version"] = 2;
-    assert(lc::decodeEncrypted(unknownVersion.dump()).status().code() == lc::StatusCode::Unimplemented);
+    assert(lgc::decodeEncrypted(unknownVersion.dump()).status().code() == lgc::StatusCode::Unimplemented);
 
     auto unknownField = payloadJson;
     unknownField["extra"] = true;
-    assert(lc::decodeEncrypted(unknownField.dump()).status().code() == lc::StatusCode::InvalidArgument);
+    assert(lgc::decodeEncrypted(unknownField.dump()).status().code() == lgc::StatusCode::InvalidArgument);
 
     auto serializedAad = payloadJson;
     serializedAad["aad_hex"] = "0102";
-    assert(lc::decodeEncrypted(serializedAad.dump()).status().code() == lc::StatusCode::InvalidArgument);
+    assert(lgc::decodeEncrypted(serializedAad.dump()).status().code() == lgc::StatusCode::InvalidArgument);
 
     auto missingKeyId = payloadJson;
     missingKeyId.erase("key_id");
-    assert(lc::decodeEncrypted(missingKeyId.dump()).status().code() == lc::StatusCode::InvalidArgument);
+    assert(lgc::decodeEncrypted(missingKeyId.dump()).status().code() == lgc::StatusCode::InvalidArgument);
 
     auto hugeCiphertext = payloadJson;
     hugeCiphertext["ciphertext_hex"] = std::string(32, 'a');
-    assert(lc::decodeEncrypted(
+    assert(lgc::decodeEncrypted(
                hugeCiphertext.dump(),
-               lc::EncryptedPayloadOptions { .maxCiphertextBytes_ = 4 })
+               lgc::EncryptedPayloadOptions { .maxCiphertextBytes_ = 4 })
                .status()
                .code()
-        == lc::StatusCode::ResourceExhausted);
+        == lgc::StatusCode::ResourceExhausted);
 
     auto badNonceJson = payloadJson;
     badNonceJson["nonce_hex"] = "00";
-    assert(lc::decodeEncrypted(badNonceJson.dump()).status().code() == lc::StatusCode::InvalidArgument);
+    assert(lgc::decodeEncrypted(badNonceJson.dump()).status().code() == lgc::StatusCode::InvalidArgument);
 
     auto badTagJson = payloadJson;
     badTagJson["tag_hex"] = "00";
-    assert(lc::decodeEncrypted(badTagJson.dump()).status().code() == lc::StatusCode::InvalidArgument);
+    assert(lgc::decodeEncrypted(badTagJson.dump()).status().code() == lgc::StatusCode::InvalidArgument);
 
-    assert(lc::decodeEncrypted(
+    assert(lgc::decodeEncrypted(
                payloadJson.dump(),
-               lc::EncryptedPayloadOptions { .maxPayloadBytes_ = 4 })
+               lgc::EncryptedPayloadOptions { .maxPayloadBytes_ = 4 })
                .status()
                .code()
-        == lc::StatusCode::ResourceExhausted);
+        == lgc::StatusCode::ResourceExhausted);
 
     bool invalidKeyThrown = false;
     try {
-        lc::AesGcm invalid(lc::SecureBytes(lc::Bytes { 1, 2, 3 }));
+        lgc::AesGcm invalid(lgc::SecureBytes(lgc::Bytes { 1, 2, 3 }));
     } catch (const std::invalid_argument&) {
         invalidKeyThrown = true;
     }
     assert(invalidKeyThrown);
-    assert(lc::AesGcm::generateKey(15).status().code() == lc::StatusCode::InvalidArgument);
+    assert(lgc::AesGcm::generateKey(15).status().code() == lgc::StatusCode::InvalidArgument);
 
-    auto state = lc::State::fromJson(R"({"messages":["hello"],"count":1})");
+    auto state = lgc::State::fromJson(R"({"messages":["hello"],"count":1})");
     assert(state.isOk());
-    lc::Checkpoint checkpoint {
+    lgc::Checkpoint checkpoint {
         .threadId_ = "thread-1",
         .checkpointId_ = "checkpoint-1",
         .step_ = 1,
@@ -173,9 +173,9 @@ int main()
         .createdAt_ = std::chrono::system_clock::now(),
     };
 
-    auto codec = lc::SecureCheckpointCodec(
-        std::make_shared<lc::JsonCheckpointCodec>(),
-        std::make_shared<lc::AesGcm>(key->clone(), "codec-key"),
+    auto codec = lgc::SecureCheckpointCodec(
+        std::make_shared<lgc::JsonCheckpointCodec>(),
+        std::make_shared<lgc::AesGcm>(key->clone(), "codec-key"),
         "codec-key");
     auto encoded = codec.encode(checkpoint);
     assert(encoded.isOk());
@@ -189,9 +189,9 @@ int main()
     assert(decoded->checkpointId_ == checkpoint.checkpointId_);
     assert(decoded->state_ == checkpoint.state_);
 
-    lc::CheckpointWrite write {
+    lgc::CheckpointWrite write {
         .nodeId_ = "planner",
-        .update_ = *lc::State::fromJson(R"({"secret":"codec-write-secret"})"),
+        .update_ = *lgc::State::fromJson(R"({"secret":"codec-write-secret"})"),
         .order_ = 0,
     };
     auto encodedWrite = codec.encodeWrite(write);
@@ -204,13 +204,13 @@ int main()
     assert(decodedWrite.isOk());
     assert(*decodedWrite == write);
 
-    auto innerStorage = std::make_shared<lc::MemoryStorage>();
-    auto storage = lc::SecureStorage(
+    auto innerStorage = std::make_shared<lgc::MemoryStorage>();
+    auto storage = lgc::SecureStorage(
         innerStorage,
-        std::make_shared<lc::AesGcm>(key->clone(), "storage-key"),
+        std::make_shared<lgc::AesGcm>(key->clone(), "storage-key"),
         "storage-key");
 
-    lc::StorageKey storageKey { .scope_ = "checkpoint", .key_ = "thread-1/latest" };
+    lgc::StorageKey storageKey { .scope_ = "checkpoint", .key_ = "thread-1/latest" };
     assert(storage.put(storageKey, plaintext).isOk());
     auto rawStored = innerStorage->get(storageKey);
     assert(rawStored.isOk());
@@ -223,36 +223,36 @@ int main()
     assert(stored->has_value());
     assert(stored->value().value_ == plaintext);
 
-    auto listed = storage.list(lc::StorageListOptions { .scope_ = "checkpoint" });
+    auto listed = storage.list(lgc::StorageListOptions { .scope_ = "checkpoint" });
     assert(listed.isOk());
     assert(listed->items_.size() == 1);
     assert(listed->items_.front().value_ == plaintext);
 
-    auto wrongStorageKey = lc::AesGcm::generateKey();
+    auto wrongStorageKey = lgc::AesGcm::generateKey();
     assert(wrongStorageKey.isOk());
-    auto wrongStorage = lc::SecureStorage(
+    auto wrongStorage = lgc::SecureStorage(
         innerStorage,
-        std::make_shared<lc::AesGcm>(std::move(*wrongStorageKey), "wrong-storage-key"),
+        std::make_shared<lgc::AesGcm>(std::move(*wrongStorageKey), "wrong-storage-key"),
         "wrong-storage-key");
     auto wrongStorageRead = wrongStorage.get(storageKey);
     assert(!wrongStorageRead.isOk());
-    assert(wrongStorageRead.status().code() == lc::StatusCode::Unauthenticated);
+    assert(wrongStorageRead.status().code() == lgc::StatusCode::Unauthenticated);
 
-    auto checkpointStorage = std::make_shared<lc::MemoryStorage>();
-    auto checkpointStorageKey = lc::AesGcm::generateKey();
+    auto checkpointStorage = std::make_shared<lgc::MemoryStorage>();
+    auto checkpointStorageKey = lgc::AesGcm::generateKey();
     assert(checkpointStorageKey.isOk());
-    lc::StorageSaver encryptedCheckpointer(
+    lgc::StorageSaver encryptedCheckpointer(
         checkpointStorage,
-        lc::StorageSaverOptions {
-            .codec_ = std::make_shared<lc::SecureCheckpointCodec>(
-                std::make_shared<lc::JsonCheckpointCodec>(),
-                std::make_shared<lc::AesGcm>(checkpointStorageKey->clone(), "checkpoint-store-key"),
+        lgc::StorageSaverOptions {
+            .codec_ = std::make_shared<lgc::SecureCheckpointCodec>(
+                std::make_shared<lgc::JsonCheckpointCodec>(),
+                std::make_shared<lgc::AesGcm>(checkpointStorageKey->clone(), "checkpoint-store-key"),
                 "checkpoint-store-key"),
         });
 
-    auto secretState = lc::State::fromJson(R"({"secret":"storage-checkpoint-secret","count":7})");
+    auto secretState = lgc::State::fromJson(R"({"secret":"storage-checkpoint-secret","count":7})");
     assert(secretState.isOk());
-    lc::Checkpoint secretCheckpoint {
+    lgc::Checkpoint secretCheckpoint {
         .threadId_ = "secure-thread",
         .checkpointId_ = "secure-1",
         .step_ = 1,
@@ -261,7 +261,7 @@ int main()
     };
     assert(encryptedCheckpointer.put(secretCheckpoint).isOk());
 
-    auto rawCheckpoints = checkpointStorage->list(lc::StorageListOptions {
+    auto rawCheckpoints = checkpointStorage->list(lgc::StorageListOptions {
         .scope_ = "langgraph/checkpoints",
     });
     assert(rawCheckpoints.isOk());
@@ -275,26 +275,26 @@ int main()
     }
     assert(sawEncryptedCheckpointPayload);
 
-    auto loadedSecret = encryptedCheckpointer.getTuple(lc::CheckpointQuery::latest("secure-thread"));
+    auto loadedSecret = encryptedCheckpointer.getTuple(lgc::CheckpointQuery::latest("secure-thread"));
     assert(loadedSecret.isOk());
     assert(loadedSecret->has_value());
     assert((*loadedSecret)->checkpoint_.state_.view().at("secret") == "storage-checkpoint-secret");
 
-    auto wrongCheckpointStorageKey = lc::AesGcm::generateKey();
+    auto wrongCheckpointStorageKey = lgc::AesGcm::generateKey();
     assert(wrongCheckpointStorageKey.isOk());
-    lc::StorageSaver wrongKeyCheckpointer(
+    lgc::StorageSaver wrongKeyCheckpointer(
         checkpointStorage,
-        lc::StorageSaverOptions {
-            .codec_ = std::make_shared<lc::SecureCheckpointCodec>(
-                std::make_shared<lc::JsonCheckpointCodec>(),
-                std::make_shared<lc::AesGcm>(
+        lgc::StorageSaverOptions {
+            .codec_ = std::make_shared<lgc::SecureCheckpointCodec>(
+                std::make_shared<lgc::JsonCheckpointCodec>(),
+                std::make_shared<lgc::AesGcm>(
                     std::move(*wrongCheckpointStorageKey),
                     "wrong-checkpoint-store-key"),
                 "wrong-checkpoint-store-key"),
         });
-    auto wrongCheckpointRead = wrongKeyCheckpointer.getTuple(lc::CheckpointQuery::latest("secure-thread"));
+    auto wrongCheckpointRead = wrongKeyCheckpointer.getTuple(lgc::CheckpointQuery::latest("secure-thread"));
     assert(!wrongCheckpointRead.isOk());
-    assert(wrongCheckpointRead.status().code() == lc::StatusCode::Unauthenticated);
+    assert(wrongCheckpointRead.status().code() == lgc::StatusCode::Unauthenticated);
 
     return 0;
 }

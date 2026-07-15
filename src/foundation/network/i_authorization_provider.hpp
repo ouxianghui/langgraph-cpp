@@ -4,7 +4,7 @@
 
 #include <functional>
 
-namespace lc {
+namespace lgc {
 
 /// Request-auth extension point for outbound HTTP calls.
 class IAuthorizationProvider {
@@ -29,4 +29,4 @@ public:
     virtual void requestRefresh() = 0;
 };
 
-} // namespace lc
+} // namespace lgc

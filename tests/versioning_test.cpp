@@ -14,37 +14,37 @@ int main()
 {
     using namespace std::chrono_literals;
 
-    assert(lc::kApiContractVersion == 25);
-    assert(lc::kSchemaContractVersion == 1);
-    assert(lc::kCheckpointSchemaVersion == 3);
-    assert(lc::kContentEnvelopeVersion == 1);
-    assert(lc::kStorageSchemaVersion == 1);
+    assert(lgc::kApiContractVersion == 26);
+    assert(lgc::kSchemaContractVersion == 1);
+    assert(lgc::kCheckpointSchemaVersion == 3);
+    assert(lgc::kContentEnvelopeVersion == 1);
+    assert(lgc::kStorageSchemaVersion == 1);
 
-    assert(lc::apiContractVersionPolicy().current_ == lc::kApiContractVersion);
-    assert(lc::schemaContractVersionPolicy().current_ == lc::kSchemaContractVersion);
-    assert(lc::checkpointSchemaVersionPolicy().current_ == lc::kCheckpointSchemaVersion);
-    assert(lc::contentEnvelopeVersionPolicy().current_ == lc::kContentEnvelopeVersion);
-    assert(lc::storageSchemaVersionPolicy().current_ == lc::kStorageSchemaVersion);
-    assert(lc::requireApiContractVersion(lc::kApiContractVersion).isOk());
-    assert(lc::requireSchemaContractVersion(lc::kSchemaContractVersion).isOk());
-    assert(lc::requireCheckpointSchemaVersion(lc::kCheckpointSchemaVersion).isOk());
+    assert(lgc::apiContractVersionPolicy().current_ == lgc::kApiContractVersion);
+    assert(lgc::schemaContractVersionPolicy().current_ == lgc::kSchemaContractVersion);
+    assert(lgc::checkpointSchemaVersionPolicy().current_ == lgc::kCheckpointSchemaVersion);
+    assert(lgc::contentEnvelopeVersionPolicy().current_ == lgc::kContentEnvelopeVersion);
+    assert(lgc::storageSchemaVersionPolicy().current_ == lgc::kStorageSchemaVersion);
+    assert(lgc::requireApiContractVersion(lgc::kApiContractVersion).isOk());
+    assert(lgc::requireSchemaContractVersion(lgc::kSchemaContractVersion).isOk());
+    assert(lgc::requireCheckpointSchemaVersion(lgc::kCheckpointSchemaVersion).isOk());
 
-    auto futureApi = lc::requireApiContractVersion(lc::kApiContractVersion + 1);
+    auto futureApi = lgc::requireApiContractVersion(lgc::kApiContractVersion + 1);
     assert(!futureApi.isOk());
-    assert(futureApi.code() == lc::StatusCode::Unimplemented);
+    assert(futureApi.code() == lgc::StatusCode::Unimplemented);
 
-    auto futureSchemaContract = lc::requireSchemaContractVersion(lc::kSchemaContractVersion + 1);
+    auto futureSchemaContract = lgc::requireSchemaContractVersion(lgc::kSchemaContractVersion + 1);
     assert(!futureSchemaContract.isOk());
-    assert(futureSchemaContract.code() == lc::StatusCode::Unimplemented);
+    assert(futureSchemaContract.code() == lgc::StatusCode::Unimplemented);
 
-    auto futureCheckpoint = lc::requireCheckpointSchemaVersion(lc::kCheckpointSchemaVersion + 1);
+    auto futureCheckpoint = lgc::requireCheckpointSchemaVersion(lgc::kCheckpointSchemaVersion + 1);
     assert(!futureCheckpoint.isOk());
-    assert(futureCheckpoint.code() == lc::StatusCode::Unimplemented);
+    assert(futureCheckpoint.code() == lgc::StatusCode::Unimplemented);
 
-    const auto state = lc::State::fromJson(R"({"messages":[]})");
+    const auto state = lgc::State::fromJson(R"({"messages":[]})");
     assert(state.isOk());
 
-    lc::Checkpoint checkpoint {
+    lgc::Checkpoint checkpoint {
         .threadId_ = "thread-1",
         .checkpointId_ = "checkpoint-1",
         .step_ = 1,
@@ -52,63 +52,63 @@ int main()
         .createdAt_ = std::chrono::system_clock::time_point(123ms),
     };
 
-    lc::JsonCheckpointCodec checkpointCodec;
+    lgc::JsonCheckpointCodec checkpointCodec;
     auto encodedCheckpoint = checkpointCodec.encode(checkpoint);
     assert(encodedCheckpoint.isOk());
     auto checkpointJson = nlohmann::json::parse(encodedCheckpoint->data_);
-    assert(checkpointJson.at("schema_version") == lc::kCheckpointSchemaVersion);
+    assert(checkpointJson.at("schema_version") == lgc::kCheckpointSchemaVersion);
 
-    checkpointJson["schema_version"] = lc::kCheckpointSchemaVersion + 1;
-    auto decodedFutureCheckpoint = checkpointCodec.decode(lc::Payload {
+    checkpointJson["schema_version"] = lgc::kCheckpointSchemaVersion + 1;
+    auto decodedFutureCheckpoint = checkpointCodec.decode(lgc::Payload {
         .contentType_ = encodedCheckpoint->contentType_,
         .data_ = checkpointJson.dump(),
     });
     assert(!decodedFutureCheckpoint.isOk());
-    assert(decodedFutureCheckpoint.status().code() == lc::StatusCode::Unimplemented);
+    assert(decodedFutureCheckpoint.status().code() == lgc::StatusCode::Unimplemented);
 
     checkpointJson.erase("schema_version");
-    auto decodedLegacyCheckpoint = checkpointCodec.decode(lc::Payload {
+    auto decodedLegacyCheckpoint = checkpointCodec.decode(lgc::Payload {
         .contentType_ = encodedCheckpoint->contentType_,
         .data_ = checkpointJson.dump(),
     });
     assert(decodedLegacyCheckpoint.isOk());
     assert(decodedLegacyCheckpoint->checkpointId_ == checkpoint.checkpointId_);
 
-    lc::EnvelopeCodec pipeline;
-    auto envelopePayload = pipeline.encode(lc::Payload {
+    lgc::EnvelopeCodec pipeline;
+    auto envelopePayload = pipeline.encode(lgc::Payload {
         .contentType_ = "application/json",
         .data_ = R"({"ok":true})",
     });
     assert(envelopePayload.isOk());
     auto envelopeJson = nlohmann::json::parse(envelopePayload->data_);
-    assert(envelopeJson.at("version") == lc::kContentEnvelopeVersion);
+    assert(envelopeJson.at("version") == lgc::kContentEnvelopeVersion);
 
-    envelopeJson["version"] = lc::kContentEnvelopeVersion + 1;
-    auto futureEnvelope = pipeline.decode(lc::Payload {
-        .contentType_ = std::string(lc::envelopeContentType()),
+    envelopeJson["version"] = lgc::kContentEnvelopeVersion + 1;
+    auto futureEnvelope = pipeline.decode(lgc::Payload {
+        .contentType_ = std::string(lgc::envelopeContentType()),
         .data_ = envelopeJson.dump(),
     });
     assert(!futureEnvelope.isOk());
-    assert(futureEnvelope.status().code() == lc::StatusCode::Unimplemented);
+    assert(futureEnvelope.status().code() == lgc::StatusCode::Unimplemented);
 
-    lc::MemoryStorage storage;
-    auto missingVersion = lc::readStorageSchemaVersion(storage);
+    lgc::MemoryStorage storage;
+    auto missingVersion = lgc::readStorageSchemaVersion(storage);
     assert(missingVersion.isOk());
     assert(!missingVersion->has_value());
 
-    lc::StorageMigrator defaultMigrator;
+    lgc::StorageMigrator defaultMigrator;
     auto initialized = defaultMigrator.migrate(storage);
     assert(initialized.isOk());
-    assert(*initialized == lc::kStorageSchemaVersion);
+    assert(*initialized == lgc::kStorageSchemaVersion);
 
-    auto storedVersion = lc::readStorageSchemaVersion(storage);
+    auto storedVersion = lgc::readStorageSchemaVersion(storage);
     assert(storedVersion.isOk());
     assert(storedVersion->has_value());
-    assert(**storedVersion == lc::kStorageSchemaVersion);
+    assert(**storedVersion == lgc::kStorageSchemaVersion);
 
-    lc::MemoryStorage dirtyUnversionedStorage;
+    lgc::MemoryStorage dirtyUnversionedStorage;
     assert(dirtyUnversionedStorage.put(
-        lc::StorageKey {
+        lgc::StorageKey {
             .scope_ = "checkpoint",
             .key_ = "legacy-data",
         },
@@ -116,23 +116,23 @@ int main()
                .isOk());
     auto dirtyInitialized = defaultMigrator.migrate(dirtyUnversionedStorage);
     assert(!dirtyInitialized.isOk());
-    assert(dirtyInitialized.status().code() == lc::StatusCode::FailedPrecondition);
+    assert(dirtyInitialized.status().code() == lgc::StatusCode::FailedPrecondition);
 
-    lc::MemoryStorage migratingStorage;
-    assert(lc::writeStorageSchemaVersion(migratingStorage, 0).isOk());
+    lgc::MemoryStorage migratingStorage;
+    assert(lgc::writeStorageSchemaVersion(migratingStorage, 0).isOk());
 
-    lc::StorageMigrator migrator;
+    lgc::StorageMigrator migrator;
     bool migrationRan = false;
     auto added = migrator.add(
         0,
         1,
         "bootstrap",
-        [&](lc::StorageMigrationContext& context) {
+        [&](lgc::StorageMigrationContext& context) {
             migrationRan = true;
             assert(context.fromVersion_ == 0);
             assert(context.toVersion_ == 1);
             auto written = context.storage_.put(
-                lc::StorageKey {
+                lgc::StorageKey {
                     .scope_ = "checkpoint",
                     .key_ = "migrated",
                 },
@@ -145,20 +145,20 @@ int main()
         0,
         1,
         "duplicate",
-        [](lc::StorageMigrationContext&) {
-            return lc::Status::ok();
+        [](lgc::StorageMigrationContext&) {
+            return lgc::Status::ok();
         });
     assert(!duplicate.isOk());
-    assert(duplicate.code() == lc::StatusCode::AlreadyExists);
+    assert(duplicate.code() == lgc::StatusCode::AlreadyExists);
 
-    auto migrated = migrator.migrate(migratingStorage, lc::StorageMigrationOptions {
-        .missingVersionMode_ = lc::StorageMigrationMode::MigrateLegacyStorage,
+    auto migrated = migrator.migrate(migratingStorage, lgc::StorageMigrationOptions {
+        .missingVersionMode_ = lgc::StorageMigrationMode::MigrateLegacyStorage,
     });
     assert(migrated.isOk());
-    assert(*migrated == lc::kStorageSchemaVersion);
+    assert(*migrated == lgc::kStorageSchemaVersion);
     assert(migrationRan);
 
-    auto marker = migratingStorage.get(lc::StorageKey {
+    auto marker = migratingStorage.get(lgc::StorageKey {
         .scope_ = "checkpoint",
         .key_ = "migrated",
     });
@@ -166,9 +166,9 @@ int main()
     assert(marker->has_value());
     assert((*marker)->value_ == "true");
 
-    lc::MemoryStorage legacyStorage;
+    lgc::MemoryStorage legacyStorage;
     assert(legacyStorage.put(
-        lc::StorageKey {
+        lgc::StorageKey {
             .scope_ = "checkpoint",
             .key_ = "legacy-data",
         },
@@ -176,16 +176,16 @@ int main()
                .isOk());
 
     bool legacyMigrationRan = false;
-    lc::StorageMigrator legacyMigrator;
+    lgc::StorageMigrator legacyMigrator;
     assert(legacyMigrator
                .add(
                    0,
                    1,
                    "legacy-bootstrap",
-                   [&](lc::StorageMigrationContext& context) {
+                   [&](lgc::StorageMigrationContext& context) {
                        legacyMigrationRan = true;
                        return context.storage_.put(
-                           lc::StorageKey {
+                           lgc::StorageKey {
                                .scope_ = "checkpoint",
                                .key_ = "legacy-migrated",
                            },
@@ -193,36 +193,36 @@ int main()
                            .status();
                    })
                .isOk());
-    auto legacyMigrated = legacyMigrator.migrate(legacyStorage, lc::StorageMigrationOptions {
-        .missingVersionMode_ = lc::StorageMigrationMode::MigrateLegacyStorage,
+    auto legacyMigrated = legacyMigrator.migrate(legacyStorage, lgc::StorageMigrationOptions {
+        .missingVersionMode_ = lgc::StorageMigrationMode::MigrateLegacyStorage,
     });
     assert(legacyMigrated.isOk());
-    assert(*legacyMigrated == lc::kStorageSchemaVersion);
+    assert(*legacyMigrated == lgc::kStorageSchemaVersion);
     assert(legacyMigrationRan);
 
-    lc::MemoryStorage throwingStorage;
-    assert(lc::writeStorageSchemaVersion(throwingStorage, 0).isOk());
-    lc::StorageMigrator throwingMigrator;
+    lgc::MemoryStorage throwingStorage;
+    assert(lgc::writeStorageSchemaVersion(throwingStorage, 0).isOk());
+    lgc::StorageMigrator throwingMigrator;
     assert(throwingMigrator
                .add(
                    0,
                    1,
                    "throws",
-                   [](lc::StorageMigrationContext&) -> lc::Status {
+                   [](lgc::StorageMigrationContext&) -> lgc::Status {
                        throw std::runtime_error("boom");
                    })
                .isOk());
-    auto thrown = throwingMigrator.migrate(throwingStorage, lc::StorageMigrationOptions {
-        .missingVersionMode_ = lc::StorageMigrationMode::MigrateLegacyStorage,
+    auto thrown = throwingMigrator.migrate(throwingStorage, lgc::StorageMigrationOptions {
+        .missingVersionMode_ = lgc::StorageMigrationMode::MigrateLegacyStorage,
     });
     assert(!thrown.isOk());
-    assert(thrown.status().code() == lc::StatusCode::Internal);
+    assert(thrown.status().code() == lgc::StatusCode::Internal);
 
-    auto lockedRetry = throwingMigrator.migrate(throwingStorage, lc::StorageMigrationOptions {
-        .missingVersionMode_ = lc::StorageMigrationMode::MigrateLegacyStorage,
+    auto lockedRetry = throwingMigrator.migrate(throwingStorage, lgc::StorageMigrationOptions {
+        .missingVersionMode_ = lgc::StorageMigrationMode::MigrateLegacyStorage,
     });
     assert(!lockedRetry.isOk());
-    assert(lockedRetry.status().code() == lc::StatusCode::Unavailable);
+    assert(lockedRetry.status().code() == lgc::StatusCode::Unavailable);
 
     return 0;
 }

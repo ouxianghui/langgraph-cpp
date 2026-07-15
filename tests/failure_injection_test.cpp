@@ -18,7 +18,7 @@
 
 namespace {
 
-class InjectedCheckpointSaver final : public lc::BaseCheckpointSaver {
+class InjectedCheckpointSaver final : public lgc::BaseCheckpointSaver {
 public:
     enum class FailurePoint {
         None,
@@ -32,87 +32,87 @@ public:
     {
     }
 
-    [[nodiscard]] lc::Result<void> put(lc::Checkpoint checkpoint) override
+    [[nodiscard]] lgc::Result<void> put(lgc::Checkpoint checkpoint) override
     {
         if (point_ == FailurePoint::Put)
-            return lc::Status::unavailable("injected checkpoint put failure");
+            return lgc::Status::unavailable("injected checkpoint put failure");
         return inner_.put(std::move(checkpoint));
     }
 
-    [[nodiscard]] lc::Result<void> putWrites(lc::CheckpointWriteSet writes) override
+    [[nodiscard]] lgc::Result<void> putWrites(lgc::CheckpointWriteSet writes) override
     {
         if (point_ == FailurePoint::PutWrites)
-            return lc::Status::unavailable("injected checkpoint put_writes failure");
+            return lgc::Status::unavailable("injected checkpoint put_writes failure");
         return inner_.putWrites(std::move(writes));
     }
 
-    [[nodiscard]] lc::Result<std::optional<lc::Checkpoint>> get(lc::CheckpointQuery query) override
+    [[nodiscard]] lgc::Result<std::optional<lgc::Checkpoint>> get(lgc::CheckpointQuery query) override
     {
         return inner_.get(std::move(query));
     }
 
-    [[nodiscard]] lc::Result<std::optional<lc::CheckpointTuple>> getTuple(
-        lc::CheckpointQuery query) override
+    [[nodiscard]] lgc::Result<std::optional<lgc::CheckpointTuple>> getTuple(
+        lgc::CheckpointQuery query) override
     {
         if (point_ == FailurePoint::GetTuple)
-            return lc::Status::unavailable("injected checkpoint get_tuple failure");
+            return lgc::Status::unavailable("injected checkpoint get_tuple failure");
         return inner_.getTuple(std::move(query));
     }
 
-    [[nodiscard]] lc::Result<std::vector<lc::CheckpointTuple>> list(
-        lc::CheckpointListOptions options) override
+    [[nodiscard]] lgc::Result<std::vector<lgc::CheckpointTuple>> list(
+        lgc::CheckpointListOptions options) override
     {
         return inner_.list(std::move(options));
     }
 
-    [[nodiscard]] lc::Result<void> deleteThread(std::string_view threadId) override
+    [[nodiscard]] lgc::Result<void> deleteThread(std::string_view threadId) override
     {
         return inner_.deleteThread(threadId);
     }
 
-    [[nodiscard]] lc::Result<lc::CheckpointMaintenanceResult> prune(
+    [[nodiscard]] lgc::Result<lgc::CheckpointMaintenanceResult> prune(
         std::string_view threadId,
-        const lc::CheckpointPruneOptions& options) override
+        const lgc::CheckpointPruneOptions& options) override
     {
         return inner_.prune(threadId, options);
     }
 
-    [[nodiscard]] lc::Result<lc::CheckpointMaintenanceResult> copyThread(
-        lc::CheckpointCopyThreadOptions options) override
+    [[nodiscard]] lgc::Result<lgc::CheckpointMaintenanceResult> copyThread(
+        lgc::CheckpointCopyThreadOptions options) override
     {
         return inner_.copyThread(std::move(options));
     }
 
-    [[nodiscard]] lc::Result<lc::CheckpointMaintenanceResult> deleteForRuns(
-        lc::CheckpointDeleteForRunsOptions options) override
+    [[nodiscard]] lgc::Result<lgc::CheckpointMaintenanceResult> deleteForRuns(
+        lgc::CheckpointDeleteForRunsOptions options) override
     {
         return inner_.deleteForRuns(std::move(options));
     }
 
-    [[nodiscard]] lc::Result<lc::DeltaChannelHistories> getDeltaChannelHistory(
-        lc::DeltaChannelHistoryQuery query) override
+    [[nodiscard]] lgc::Result<lgc::DeltaChannelHistories> getDeltaChannelHistory(
+        lgc::DeltaChannelHistoryQuery query) override
     {
         return inner_.getDeltaChannelHistory(std::move(query));
     }
 
 private:
     FailurePoint point_ { FailurePoint::None };
-    lc::InMemorySaver inner_;
+    lgc::InMemorySaver inner_;
 };
 
-class RejectingEventSink final : public lc::IEventSink {
+class RejectingEventSink final : public lgc::IEventSink {
 public:
-    [[nodiscard]] lc::Status publish(lc::RuntimeEvent) override
+    [[nodiscard]] lgc::Status publish(lgc::RuntimeEvent) override
     {
-        return lc::Status::permissionDenied("injected event sink failure");
+        return lgc::Status::permissionDenied("injected event sink failure");
     }
 
-    [[nodiscard]] lc::Status flush() override { return lc::Status::ok(); }
-    [[nodiscard]] lc::Status waitIdle(Duration) override { return lc::Status::ok(); }
-    [[nodiscard]] lc::Status close(Duration) override
+    [[nodiscard]] lgc::Status flush() override { return lgc::Status::ok(); }
+    [[nodiscard]] lgc::Status waitIdle(Duration) override { return lgc::Status::ok(); }
+    [[nodiscard]] lgc::Status close(Duration) override
     {
         closed_ = true;
-        return lc::Status::ok();
+        return lgc::Status::ok();
     }
     [[nodiscard]] bool isClosed() const noexcept override { return closed_; }
 
@@ -120,49 +120,49 @@ private:
     bool closed_ { false };
 };
 
-class RejectingStore final : public lc::BaseStore {
+class RejectingStore final : public lgc::BaseStore {
 public:
-    [[nodiscard]] lc::Result<std::vector<lc::StoreBatchResult>> batch(
-        std::vector<lc::StoreOp>) override
+    [[nodiscard]] lgc::Result<std::vector<lgc::StoreBatchResult>> batch(
+        std::vector<lgc::StoreOp>) override
     {
-        return lc::Status::unavailable("injected store batch failure");
+        return lgc::Status::unavailable("injected store batch failure");
     }
 };
 
-class RejectingExecutor final : public lc::IExecutor {
+class RejectingExecutor final : public lgc::IExecutor {
 public:
-    [[nodiscard]] lc::Status post(Task, std::source_location = std::source_location::current()) override
+    [[nodiscard]] lgc::Status post(Task, std::source_location = std::source_location::current()) override
     {
-        return lc::Status::unavailable("injected executor post failure");
+        return lgc::Status::unavailable("injected executor post failure");
     }
 
-    [[nodiscard]] lc::Status postDelayed(
+    [[nodiscard]] lgc::Status postDelayed(
         Duration,
         Task,
         std::source_location = std::source_location::current()) override
     {
-        return lc::Status::unavailable("injected executor postDelayed failure");
+        return lgc::Status::unavailable("injected executor postDelayed failure");
     }
 
-    [[nodiscard]] lc::Status execute(
+    [[nodiscard]] lgc::Status execute(
         Task,
         std::source_location = std::source_location::current()) override
     {
-        return lc::Status::unavailable("injected executor execute failure");
+        return lgc::Status::unavailable("injected executor execute failure");
     }
 
-    [[nodiscard]] lc::Status executeAndWait(
+    [[nodiscard]] lgc::Status executeAndWait(
         Task,
         std::source_location = std::source_location::current()) override
     {
-        return lc::Status::unavailable("injected executor executeAndWait failure");
+        return lgc::Status::unavailable("injected executor executeAndWait failure");
     }
 
-    [[nodiscard]] lc::Status waitIdle(Duration) override { return lc::Status::ok(); }
-    [[nodiscard]] lc::Status close(Duration) override
+    [[nodiscard]] lgc::Status waitIdle(Duration) override { return lgc::Status::ok(); }
+    [[nodiscard]] lgc::Status close(Duration) override
     {
         closed_ = true;
-        return lc::Status::ok();
+        return lgc::Status::ok();
     }
     [[nodiscard]] bool isClosed() const noexcept override { return closed_; }
     [[nodiscard]] bool isExecutorThread() const noexcept override { return false; }
@@ -171,49 +171,49 @@ private:
     bool closed_ { false };
 };
 
-class RejectingHttpClient final : public lc::IHttpClient {
+class RejectingHttpClient final : public lgc::IHttpClient {
 public:
-    [[nodiscard]] lc::HttpResult send(lc::HttpRequest, lc::HttpRequestOptions) override
+    [[nodiscard]] lgc::HttpResult send(lgc::HttpRequest, lgc::HttpRequestOptions) override
     {
-        return lc::Status::unavailable("injected http transport failure");
+        return lgc::Status::unavailable("injected http transport failure");
     }
 
-    [[nodiscard]] lc::Status sendAsync(
-        lc::HttpRequest,
-        lc::HttpRequestOptions,
-        lc::HttpCallback callback) override
+    [[nodiscard]] lgc::Status sendAsync(
+        lgc::HttpRequest,
+        lgc::HttpRequestOptions,
+        lgc::HttpCallback callback) override
     {
-        callback(lc::Status::unavailable("injected async http transport failure"));
-        return lc::Status::unavailable("injected async http transport failure");
+        callback(lgc::Status::unavailable("injected async http transport failure"));
+        return lgc::Status::unavailable("injected async http transport failure");
     }
 
-    [[nodiscard]] lc::HttpResult sendStreaming(
-        lc::HttpRequest,
-        lc::HttpRequestOptions,
-        lc::HttpBodyChunkCallback,
-        lc::HttpStreamOptions = {}) override
+    [[nodiscard]] lgc::HttpResult sendStreaming(
+        lgc::HttpRequest,
+        lgc::HttpRequestOptions,
+        lgc::HttpBodyChunkCallback,
+        lgc::HttpStreamOptions = {}) override
     {
-        return lc::Status::unavailable("injected streaming http transport failure");
+        return lgc::Status::unavailable("injected streaming http transport failure");
     }
 
-    [[nodiscard]] lc::HttpResult sendSse(
-        lc::HttpRequest,
-        lc::HttpRequestOptions,
-        lc::ServerSentEventCallback,
-        lc::HttpStreamOptions = {}) override
+    [[nodiscard]] lgc::HttpResult sendSse(
+        lgc::HttpRequest,
+        lgc::HttpRequestOptions,
+        lgc::ServerSentEventCallback,
+        lgc::HttpStreamOptions = {}) override
     {
-        return lc::Status::unavailable("injected sse http transport failure");
+        return lgc::Status::unavailable("injected sse http transport failure");
     }
 
-    [[nodiscard]] std::shared_ptr<lc::IAuthorizationProvider> authorizationProvider() const override
+    [[nodiscard]] std::shared_ptr<lgc::IAuthorizationProvider> authorizationProvider() const override
     {
         return nullptr;
     }
 
-    [[nodiscard]] lc::Status close() override
+    [[nodiscard]] lgc::Status close() override
     {
         closed_ = true;
-        return lc::Status::ok();
+        return lgc::Status::ok();
     }
 
     [[nodiscard]] bool isClosed() const noexcept override { return closed_; }
@@ -222,11 +222,11 @@ private:
     bool closed_ { false };
 };
 
-[[nodiscard]] lc::CompiledStateGraph makeSingleNodeGraph()
+[[nodiscard]] lgc::CompiledStateGraph makeSingleNodeGraph()
 {
-    lc::StateGraph graph;
-    assert(graph.addNode("work", [](const lc::State&, lc::Runtime&) {
-        return lc::StateUpdate::fromJson(R"({"ok":true})");
+    lgc::StateGraph graph;
+    assert(graph.addNode("work", [](const lgc::State&, lgc::Runtime&) {
+        return lgc::StateUpdate::fromJson(R"({"ok":true})");
     }).isOk());
     assert(graph.setEntryPoint("work").isOk());
     assert(graph.setFinishPoint("work").isOk());
@@ -235,25 +235,25 @@ private:
     return std::move(*compiled);
 }
 
-[[nodiscard]] lc::CompiledStateGraph makeParallelGraph()
+[[nodiscard]] lgc::CompiledStateGraph makeParallelGraph()
 {
-    lc::StateGraph graph;
-    assert(graph.addNode("start", [](const lc::State&, lc::Runtime&) {
-        return lc::StateUpdate::empty();
+    lgc::StateGraph graph;
+    assert(graph.addNode("start", [](const lgc::State&, lgc::Runtime&) {
+        return lgc::StateUpdate::empty();
     }).isOk());
-    assert(graph.addNode("left", [](const lc::State&, lc::Runtime&) {
-        return lc::StateUpdate::fromJson(R"({"items":["left"]})");
+    assert(graph.addNode("left", [](const lgc::State&, lgc::Runtime&) {
+        return lgc::StateUpdate::fromJson(R"({"items":["left"]})");
     }).isOk());
-    assert(graph.addNode("right", [](const lc::State&, lc::Runtime&) {
-        return lc::StateUpdate::fromJson(R"({"items":["right"]})");
+    assert(graph.addNode("right", [](const lgc::State&, lgc::Runtime&) {
+        return lgc::StateUpdate::fromJson(R"({"items":["right"]})");
     }).isOk());
-    assert(graph.addNode("join", [](const lc::State&, lc::Runtime&) {
-        return lc::StateUpdate::fromJson(R"({"joined":true})");
+    assert(graph.addNode("join", [](const lgc::State&, lgc::Runtime&) {
+        return lgc::StateUpdate::fromJson(R"({"joined":true})");
     }).isOk());
     assert(graph.setEntryPoint("start").isOk());
     assert(graph.addEdge("start", "left").isOk());
     assert(graph.addEdge("start", "right").isOk());
-    assert(graph.addEdge(std::vector<lc::NodeId> { "left", "right" }, "join").isOk());
+    assert(graph.addEdge(std::vector<lgc::NodeId> { "left", "right" }, "join").isOk());
     assert(graph.setFinishPoint("join").isOk());
     auto compiled = graph.compile();
     assert(compiled.isOk());
@@ -263,117 +263,117 @@ private:
 void testCheckpointPutFailurePropagates()
 {
     auto graph = makeSingleNodeGraph();
-    auto input = lc::State::fromJson("{}");
+    auto input = lgc::State::fromJson("{}");
     assert(input.isOk());
 
-    lc::RunOptions options;
+    lgc::RunOptions options;
     options.threadId_ = "failure-checkpoint-put";
     options.checkpointer_ = std::make_shared<InjectedCheckpointSaver>(
         InjectedCheckpointSaver::FailurePoint::Put);
 
     auto result = graph.invoke(*input, options);
     assert(!result.isOk());
-    assert(result.status().code() == lc::StatusCode::Unavailable);
+    assert(result.status().code() == lgc::StatusCode::Unavailable);
 }
 
 void testCheckpointPutWritesFailurePropagates()
 {
     auto graph = makeParallelGraph();
-    auto input = lc::State::fromJson("{}");
+    auto input = lgc::State::fromJson("{}");
     assert(input.isOk());
 
-    lc::RunOptions options;
+    lgc::RunOptions options;
     options.threadId_ = "failure-checkpoint-put-writes";
     options.checkpointer_ = std::make_shared<InjectedCheckpointSaver>(
         InjectedCheckpointSaver::FailurePoint::PutWrites);
-    options.durability_ = lc::Durability::Sync;
-    options.reducers_.set("items", lc::ReducerKind::Append);
+    options.durability_ = lgc::Durability::Sync;
+    options.reducers_.set("items", lgc::ReducerKind::Append);
     options.maxConcurrency_ = 2;
 
     auto result = graph.invoke(*input, options);
     assert(!result.isOk());
-    assert(result.status().code() == lc::StatusCode::Unavailable);
+    assert(result.status().code() == lgc::StatusCode::Unavailable);
 }
 
 void testCheckpointGetTupleFailurePropagates()
 {
     auto graph = makeSingleNodeGraph();
 
-    lc::RunOptions options;
+    lgc::RunOptions options;
     options.checkpointer_ = std::make_shared<InjectedCheckpointSaver>(
         InjectedCheckpointSaver::FailurePoint::GetTuple);
 
     auto result = graph.resume("failure-resume", options);
     assert(!result.isOk());
-    assert(result.status().code() == lc::StatusCode::Unavailable);
+    assert(result.status().code() == lgc::StatusCode::Unavailable);
 }
 
 void testEventSinkFailurePropagates()
 {
     auto graph = makeSingleNodeGraph();
-    auto input = lc::State::fromJson("{}");
+    auto input = lgc::State::fromJson("{}");
     assert(input.isOk());
 
-    lc::RunOptions options;
+    lgc::RunOptions options;
     options.eventSink_ = std::make_shared<RejectingEventSink>();
 
     auto result = graph.invoke(*input, options);
     assert(!result.isOk());
-    assert(result.status().code() == lc::StatusCode::PermissionDenied);
+    assert(result.status().code() == lgc::StatusCode::PermissionDenied);
 }
 
 void testStoreFailurePropagatesFromNode()
 {
-    lc::StateGraph graph;
-    assert(graph.addNode("store", [](const lc::State&, lc::Runtime& context) -> lc::Result<lc::StateUpdate> {
+    lgc::StateGraph graph;
+    assert(graph.addNode("store", [](const lgc::State&, lgc::Runtime& context) -> lgc::Result<lgc::StateUpdate> {
         auto store = context.store();
         if (!store)
-            return lc::Status::failedPrecondition("store is missing");
+            return lgc::Status::failedPrecondition("store is missing");
         auto stored = store->put({ "profile" }, "name", "edge");
         if (!stored.isOk())
             return stored.status();
-        return lc::StateUpdate::empty();
+        return lgc::StateUpdate::empty();
     }).isOk());
     assert(graph.setEntryPoint("store").isOk());
     assert(graph.setFinishPoint("store").isOk());
     auto compiled = graph.compile();
     assert(compiled.isOk());
-    auto input = lc::State::fromJson("{}");
+    auto input = lgc::State::fromJson("{}");
     assert(input.isOk());
 
-    lc::RunOptions options;
+    lgc::RunOptions options;
     options.store_ = std::make_shared<RejectingStore>();
 
     auto result = compiled->invoke(*input, options);
     assert(!result.isOk());
-    assert(result.status().code() == lc::StatusCode::Unavailable);
+    assert(result.status().code() == lgc::StatusCode::Unavailable);
 }
 
 void testExecutorFailurePropagatesFromParallelDispatch()
 {
     auto graph = makeParallelGraph();
-    auto input = lc::State::fromJson("{}");
+    auto input = lgc::State::fromJson("{}");
     assert(input.isOk());
 
-    lc::RunOptions options;
+    lgc::RunOptions options;
     options.executor_ = std::make_shared<RejectingExecutor>();
     options.maxConcurrency_ = 2;
-    options.reducers_.set("items", lc::ReducerKind::Append);
+    options.reducers_.set("items", lgc::ReducerKind::Append);
 
     auto result = graph.invoke(*input, options);
     assert(!result.isOk());
-    assert(result.status().code() == lc::StatusCode::Unavailable);
+    assert(result.status().code() == lgc::StatusCode::Unavailable);
 }
 
 void testHttpTransportFailurePropagatesFromProviderModel()
 {
     auto http = std::make_shared<RejectingHttpClient>();
-    lc::ProviderChatModel model(
-        lc::ProviderChatModelOptions::openAICompatible(http, "failure-model", "token"));
+    lgc::ProviderChatModel model(
+        lgc::ProviderChatModelOptions::openAICompatible(http, "failure-model", "token"));
 
-    auto response = model.invoke({ lc::BaseMessage::human("hello") });
+    auto response = model.invoke({ lgc::BaseMessage::human("hello") });
     assert(!response.isOk());
-    assert(response.status().code() == lc::StatusCode::Unavailable);
+    assert(response.status().code() == lgc::StatusCode::Unavailable);
 }
 
 } // namespace

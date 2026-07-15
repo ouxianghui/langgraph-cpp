@@ -13,7 +13,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc {
+namespace lgc {
 
 enum class IdStrategy : std::uint8_t {
     UuidV4,
@@ -100,4 +100,4 @@ private:
     std::uint8_t lastUlidRandom_[10] {};
 };
 
-} // namespace lc
+} // namespace lgc

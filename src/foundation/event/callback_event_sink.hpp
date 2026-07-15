@@ -7,7 +7,7 @@
 #include <functional>
 #include <mutex>
 
-namespace lc {
+namespace lgc {
 
 struct CallbackEventSinkOptions {
     EventSinkOptions event_;
@@ -44,4 +44,4 @@ private:
     bool closed_ { false };
 };
 
-} // namespace lc
+} // namespace lgc

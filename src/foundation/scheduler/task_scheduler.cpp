@@ -7,7 +7,7 @@
 #include <utility>
 #include <vector>
 
-namespace lc::scheduler_detail {
+namespace lgc::scheduler_detail {
 
 void dispatchOnce(
     const std::shared_ptr<detail::SchedulerState>& scheduler,
@@ -92,9 +92,9 @@ void dispatchPeriodic(
         finishTask(scheduler, state, ScheduledTaskState::Failed, status);
 }
 
-} // namespace lc::scheduler_detail
+} // namespace lgc::scheduler_detail
 
-namespace lc {
+namespace lgc {
 namespace {
 using scheduler_detail::Duration;
 using scheduler_detail::TimePoint;
@@ -438,4 +438,4 @@ bool TaskScheduler::isClosed() const noexcept
     return impl_->isClosed();
 }
 
-} // namespace lc
+} // namespace lgc

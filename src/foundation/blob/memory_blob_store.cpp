@@ -9,7 +9,7 @@
 #include <system_error>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 using namespace blob_detail;
 
 MemoryBlobStore::MemoryBlobStore(BlobStoreOptions options)
@@ -191,4 +191,4 @@ MemoryBlobStore::MapKey MemoryBlobStore::toMapKey(const BlobKey& key)
     return { key.namespace_, key.name_ };
 }
 
-} // namespace lc
+} // namespace lgc

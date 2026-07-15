@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 constexpr char kCheckpointNamespaceSeparator = graph_detail::kCheckpointNamespaceSeparator;
@@ -708,4 +708,4 @@ Result<CompiledStateGraph> StateGraph::compile() const
 }
 
 
-} // namespace lc
+} // namespace lgc

@@ -10,7 +10,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 struct RuntimeEventLimits {
     std::size_t maxPayloadBytes_ { 64 * 1024 };
@@ -71,4 +71,4 @@ struct RuntimeEvent {
     const RuntimeEvent& event,
     const RuntimeEventLimits& limits = {});
 
-} // namespace lc
+} // namespace lgc

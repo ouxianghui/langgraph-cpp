@@ -9,7 +9,7 @@
 #include <zlib.h>
 #endif
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] std::vector<std::byte> copyBytes(std::span<const std::byte> input)
@@ -345,4 +345,4 @@ Result<std::string> decompressString(
     return std::string(reinterpret_cast<const char*>(bytes->data()), bytes->size());
 }
 
-} // namespace lc
+} // namespace lgc

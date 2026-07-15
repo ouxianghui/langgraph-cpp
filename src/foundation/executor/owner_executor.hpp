@@ -13,7 +13,7 @@
 #include <string_view>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 /// Owner-thread guard with executor-style naming.
 class OwnerExecutor final {
@@ -104,4 +104,4 @@ private:
     OwnerThread owner_;
 };
 
-} // namespace lc
+} // namespace lgc

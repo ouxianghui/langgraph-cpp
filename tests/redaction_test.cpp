@@ -12,25 +12,25 @@
 
 namespace {
 
-class MemoryLogger final : public lc::ILogger {
+class MemoryLogger final : public lgc::ILogger {
 public:
-    void log(const lc::LogRecord& record) noexcept override
+    void log(const lgc::LogRecord& record) noexcept override
     {
         records_.push_back(record);
     }
 
-    lc::Status flush() override { return lc::Status::ok(); }
-    lc::Status close() override { return lc::Status::ok(); }
+    lgc::Status flush() override { return lgc::Status::ok(); }
+    lgc::Status close() override { return lgc::Status::ok(); }
     bool isClosed() const noexcept override { return false; }
 
-    std::vector<lc::LogRecord> records_;
+    std::vector<lgc::LogRecord> records_;
 };
 
 } // namespace
 
 int main()
 {
-    const lc::Redactor redactor;
+    const lgc::Redactor redactor;
 
     {
         const auto text = redactor.redact(
@@ -42,9 +42,9 @@ int main()
     }
 
     {
-        auto config = lc::RedactionConfig::defaults();
+        auto config = lgc::RedactionConfig::defaults();
         config.maxStringLengthToScan_ = 8;
-        const lc::Redactor limited(config);
+        const lgc::Redactor limited(config);
         const auto text = limited.redact(std::string(64, 'x') + " sk-1234567890abcdef");
         assert(text == "[REDACTED]");
         assert(text.find("sk-1234567890abcdef") == std::string::npos);
@@ -67,17 +67,17 @@ int main()
     }
 
     {
-        auto config = lc::RedactionConfig::defaults();
+        auto config = lgc::RedactionConfig::defaults();
         config.maxArraySize_ = 2;
-        const lc::Redactor limited(config);
+        const lgc::Redactor limited(config);
         const auto redacted = limited.redact(nlohmann::json::array({ 1, 2, 3 }));
         assert(redacted == "[REDACTED]");
     }
 
     {
-        auto config = lc::RedactionConfig::defaults();
+        auto config = lgc::RedactionConfig::defaults();
         config.maxObjectSize_ = 1;
-        const lc::Redactor limited(config);
+        const lgc::Redactor limited(config);
         const auto redacted = limited.redact(nlohmann::json {
             { "a", 1 },
             { "b", 2 },
@@ -86,9 +86,9 @@ int main()
     }
 
     {
-        auto config = lc::RedactionConfig::defaults();
+        auto config = lgc::RedactionConfig::defaults();
         config.maxJsonNodes_ = 2;
-        const lc::Redactor limited(config);
+        const lgc::Redactor limited(config);
         const auto redacted = limited.redact(nlohmann::json {
             { "outer", {
                            { "inner", "visible" },
@@ -98,10 +98,10 @@ int main()
     }
 
     {
-        auto inner = std::make_shared<lc::MemoryEventSink>();
-        lc::RedactionEventSink sink(inner);
+        auto inner = std::make_shared<lgc::MemoryEventSink>();
+        lgc::RedactionEventSink sink(inner);
 
-        auto event = lc::RuntimeEvent::create(lc::RuntimeEventType::ToolCallStarted);
+        auto event = lgc::RuntimeEvent::create(lgc::RuntimeEventType::ToolCallStarted);
         event.message_ = "calling with token=sk-1234567890abcdef";
         event.payload_ = nlohmann::json {
             { "authorization", "Bearer abcdefghijklmnop" },
@@ -117,12 +117,12 @@ int main()
     }
 
     {
-        auto inner = std::make_shared<lc::InMemoryTraceSink>();
-        lc::RedactionTraceSink sink(inner);
-        auto context = lc::makeRootContext();
+        auto inner = std::make_shared<lgc::InMemoryTraceSink>();
+        lgc::RedactionTraceSink sink(inner);
+        auto context = lgc::makeRootContext();
         assert(context.isOk());
 
-        lc::SpanRecord span {
+        lgc::SpanRecord span {
             .context_ = std::move(*context),
             .name_ = "node",
             .attributes_ = nlohmann::json {
@@ -130,7 +130,7 @@ int main()
                 { "user", "user@example.com" },
             },
             .events_ = {
-                lc::SpanEvent {
+                lgc::SpanEvent {
                     .name_ = "request",
                     .attributes_ = nlohmann::json {
                         { "headers", {
@@ -139,7 +139,7 @@ int main()
                     },
                 },
             },
-            .status_ = lc::SpanStatus::Error,
+            .status_ = lgc::SpanStatus::Error,
             .statusMessage_ = "failed with token=sk-1234567890abcdef",
         };
 
@@ -154,9 +154,9 @@ int main()
 
     {
         auto inner = std::make_shared<MemoryLogger>();
-        lc::RedactionLogger logger(inner);
-        logger.log(lc::LogRecord {
-            .level_ = lc::LogLevel::Info,
+        lgc::RedactionLogger logger(inner);
+        logger.log(lgc::LogRecord {
+            .level_ = lgc::LogLevel::Info,
             .tag_ = "test",
             .message_ = "api key sk-1234567890abcdef belongs to user@example.com",
             .fields_ = {
@@ -171,43 +171,43 @@ int main()
     }
 
     {
-        auto state = lc::State::fromJson(R"({
+        auto state = lgc::State::fromJson(R"({
             "messages":[{"role":"user","content":"email me at user@example.com"}],
             "api_key":"sk-1234567890abcdef"
         })");
         assert(state.isOk());
 
-        lc::Checkpoint checkpoint {
+        lgc::Checkpoint checkpoint {
             .threadId_ = "thread-1",
             .checkpointId_ = "checkpoint-1",
             .step_ = 1,
             .state_ = *state,
             .writes_ = {
-                lc::CheckpointWrite {
+                lgc::CheckpointWrite {
                     .nodeId_ = "node",
-                    .update_ = *lc::State::fromJson(R"({"token":"secret-token"})"),
+                    .update_ = *lgc::State::fromJson(R"({"token":"secret-token"})"),
                 },
             },
         };
 
-        lc::RedactionCheckpointCodec codec(std::make_shared<lc::JsonCheckpointCodec>());
+        lgc::RedactionCheckpointCodec codec(std::make_shared<lgc::JsonCheckpointCodec>());
         const auto encoded = codec.encode(checkpoint);
         assert(encoded.isOk());
         assert(encoded->data_.find("sk-1234567890abcdef") == std::string::npos);
         assert(encoded->data_.find("user@example.com") == std::string::npos);
         assert(encoded->data_.find("secret-token") == std::string::npos);
 
-        const auto decoded = lc::JsonCheckpointCodec().decode(*encoded);
+        const auto decoded = lgc::JsonCheckpointCodec().decode(*encoded);
         assert(decoded.isOk());
         assert(decoded->state_.json().find("[REDACTED]") != std::string::npos);
 
-        lc::CheckpointWrite write {
+        lgc::CheckpointWrite write {
             .nodeId_ = "node",
-            .update_ = *lc::State::fromJson(R"({"token":"secret-token","email":"user@example.com"})"),
+            .update_ = *lgc::State::fromJson(R"({"token":"secret-token","email":"user@example.com"})"),
             .nextTasks_ = {
-                lc::CheckpointTask {
+                lgc::CheckpointTask {
                     .nodeId_ = "next",
-                    .state_ = *lc::State::fromJson(R"({"api_key":"sk-1234567890abcdef"})"),
+                    .state_ = *lgc::State::fromJson(R"({"api_key":"sk-1234567890abcdef"})"),
                     .metadata_ = { { "authorization", "Bearer abcdefghijklmnop" } },
                 },
             },
@@ -218,7 +218,7 @@ int main()
         assert(encodedWrite->data_.find("user@example.com") == std::string::npos);
         assert(encodedWrite->data_.find("sk-1234567890abcdef") == std::string::npos);
 
-        const auto decodedWrite = lc::JsonCheckpointCodec().decodeWrite(*encodedWrite);
+        const auto decodedWrite = lgc::JsonCheckpointCodec().decodeWrite(*encodedWrite);
         assert(decodedWrite.isOk());
         assert(decodedWrite->update_.json().find("[REDACTED]") != std::string::npos);
     }

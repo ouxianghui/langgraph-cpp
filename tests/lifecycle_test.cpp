@@ -22,7 +22,7 @@
 
 namespace {
 
-class RecordingLifecycleComponent final : public lc::ILifecycle {
+class RecordingLifecycleComponent final : public lgc::ILifecycle {
 public:
     RecordingLifecycleComponent(
         std::string name,
@@ -42,25 +42,25 @@ public:
 
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }
 
-    [[nodiscard]] lc::Status start() override
+    [[nodiscard]] lgc::Status start() override
     {
         startLog_.push_back(name_);
         if (failStart_)
-            return lc::Status::internal("start failed: " + name_);
-        return lc::Status::ok();
+            return lgc::Status::internal("start failed: " + name_);
+        return lgc::Status::ok();
     }
 
-    [[nodiscard]] lc::Status waitIdle(lc::Clock::Duration) override { return lc::Status::ok(); }
+    [[nodiscard]] lgc::Status waitIdle(lgc::Clock::Duration) override { return lgc::Status::ok(); }
 
-    [[nodiscard]] lc::Status close(lc::Clock::Duration) override
+    [[nodiscard]] lgc::Status close(lgc::Clock::Duration) override
     {
         if (throwClose_)
             throw std::runtime_error("close threw: " + name_);
         closeLog_.push_back(name_);
         closed_ = true;
         if (failClose_)
-            return lc::Status::internal("close failed: " + name_);
-        return lc::Status::ok();
+            return lgc::Status::internal("close failed: " + name_);
+        return lgc::Status::ok();
     }
 
     [[nodiscard]] bool isClosed() const noexcept override { return closed_; }
@@ -75,11 +75,11 @@ private:
     std::atomic<bool> closed_ { false };
 };
 
-class BlockingStartComponent final : public lc::ILifecycle {
+class BlockingStartComponent final : public lgc::ILifecycle {
 public:
     [[nodiscard]] std::string_view name() const noexcept override { return "blocking-start"; }
 
-    [[nodiscard]] lc::Status start() override
+    [[nodiscard]] lgc::Status start() override
     {
         std::unique_lock lock(mutex_);
         entered_ = true;
@@ -87,15 +87,15 @@ public:
         cv_.wait(lock, [this] {
             return released_;
         });
-        return lc::Status::ok();
+        return lgc::Status::ok();
     }
 
-    [[nodiscard]] lc::Status waitIdle(lc::Clock::Duration) override { return lc::Status::ok(); }
+    [[nodiscard]] lgc::Status waitIdle(lgc::Clock::Duration) override { return lgc::Status::ok(); }
 
-    [[nodiscard]] lc::Status close(lc::Clock::Duration) override
+    [[nodiscard]] lgc::Status close(lgc::Clock::Duration) override
     {
         closed_.store(true, std::memory_order_relaxed);
-        return lc::Status::ok();
+        return lgc::Status::ok();
     }
 
     [[nodiscard]] bool isClosed() const noexcept override { return closed_.load(std::memory_order_relaxed); }
@@ -125,13 +125,13 @@ private:
     std::atomic<bool> closed_ { false };
 };
 
-class BlockingCloseComponent final : public lc::ILifecycle {
+class BlockingCloseComponent final : public lgc::ILifecycle {
 public:
     [[nodiscard]] std::string_view name() const noexcept override { return "blocking-close"; }
-    [[nodiscard]] lc::Status start() override { return lc::Status::ok(); }
-    [[nodiscard]] lc::Status waitIdle(lc::Clock::Duration) override { return lc::Status::ok(); }
+    [[nodiscard]] lgc::Status start() override { return lgc::Status::ok(); }
+    [[nodiscard]] lgc::Status waitIdle(lgc::Clock::Duration) override { return lgc::Status::ok(); }
 
-    [[nodiscard]] lc::Status close(lc::Clock::Duration) override
+    [[nodiscard]] lgc::Status close(lgc::Clock::Duration) override
     {
         std::unique_lock lock(mutex_);
         entered_ = true;
@@ -140,7 +140,7 @@ public:
             return released_;
         });
         closed_.store(true, std::memory_order_relaxed);
-        return lc::Status::ok();
+        return lgc::Status::ok();
     }
 
     [[nodiscard]] bool isClosed() const noexcept override { return closed_.load(std::memory_order_relaxed); }
@@ -170,12 +170,12 @@ private:
     std::atomic<bool> closed_ { false };
 };
 
-class CloseBudgetComponent final : public lc::ILifecycle {
+class CloseBudgetComponent final : public lgc::ILifecycle {
 public:
     CloseBudgetComponent(
         std::string name,
-        lc::Clock::Duration sleep,
-        std::vector<lc::Clock::Duration>& seenTimeouts,
+        lgc::Clock::Duration sleep,
+        std::vector<lgc::Clock::Duration>& seenTimeouts,
         std::mutex& seenMutex)
         : name_(std::move(name))
         , sleep_(sleep)
@@ -185,10 +185,10 @@ public:
     }
 
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }
-    [[nodiscard]] lc::Status start() override { return lc::Status::ok(); }
-    [[nodiscard]] lc::Status waitIdle(lc::Clock::Duration) override { return lc::Status::ok(); }
+    [[nodiscard]] lgc::Status start() override { return lgc::Status::ok(); }
+    [[nodiscard]] lgc::Status waitIdle(lgc::Clock::Duration) override { return lgc::Status::ok(); }
 
-    [[nodiscard]] lc::Status close(lc::Clock::Duration timeout) override
+    [[nodiscard]] lgc::Status close(lgc::Clock::Duration timeout) override
     {
         {
             std::lock_guard lock(seenMutex_);
@@ -196,15 +196,15 @@ public:
         }
         std::this_thread::sleep_for(sleep_);
         closed_.store(true, std::memory_order_relaxed);
-        return lc::Status::ok();
+        return lgc::Status::ok();
     }
 
     [[nodiscard]] bool isClosed() const noexcept override { return closed_.load(std::memory_order_relaxed); }
 
 private:
     std::string name_;
-    lc::Clock::Duration sleep_;
-    std::vector<lc::Clock::Duration>& seenTimeouts_;
+    lgc::Clock::Duration sleep_;
+    std::vector<lgc::Clock::Duration>& seenTimeouts_;
     std::mutex& seenMutex_;
     std::atomic<bool> closed_ { false };
 };
@@ -216,7 +216,7 @@ int main()
     using namespace std::chrono_literals;
 
     {
-        lc::Lifecycle manager;
+        lgc::Lifecycle manager;
         std::vector<std::string> startLog;
         std::vector<std::string> closeLog;
 
@@ -240,30 +240,30 @@ int main()
             startLog,
             closeLog));
         assert(!duplicate.isOk());
-        assert(duplicate.code() == lc::StatusCode::AlreadyExists);
+        assert(duplicate.code() == lgc::StatusCode::AlreadyExists);
 
         assert(manager.start().isOk());
         assert((startLog == std::vector<std::string> { "storage", "events", "executor" }));
         assert(manager.waitIdle(100ms).isOk());
 
-        assert(manager.close(lc::CloseOptions {
+        assert(manager.close(lgc::CloseOptions {
                    .timeout_ = 100ms,
                })
                    .isOk());
         assert((closeLog == std::vector<std::string> { "executor", "events", "storage" }));
         assert(manager.isClosed());
-        assert(manager.state() == lc::LifecycleState::Closed);
-        assert(lc::stateName(manager.state()) == "closed");
+        assert(manager.state() == lgc::LifecycleState::Closed);
+        assert(lgc::stateName(manager.state()) == "closed");
 
         const auto snapshot = manager.components();
         assert(snapshot.size() == 3);
         assert(std::all_of(snapshot.begin(), snapshot.end(), [](const auto& item) {
-            return item.closed_ && item.state_ == lc::LifecycleState::Closed;
+            return item.closed_ && item.state_ == lgc::LifecycleState::Closed;
         }));
     }
 
     {
-        lc::Lifecycle manager;
+        lgc::Lifecycle manager;
         std::vector<std::string> startLog;
         std::vector<std::string> closeLog;
 
@@ -285,18 +285,18 @@ int main()
             .isOk());
 
         assert(manager.start().isOk());
-        auto status = manager.close(lc::CloseOptions {
+        auto status = manager.close(lgc::CloseOptions {
             .timeout_ = 100ms,
             .continueOnError_ = true,
         });
         assert(!status.isOk());
-        assert(status.code() == lc::StatusCode::Internal);
-        assert(manager.state() == lc::LifecycleState::Failed);
+        assert(status.code() == lgc::StatusCode::Internal);
+        assert(manager.state() == lgc::LifecycleState::Failed);
         assert((closeLog == std::vector<std::string> { "last", "failing", "first" }));
     }
 
     {
-        lc::Lifecycle manager;
+        lgc::Lifecycle manager;
         std::vector<std::string> startLog;
         std::vector<std::string> closeLog;
 
@@ -320,10 +320,10 @@ int main()
 
         auto status = manager.start();
         assert(!status.isOk());
-        assert(status.code() == lc::StatusCode::Internal);
+        assert(status.code() == lgc::StatusCode::Internal);
         assert((startLog == std::vector<std::string> { "first", "failing-start" }));
         assert((closeLog == std::vector<std::string> { "first" }));
-        assert(manager.state() == lc::LifecycleState::Failed);
+        assert(manager.state() == lgc::LifecycleState::Failed);
 
         const auto snapshot = manager.components();
         auto first = std::find_if(snapshot.begin(), snapshot.end(), [](const auto& item) {
@@ -338,14 +338,14 @@ int main()
         assert(first != snapshot.end());
         assert(failing != snapshot.end());
         assert(neverStarted != snapshot.end());
-        assert(first->state_ == lc::LifecycleState::Closed);
-        assert(failing->state_ == lc::LifecycleState::Failed);
-        assert(neverStarted->state_ == lc::LifecycleState::Created);
-        assert(manager.close(lc::CloseOptions { .timeout_ = 100ms }).isOk());
+        assert(first->state_ == lgc::LifecycleState::Closed);
+        assert(failing->state_ == lgc::LifecycleState::Failed);
+        assert(neverStarted->state_ == lgc::LifecycleState::Created);
+        assert(manager.close(lgc::CloseOptions { .timeout_ = 100ms }).isOk());
     }
 
     {
-        lc::Lifecycle manager;
+        lgc::Lifecycle manager;
         auto blocker = std::make_shared<BlockingStartComponent>();
         assert(manager.add(blocker).isOk());
 
@@ -359,47 +359,47 @@ int main()
         });
         std::this_thread::sleep_for(20ms);
         assert(secondStart.wait_for(0ms) == std::future_status::timeout);
-        assert(manager.state() == lc::LifecycleState::Starting);
+        assert(manager.state() == lgc::LifecycleState::Starting);
 
-        auto closeDuringStart = manager.close(lc::CloseOptions {
+        auto closeDuringStart = manager.close(lgc::CloseOptions {
             .timeout_ = 10ms,
         });
         assert(!closeDuringStart.isOk());
-        assert(closeDuringStart.code() == lc::StatusCode::DeadlineExceeded);
+        assert(closeDuringStart.code() == lgc::StatusCode::DeadlineExceeded);
 
         blocker->release();
         assert(startFuture.get().isOk());
         assert(secondStart.get().isOk());
-        assert(manager.close(lc::CloseOptions { .timeout_ = 1s }).isOk());
+        assert(manager.close(lgc::CloseOptions { .timeout_ = 1s }).isOk());
     }
 
     {
-        lc::Lifecycle manager;
+        lgc::Lifecycle manager;
         auto blocker = std::make_shared<BlockingCloseComponent>();
         assert(manager.add(blocker).isOk());
         assert(manager.start().isOk());
 
         auto closeFuture = std::async(std::launch::async, [&] {
-            return manager.close(lc::CloseOptions {
+            return manager.close(lgc::CloseOptions {
                 .timeout_ = 1s,
             });
         });
         blocker->waitUntilEntered();
 
-        auto concurrentClose = manager.close(lc::CloseOptions {
+        auto concurrentClose = manager.close(lgc::CloseOptions {
             .timeout_ = 10ms,
         });
         assert(!concurrentClose.isOk());
-        assert(concurrentClose.code() == lc::StatusCode::DeadlineExceeded);
+        assert(concurrentClose.code() == lgc::StatusCode::DeadlineExceeded);
 
         blocker->release();
         assert(closeFuture.get().isOk());
-        assert(manager.close(lc::CloseOptions { .timeout_ = 10ms }).isOk());
+        assert(manager.close(lgc::CloseOptions { .timeout_ = 10ms }).isOk());
     }
 
     {
-        lc::Lifecycle manager;
-        std::vector<lc::Clock::Duration> seenTimeouts;
+        lgc::Lifecycle manager;
+        std::vector<lgc::Clock::Duration> seenTimeouts;
         std::mutex seenMutex;
 
         assert(manager.add(std::make_shared<CloseBudgetComponent>(
@@ -416,13 +416,13 @@ int main()
             .isOk());
 
         assert(manager.start().isOk());
-        assert(manager.close(lc::CloseOptions { .timeout_ = 200ms }).isOk());
+        assert(manager.close(lgc::CloseOptions { .timeout_ = 200ms }).isOk());
         assert(seenTimeouts.size() == 2);
         assert(seenTimeouts[1] < seenTimeouts[0]);
     }
 
     {
-        lc::Lifecycle manager;
+        lgc::Lifecycle manager;
         std::vector<std::string> startLog;
         std::vector<std::string> closeLog;
         assert(manager.add(std::make_shared<RecordingLifecycleComponent>(
@@ -434,27 +434,27 @@ int main()
                    true))
             .isOk());
         assert(manager.start().isOk());
-        auto status = manager.close(lc::CloseOptions { .timeout_ = 100ms });
+        auto status = manager.close(lgc::CloseOptions { .timeout_ = 100ms });
         assert(!status.isOk());
-        assert(status.code() == lc::StatusCode::Internal);
-        assert(manager.state() == lc::LifecycleState::Failed);
+        assert(status.code() == lgc::StatusCode::Internal);
+        assert(manager.state() == lgc::LifecycleState::Failed);
         const auto snapshot = manager.components();
         assert(snapshot.size() == 1);
-        assert(snapshot.front().state_ == lc::LifecycleState::Failed);
+        assert(snapshot.front().state_ == lgc::LifecycleState::Failed);
         assert(!snapshot.front().status_.isOk());
     }
 
     {
-        auto executor = lc::makeConcurrentExecutor(1);
-        auto scheduler = std::make_shared<lc::TaskScheduler>();
-        auto sink = std::make_shared<lc::MemoryEventSink>();
-        auto storage = std::make_shared<lc::MemoryStorage>();
+        auto executor = lgc::makeConcurrentExecutor(1);
+        auto scheduler = std::make_shared<lgc::TaskScheduler>();
+        auto sink = std::make_shared<lgc::MemoryEventSink>();
+        auto storage = std::make_shared<lgc::MemoryStorage>();
 
-        lc::Lifecycle manager;
-        assert(manager.add(lc::makeLifecycleComponent("storage", storage)).isOk());
-        assert(manager.add(lc::makeLifecycleComponent("events", sink)).isOk());
-        assert(manager.add(lc::makeLifecycleComponent("executor", executor)).isOk());
-        assert(manager.add(lc::makeLifecycleComponent("scheduler", scheduler)).isOk());
+        lgc::Lifecycle manager;
+        assert(manager.add(lgc::makeLifecycleComponent("storage", storage)).isOk());
+        assert(manager.add(lgc::makeLifecycleComponent("events", sink)).isOk());
+        assert(manager.add(lgc::makeLifecycleComponent("executor", executor)).isOk());
+        assert(manager.add(lgc::makeLifecycleComponent("scheduler", scheduler)).isOk());
 
         assert(manager.start().isOk());
 
@@ -470,13 +470,13 @@ int main()
                    })
                    .isOk());
 
-        auto event = lc::RuntimeEvent::create(lc::RuntimeEventType::Custom);
+        auto event = lgc::RuntimeEvent::create(lgc::RuntimeEventType::Custom);
         event.name_ = "lifecycle.note";
         assert(sink->publish(std::move(event)).isOk());
         assert(manager.waitIdle(1s).isOk());
         assert(count.load(std::memory_order_relaxed) == 2);
 
-        assert(manager.close(lc::CloseOptions {
+        assert(manager.close(lgc::CloseOptions {
                    .timeout_ = 1s,
                })
                    .isOk());

@@ -24,9 +24,9 @@
 
 namespace {
 
-class MemoryLogger final : public lc::ILogger {
+class MemoryLogger final : public lgc::ILogger {
 public:
-    void log(const lc::LogRecord& record) noexcept override
+    void log(const lgc::LogRecord& record) noexcept override
     {
         std::lock_guard lock(mutex_);
         if (closed_)
@@ -34,18 +34,18 @@ public:
         records_.push_back(record);
     }
 
-    lc::Status flush() override
+    lgc::Status flush() override
     {
         std::lock_guard lock(mutex_);
         flushed_ = true;
-        return lc::Status::ok();
+        return lgc::Status::ok();
     }
 
-    lc::Status close() override
+    lgc::Status close() override
     {
         std::lock_guard lock(mutex_);
         closed_ = true;
-        return lc::Status::ok();
+        return lgc::Status::ok();
     }
 
     bool isClosed() const noexcept override
@@ -71,16 +71,16 @@ public:
     }
 
     mutable std::mutex mutex_;
-    std::vector<lc::LogRecord> records_;
+    std::vector<lgc::LogRecord> records_;
     bool flushed_ { false };
     bool closed_ { false };
 };
 
-class FailingLogger final : public lc::ILogger {
+class FailingLogger final : public lgc::ILogger {
 public:
-    void log(const lc::LogRecord&) noexcept override {}
-    lc::Status flush() override { return lc::Status::unavailable("flush failed"); }
-    lc::Status close() override { return lc::Status::aborted("close failed"); }
+    void log(const lgc::LogRecord&) noexcept override {}
+    lgc::Status flush() override { return lgc::Status::unavailable("flush failed"); }
+    lgc::Status close() override { return lgc::Status::aborted("close failed"); }
     bool isClosed() const noexcept override { return false; }
 };
 
@@ -89,23 +89,23 @@ public:
 int main()
 {
     auto logger = std::make_shared<MemoryLogger>();
-    lc::Logger::setDefaultLogger(logger);
-    lc::Logger::setLevel(lc::LogLevel::Debug);
+    lgc::Logger::setDefaultLogger(logger);
+    lgc::Logger::setLevel(lgc::LogLevel::Debug);
 
-    assert(lc::Logger::shouldLog(lc::LogLevel::Info));
-    assert(!lc::Logger::shouldLog(lc::LogLevel::Trace));
-    assert(lc::formatLogMessage("value={}", 42) == "value=42");
-    assert(lc::formatLogMessage("plain", 42, true) == "plain 42 true");
+    assert(lgc::Logger::shouldLog(lgc::LogLevel::Info));
+    assert(!lgc::Logger::shouldLog(lgc::LogLevel::Trace));
+    assert(lgc::formatLogMessage("value={}", 42) == "value=42");
+    assert(lgc::formatLogMessage("plain", 42, true) == "plain 42 true");
 
-    lc::Logger::log(lc::LogLevel::Info, "Test", "hello", "file.cpp", 7);
+    lgc::Logger::log(lgc::LogLevel::Info, "Test", "hello", "file.cpp", 7);
     LOG_WARN("Macro", "value={}", 42);
-    lc::Logger::log(lc::LogRecord {
-        .level_ = lc::LogLevel::Info,
+    lgc::Logger::log(lgc::LogRecord {
+        .level_ = lgc::LogLevel::Info,
         .tag_ = "Structured",
         .message_ = "state",
         .traceId_ = "trace-1",
         .spanId_ = "span-1",
-        .statusCode_ = lc::StatusCode::Unavailable,
+        .statusCode_ = lgc::StatusCode::Unavailable,
         .fields_ = {
             { "run_id", "run-1" },
             { "node_id", "node-a" },
@@ -115,10 +115,10 @@ int main()
     assert(logger->size() == 3);
     {
         std::lock_guard lock(logger->mutex_);
-        assert(logger->records_[0].level_ == lc::LogLevel::Info);
+        assert(logger->records_[0].level_ == lgc::LogLevel::Info);
         assert(logger->records_[0].tag_ == "Test");
         assert(logger->records_[0].message_ == "hello");
-        assert(logger->records_[1].level_ == lc::LogLevel::Warn);
+        assert(logger->records_[1].level_ == lgc::LogLevel::Warn);
         assert(logger->records_[1].tag_ == "Macro");
         assert(logger->records_[1].message_ == "value=42");
         assert(logger->records_[2].fields_.at("run_id") == "run-1");
@@ -127,28 +127,28 @@ int main()
         assert(logger->records_[2].fields_.at("status_code") == "unavailable");
     }
 
-    assert(lc::Logger::flush().isOk());
+    assert(lgc::Logger::flush().isOk());
     assert(logger->flushed_);
 
-    assert(lc::Logger::close().isOk());
-    assert(lc::Logger::isClosed());
+    assert(lgc::Logger::close().isOk());
+    assert(lgc::Logger::isClosed());
     LOG_WARN("Closed", "hidden");
     assert(logger->size() == 3);
 
     auto failing = std::make_shared<FailingLogger>();
-    lc::Logger::setDefaultLogger(failing);
-    lc::Logger::setLevel(lc::LogLevel::Info);
-    assert(lc::Logger::flush().code() == lc::StatusCode::Unavailable);
-    assert(lc::Logger::close().code() == lc::StatusCode::Aborted);
+    lgc::Logger::setDefaultLogger(failing);
+    lgc::Logger::setLevel(lgc::LogLevel::Info);
+    assert(lgc::Logger::flush().code() == lgc::StatusCode::Unavailable);
+    assert(lgc::Logger::close().code() == lgc::StatusCode::Aborted);
 
     auto concurrent = std::make_shared<MemoryLogger>();
-    lc::Logger::setDefaultLogger(concurrent);
-    lc::Logger::setLevel(lc::LogLevel::Info);
+    lgc::Logger::setDefaultLogger(concurrent);
+    lgc::Logger::setLevel(lgc::LogLevel::Info);
     std::vector<std::thread> threads;
     for (int thread = 0; thread < 8; ++thread) {
         threads.emplace_back([thread] {
             for (int i = 0; i < 100; ++i)
-                lc::Logger::log(lc::LogLevel::Info, "Concurrent", lc::formatLogMessage("t={} i={}", thread, i));
+                lgc::Logger::log(lgc::LogLevel::Info, "Concurrent", lgc::formatLogMessage("t={} i={}", thread, i));
         });
     }
     for (auto& thread : threads)
@@ -156,17 +156,17 @@ int main()
     assert(concurrent->size() == 800);
 
     std::ostringstream consoleOut;
-    lc::ConsoleLogger console(consoleOut, lc::ConsoleLoggerOptions {
-        .minLevel_ = lc::LogLevel::Info,
+    lgc::ConsoleLogger console(consoleOut, lgc::ConsoleLoggerOptions {
+        .minLevel_ = lgc::LogLevel::Info,
         .includeTimestamp_ = false,
         .includeSource_ = false,
     });
-    console.log(lc::LogRecord {
-        .level_ = lc::LogLevel::Info,
+    console.log(lgc::LogRecord {
+        .level_ = lgc::LogLevel::Info,
         .tag_ = "Console",
         .message_ = "payload sk-1234567890abcdef",
         .traceId_ = "trace-console",
-        .statusCode_ = lc::StatusCode::Unauthenticated,
+        .statusCode_ = lgc::StatusCode::Unauthenticated,
         .fields_ = {
             { "api_key", "sk-1234567890abcdef" },
             { "run_id", "run-2" },
@@ -182,41 +182,41 @@ int main()
     assert(console.isClosed());
 
     std::ostringstream limitedOut;
-    lc::ConsoleLogger limitedConsole(limitedOut, lc::ConsoleLoggerOptions {
+    lgc::ConsoleLogger limitedConsole(limitedOut, lgc::ConsoleLoggerOptions {
         .includeTimestamp_ = false,
         .includeSource_ = false,
-        .limits_ = lc::LogLimits {
+        .limits_ = lgc::LogLimits {
             .maxMessageLength_ = 4,
         },
     });
-    limitedConsole.log(lc::LogRecord {
-        .level_ = lc::LogLevel::Info,
+    limitedConsole.log(lgc::LogRecord {
+        .level_ = lgc::LogLevel::Info,
         .message_ = "too long",
     });
     assert(limitedOut.str().empty());
 
-    lc::Logger::disable();
-    assert(!lc::Logger::shouldLog(lc::LogLevel::Critical));
+    lgc::Logger::disable();
+    assert(!lgc::Logger::shouldLog(lgc::LogLevel::Critical));
     LOG_ERROR("Macro", "hidden");
     assert(logger->size() == 3);
 
-    lc::Logger::useConsoleLogger(lc::ConsoleLoggerOptions {
-        .minLevel_ = lc::LogLevel::Off,
+    lgc::Logger::useConsoleLogger(lgc::ConsoleLoggerOptions {
+        .minLevel_ = lgc::LogLevel::Off,
         .includeTimestamp_ = false,
         .includeSource_ = false,
     });
-    lc::Logger::setLevel(lc::LogLevel::Info);
-    assert(lc::logLevelName(lc::LogLevel::Critical) == "critical");
+    lgc::Logger::setLevel(lgc::LogLevel::Info);
+    assert(lgc::logLevelName(lgc::LogLevel::Critical) == "critical");
 
     auto injected = std::make_shared<MemoryLogger>();
-    lc::InlineExecutor inlineExecutor(injected);
+    lgc::InlineExecutor inlineExecutor(injected);
     auto taskStatus = inlineExecutor.execute([] {
         throw std::runtime_error("boom");
     });
     assert(!taskStatus.isOk());
     assert(injected->containsTag("InlineExecutor"));
 
-    lc::IntervalTimer timer(injected);
+    lgc::IntervalTimer timer(injected);
     timer.setSingleShot(true);
     timer.setHandler([] {
         throw std::runtime_error("timer boom");
@@ -225,7 +225,7 @@ int main()
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     assert(injected->containsTag("IntervalTimer"));
 
-    lc::ThreadPool pool(1, 0, injected);
+    lgc::ThreadPool pool(1, 0, injected);
     assert(pool.submit([] {
         throw std::runtime_error("pool boom");
     }).isOk());
@@ -233,16 +233,16 @@ int main()
     assert(pool.shutdown(std::chrono::seconds(1)).isOk());
     assert(injected->containsTag("ThreadPool"));
 
-    lc::ProcessRunner runner(lc::SteadyClock::instance(), injected);
-    auto result = runner.run(lc::ProcessOptions {});
+    lgc::ProcessRunner runner(lgc::SteadyClock::instance(), injected);
+    auto result = runner.run(lgc::ProcessOptions {});
     assert(!result.isOk());
     assert(injected->containsTag("ProcessRunner"));
 
-    lc::CircuitBreaker breaker(lc::CircuitBreakerPolicy { .failureThreshold_ = 1 }, lc::SteadyClock::instance(), injected);
+    lgc::CircuitBreaker breaker(lgc::CircuitBreakerPolicy { .failureThreshold_ = 1 }, lgc::SteadyClock::instance(), injected);
     breaker.recordFailure();
     assert(injected->containsTag("CircuitBreaker"));
 
-    lc::TaskScheduler scheduler(lc::SchedulerOptions {
+    lgc::TaskScheduler scheduler(lgc::SchedulerOptions {
         .logger_ = injected,
     });
     assert(scheduler.scheduleAfter(std::chrono::milliseconds(1), [] {
@@ -256,45 +256,45 @@ int main()
     std::ostringstream output;
     auto sink = std::make_shared<spdlog::sinks::ostream_sink_mt>(output);
     auto spdlogLogger = std::make_shared<spdlog::logger>("langgraph_cpp_logging_test", std::move(sink));
-    auto spdLogger = std::make_shared<lc::SpdLogger>(std::move(spdlogLogger), lc::LogLevel::Debug);
+    auto spdLogger = std::make_shared<lgc::SpdLogger>(std::move(spdlogLogger), lgc::LogLevel::Debug);
 
-    lc::Logger::setDefaultLogger(spdLogger);
-    lc::Logger::setLevel(lc::LogLevel::Debug);
+    lgc::Logger::setDefaultLogger(spdLogger);
+    lgc::Logger::setLevel(lgc::LogLevel::Debug);
     LOG_INFO("Spd", "backend sk-1234567890abcdef");
-    assert(lc::Logger::flush().isOk());
+    assert(lgc::Logger::flush().isOk());
     assert(output.str().find("[Spd] backend") != std::string::npos);
     assert(output.str().find("sk-1234567890abcdef") == std::string::npos);
-    assert(lc::Logger::close().isOk());
+    assert(lgc::Logger::close().isOk());
     assert(spdLogger->isClosed());
 
-    auto invalidConsole = lc::SpdLogger::console(lc::SpdLogger::ConsoleOptions {
+    auto invalidConsole = lgc::SpdLogger::console(lgc::SpdLogger::ConsoleOptions {
         .name_ = "",
     });
     assert(!invalidConsole.isOk());
-    assert(invalidConsole.status().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidConsole.status().code() == lgc::StatusCode::InvalidArgument);
 
-    auto invalidFile = lc::SpdLogger::rotatingFile(lc::SpdLogger::RotatingFileOptions {});
+    auto invalidFile = lgc::SpdLogger::rotatingFile(lgc::SpdLogger::RotatingFileOptions {});
     assert(!invalidFile.isOk());
-    assert(invalidFile.status().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidFile.status().code() == lgc::StatusCode::InvalidArgument);
 
-    auto createdConsole = lc::SpdLogger::console(lc::SpdLogger::ConsoleOptions {
+    auto createdConsole = lgc::SpdLogger::console(lgc::SpdLogger::ConsoleOptions {
         .name_ = "langgraph_cpp_logging_test_console",
-        .async_ = lc::SpdLogger::AsyncOptions {
+        .async_ = lgc::SpdLogger::AsyncOptions {
             .queueSize_ = 64,
             .workerThreads_ = 1,
         },
     });
     assert(createdConsole.isOk());
 
-    auto conflictingConsole = lc::SpdLogger::console(lc::SpdLogger::ConsoleOptions {
+    auto conflictingConsole = lgc::SpdLogger::console(lgc::SpdLogger::ConsoleOptions {
         .name_ = "langgraph_cpp_logging_test_conflict",
-        .async_ = lc::SpdLogger::AsyncOptions {
+        .async_ = lgc::SpdLogger::AsyncOptions {
             .queueSize_ = 128,
             .workerThreads_ = 1,
         },
     });
     assert(!conflictingConsole.isOk());
-    assert(conflictingConsole.status().code() == lc::StatusCode::FailedPrecondition);
+    assert(conflictingConsole.status().code() == lgc::StatusCode::FailedPrecondition);
 #endif
 
     return 0;

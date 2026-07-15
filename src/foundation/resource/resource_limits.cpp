@@ -4,7 +4,7 @@
 #include <limits>
 #include <string>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 template <typename T>
@@ -245,4 +245,4 @@ Status ExecutionBudget::statusForCounts(
     return Status::ok();
 }
 
-} // namespace lc
+} // namespace lgc

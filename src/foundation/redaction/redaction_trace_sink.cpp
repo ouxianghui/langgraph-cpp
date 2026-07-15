@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 RedactionTraceSink::RedactionTraceSink(std::shared_ptr<ITraceSink> inner, Redactor redactor)
     : inner_(std::move(inner))
@@ -33,4 +33,4 @@ bool RedactionTraceSink::isClosed() const noexcept
     return inner_->isClosed();
 }
 
-} // namespace lc
+} // namespace lgc

@@ -14,7 +14,7 @@ int main()
 {
     using namespace std::chrono_literals;
 
-    lc::InlineExecutor inlineExecutor;
+    lgc::InlineExecutor inlineExecutor;
     assert(!inlineExecutor.isExecutorThread());
     int value = 0;
     auto status = inlineExecutor.execute([&] {
@@ -28,16 +28,16 @@ int main()
 
     status = inlineExecutor.postDelayed(0ms, [&] { value = 43; });
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unimplemented);
+    assert(status.code() == lgc::StatusCode::Unimplemented);
     assert(value == 42);
 
     status = inlineExecutor.postDelayed(1ms, [] {});
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unimplemented);
+    assert(status.code() == lgc::StatusCode::Unimplemented);
 
     status = inlineExecutor.post([] {});
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unimplemented);
+    assert(status.code() == lgc::StatusCode::Unimplemented);
 
     status = inlineExecutor.execute([&] {
         assert(inlineExecutor.isExecutorThread());
@@ -66,11 +66,11 @@ int main()
 
     status = inlineExecutor.execute({});
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::InvalidArgument);
+    assert(status.code() == lgc::StatusCode::InvalidArgument);
 
     status = inlineExecutor.execute([] { throw std::runtime_error("boom"); });
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Internal);
+    assert(status.code() == lgc::StatusCode::Internal);
     assert(inlineExecutor.waitIdle(0ms).isOk());
 
     status = inlineExecutor.close(0ms);
@@ -79,21 +79,21 @@ int main()
 
     status = inlineExecutor.execute([] {});
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unavailable);
+    assert(status.code() == lgc::StatusCode::Unavailable);
 
     status = inlineExecutor.post([] {});
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unavailable);
+    assert(status.code() == lgc::StatusCode::Unavailable);
 
     status = inlineExecutor.postDelayed(0ms, [] {});
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unavailable);
+    assert(status.code() == lgc::StatusCode::Unavailable);
 
     status = inlineExecutor.executeAndWait([] {});
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unavailable);
+    assert(status.code() == lgc::StatusCode::Unavailable);
 
-    lc::SerialExecutor serialExecutor("test-serial-executor");
+    lgc::SerialExecutor serialExecutor("test-serial-executor");
     assert(!serialExecutor.isExecutorThread());
     std::atomic<int> serialCounter { 0 };
     status = serialExecutor.execute([&] {
@@ -144,9 +144,9 @@ int main()
         throw std::runtime_error("serial boom");
     });
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Internal);
+    assert(status.code() == lgc::StatusCode::Internal);
 
-    lc::OwnerExecutor ownerExecutor(serialExecutor.thread(), "ExecutorTest", "owner");
+    lgc::OwnerExecutor ownerExecutor(serialExecutor.thread(), "ExecutorTest", "owner");
     status = ownerExecutor.executeAndWait([&] {
         ownerExecutor.check();
         assert(ownerExecutor.isCurrent());
@@ -168,9 +168,9 @@ int main()
     assert(serialExecutor.isClosed());
     status = serialExecutor.execute([] {});
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unavailable);
+    assert(status.code() == lgc::StatusCode::Unavailable);
 
-    lc::ConcurrentExecutor poolExecutor(2);
+    lgc::ConcurrentExecutor poolExecutor(2);
     assert(!poolExecutor.isExecutorThread());
     std::atomic<int> counter { 0 };
     std::atomic<bool> observedPoolThread { false };
@@ -205,7 +205,7 @@ int main()
 
     status = poolExecutor.postDelayed(1ms, [] {});
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unimplemented);
+    assert(status.code() == lgc::StatusCode::Unimplemented);
 
     status = poolExecutor.execute([&counter] {
         counter.fetch_add(1, std::memory_order_relaxed);
@@ -224,7 +224,7 @@ int main()
         throw std::runtime_error("wait boom");
     });
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Internal);
+    assert(status.code() == lgc::StatusCode::Internal);
 
     std::atomic<bool> nestedExecuteRanInline { false };
     std::atomic<bool> nestedExecuteAndWaitRanInline { false };
@@ -250,7 +250,7 @@ int main()
     assert(nestedExecuteRanInline.load(std::memory_order_acquire));
     assert(nestedExecuteAndWaitRanInline.load(std::memory_order_acquire));
 
-    lc::ConcurrentExecutor singlePoolExecutor(1);
+    lgc::ConcurrentExecutor singlePoolExecutor(1);
     std::atomic<bool> poolCallerFinished { false };
     std::atomic<bool> poolPostObservedAfterCaller { false };
     status = singlePoolExecutor.executeAndWait([&] {
@@ -276,21 +276,21 @@ int main()
 
     status = poolExecutor.execute([] {});
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unavailable);
+    assert(status.code() == lgc::StatusCode::Unavailable);
 
     status = poolExecutor.post([] {});
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unavailable);
+    assert(status.code() == lgc::StatusCode::Unavailable);
 
     status = poolExecutor.postDelayed(0ms, [] {});
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unavailable);
+    assert(status.code() == lgc::StatusCode::Unavailable);
 
     status = poolExecutor.executeAndWait([] {});
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unavailable);
+    assert(status.code() == lgc::StatusCode::Unavailable);
 
-    auto sharedExecutor = lc::makeConcurrentExecutor(1);
+    auto sharedExecutor = lgc::makeConcurrentExecutor(1);
     std::atomic<bool> ran { false };
     status = sharedExecutor->execute([&ran] {
         ran.store(true, std::memory_order_release);

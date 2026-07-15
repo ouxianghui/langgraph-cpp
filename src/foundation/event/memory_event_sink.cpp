@@ -4,7 +4,7 @@
 
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 MemoryEventSink::MemoryEventSink(MemoryEventSinkOptions options)
     : options_(std::move(options))
@@ -78,4 +78,4 @@ void MemoryEventSink::clear()
     events_.clear();
 }
 
-} // namespace lc
+} // namespace lgc

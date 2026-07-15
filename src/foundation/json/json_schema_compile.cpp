@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lc::json_schema_detail {
+namespace lgc::json_schema_detail {
 
 struct SchemaCompileContext {
     const JsonSchemaOptions& options_;
@@ -378,4 +378,4 @@ struct SchemaCompileContext {
     return compileSchema(schema, "", 0, context);
 }
 
-} // namespace lc::json_schema_detail
+} // namespace lgc::json_schema_detail

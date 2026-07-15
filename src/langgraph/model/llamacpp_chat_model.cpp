@@ -9,7 +9,7 @@
 
 #include <llama.h>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 class LlamaBackend final {
@@ -444,4 +444,4 @@ Result<BaseMessage> LlamaCppChatModel::stream(
     return message;
 }
 
-} // namespace lc
+} // namespace lgc

@@ -21,7 +21,7 @@
 #include <unistd.h>
 #endif
 
-namespace lc {
+namespace lgc {
 namespace {
 
 constexpr char kHexAlphabet[] = "0123456789abcdef";
@@ -415,4 +415,4 @@ Result<std::string> IdGenerator::nextMonotonic()
     }
 }
 
-} // namespace lc
+} // namespace lgc

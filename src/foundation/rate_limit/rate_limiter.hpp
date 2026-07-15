@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <mutex>
 
-namespace lc {
+namespace lgc {
 
 struct RateLimitPolicy {
     std::uint64_t capacity_ { 1 };
@@ -55,4 +55,4 @@ private:
     Clock::TimePoint updatedAt_;
 };
 
-} // namespace lc
+} // namespace lgc

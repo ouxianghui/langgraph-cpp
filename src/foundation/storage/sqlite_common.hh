@@ -9,7 +9,7 @@
 
 #include <sqlite3.h>
 
-namespace lc::sqlite_detail {
+namespace lgc::sqlite_detail {
 
 [[nodiscard]] std::optional<std::string> prefixUpperBound(std::string prefix);
 [[nodiscard]] Status sqliteStatus(sqlite3* db, int code, std::string context);
@@ -28,4 +28,4 @@ namespace lc::sqlite_detail {
     int versionIndex);
 [[nodiscard]] StorageItem itemFromStatement(sqlite3_stmt* statement);
 
-} // namespace lc::sqlite_detail
+} // namespace lgc::sqlite_detail

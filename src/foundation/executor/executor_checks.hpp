@@ -7,7 +7,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc {
+namespace lgc {
 
 [[nodiscard]] inline std::shared_ptr<IExecutor> requireExecutor(
     std::shared_ptr<IExecutor> executor,
@@ -31,4 +31,4 @@ inline void requireOnExecutor(
     }
 }
 
-} // namespace lc
+} // namespace lgc

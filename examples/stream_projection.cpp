@@ -10,36 +10,36 @@
 
 namespace {
 
-std::string streamModeName(lc::StreamMode mode)
+std::string streamModeName(lgc::StreamMode mode)
 {
     switch (mode) {
-    case lc::StreamMode::Events:
+    case lgc::StreamMode::Events:
         return "events";
-    case lc::StreamMode::Updates:
+    case lgc::StreamMode::Updates:
         return "updates";
-    case lc::StreamMode::Values:
+    case lgc::StreamMode::Values:
         return "values";
-    case lc::StreamMode::Messages:
+    case lgc::StreamMode::Messages:
         return "messages";
-    case lc::StreamMode::Custom:
+    case lgc::StreamMode::Custom:
         return "custom";
-    case lc::StreamMode::Checkpoints:
+    case lgc::StreamMode::Checkpoints:
         return "checkpoints";
-    case lc::StreamMode::Tasks:
+    case lgc::StreamMode::Tasks:
         return "tasks";
-    case lc::StreamMode::Debug:
+    case lgc::StreamMode::Debug:
         return "debug";
-    case lc::StreamMode::Interrupts:
+    case lgc::StreamMode::Interrupts:
         return "interrupts";
-    case lc::StreamMode::Errors:
+    case lgc::StreamMode::Errors:
         return "errors";
-    case lc::StreamMode::Output:
+    case lgc::StreamMode::Output:
         return "output";
     }
     return "unknown";
 }
 
-nlohmann::json partToJson(const lc::StreamPart& part)
+nlohmann::json partToJson(const lgc::StreamPart& part)
 {
     const auto mode = streamModeName(part.mode_);
     nlohmann::json out {
@@ -51,17 +51,17 @@ nlohmann::json partToJson(const lc::StreamPart& part)
     if (!part.ns_.empty())
         out["namespace"] = part.ns_;
 
-    if (part.mode_ == lc::StreamMode::Events) {
+    if (part.mode_ == lgc::StreamMode::Events) {
         out["event"] = part.data_.value("event", "");
         out["has_run_id"] = part.data_.contains("run_id");
         out["has_parent_ids"] = part.data_.contains("parent_ids");
         out["has_metadata"] = part.data_.contains("metadata");
-    } else if (part.mode_ == lc::StreamMode::Messages) {
+    } else if (part.mode_ == lgc::StreamMode::Messages) {
         out["data"] = {
             { "event", part.data_.value("event", "") },
             { "text", part.data_.value("text", "") },
         };
-    } else if (part.mode_ == lc::StreamMode::Checkpoints) {
+    } else if (part.mode_ == lgc::StreamMode::Checkpoints) {
         const auto config = part.data_.value("config", nlohmann::json::object());
         const auto configurable = config.value("configurable", nlohmann::json::object());
         out["data"] = {
@@ -78,25 +78,25 @@ nlohmann::json partToJson(const lc::StreamPart& part)
 
 int main()
 {
-    lc::StateGraph graph;
-    if (auto status = graph.addNode("plan", [](const lc::State&, lc::Runtime& context)
-            -> lc::Result<lc::StateUpdate> {
-            auto token = lc::RuntimeEvent::create(lc::RuntimeEventType::Token);
+    lgc::StateGraph graph;
+    if (auto status = graph.addNode("plan", [](const lgc::State&, lgc::Runtime& context)
+            -> lgc::Result<lgc::StateUpdate> {
+            auto token = lgc::RuntimeEvent::create(lgc::RuntimeEventType::Token);
             token.payload_ = { { "text", "planning" } };
             if (auto emitted = context.streamWriter().publish(std::move(token)); !emitted.isOk())
                 return emitted;
             if (auto written = context.streamWriter().write("progress", { { "phase", "plan" }, { "pct", 50 } });
                 !written.isOk())
                 return written;
-            return lc::StateUpdate::fromJson(R"({"status":"planned"})");
+            return lgc::StateUpdate::fromJson(R"({"status":"planned"})");
         });
         !status.isOk()) {
         std::cerr << status.status() << '\n';
         return 1;
     }
 
-    if (auto status = graph.addNode("finish", [](const lc::State&, lc::Runtime&) {
-            return lc::StateUpdate::fromJson(R"({"answer":"dispatch maintenance window"})");
+    if (auto status = graph.addNode("finish", [](const lgc::State&, lgc::Runtime&) {
+            return lgc::StateUpdate::fromJson(R"({"answer":"dispatch maintenance window"})");
         });
         !status.isOk()) {
         std::cerr << status.status() << '\n';
@@ -104,9 +104,9 @@ int main()
     }
 
     const auto edgeStatuses = {
-        graph.addEdge(std::string(lc::START), "plan"),
+        graph.addEdge(std::string(lgc::START), "plan"),
         graph.addEdge("plan", "finish"),
-        graph.addEdge("finish", std::string(lc::END)),
+        graph.addEdge("finish", std::string(lgc::END)),
     };
     for (const auto& status : edgeStatuses) {
         if (!status.isOk()) {
@@ -121,11 +121,11 @@ int main()
         return 1;
     }
 
-    lc::RunOptions options;
+    lgc::RunOptions options;
     options.threadId_ = "stream-projection-demo";
-    options.checkpointer_ = std::make_shared<lc::InMemorySaver>();
+    options.checkpointer_ = std::make_shared<lgc::InMemorySaver>();
 
-    auto input = lc::State::fromJson("{}");
+    auto input = lgc::State::fromJson("{}");
     if (!input.isOk()) {
         std::cerr << input.status() << '\n';
         return 1;
@@ -134,16 +134,16 @@ int main()
     auto streamResult = compiled->streamProjected(
         *input,
         options,
-        lc::RunProjectionOptions {
+        lgc::RunProjectionOptions {
             .modes_ = {
-                lc::StreamMode::Events,
-                lc::StreamMode::Updates,
-                lc::StreamMode::Values,
-                lc::StreamMode::Messages,
-                lc::StreamMode::Custom,
-                lc::StreamMode::Tasks,
-                lc::StreamMode::Checkpoints,
-                lc::StreamMode::Output,
+                lgc::StreamMode::Events,
+                lgc::StreamMode::Updates,
+                lgc::StreamMode::Values,
+                lgc::StreamMode::Messages,
+                lgc::StreamMode::Custom,
+                lgc::StreamMode::Tasks,
+                lgc::StreamMode::Checkpoints,
+                lgc::StreamMode::Output,
             },
             .capacity_ = 64,
             .outputKeys_ = { "answer", "status" },

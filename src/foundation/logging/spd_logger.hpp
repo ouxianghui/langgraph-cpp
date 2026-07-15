@@ -21,7 +21,7 @@
 #include <spdlog/spdlog.h>
 #endif
 
-namespace lc {
+namespace lgc {
 
 #if LC_HAS_EXTERNAL_SPDLOG
 
@@ -92,4 +92,4 @@ private:
 
 #endif
 
-} // namespace lc
+} // namespace lgc

@@ -2,7 +2,7 @@
 
 #include "foundation/async/bounded_channel.hpp"
 
-namespace lc {
+namespace lgc {
 
 /// Thread-safe rendezvous channel.
 ///
@@ -496,4 +496,4 @@ template <typename Handler>
     return otherwise([] {});
 }
 
-} // namespace lc
+} // namespace lgc

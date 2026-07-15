@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 const char* circuitStateName(CircuitState state) noexcept
 {
@@ -248,4 +248,4 @@ Clock::Duration CircuitBreaker::halfOpenRetryAfter(Clock::TimePoint now) const n
     return policy_.halfOpenProbeTimeout_ - elapsed;
 }
 
-} // namespace lc
+} // namespace lgc

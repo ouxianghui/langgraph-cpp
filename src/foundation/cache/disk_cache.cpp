@@ -10,7 +10,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 namespace {
 namespace fs = std::filesystem;
 using namespace cache_detail;
@@ -579,4 +579,4 @@ Status DiskCache::evictOverflow()
     return Status::ok();
 }
 
-} // namespace lc
+} // namespace lgc

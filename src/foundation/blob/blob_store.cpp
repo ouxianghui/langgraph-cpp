@@ -10,7 +10,7 @@
 #include <system_error>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace fs = std::filesystem;
 
 Status validateBlobKey(const BlobKey& key)
@@ -96,4 +96,4 @@ Result<std::optional<BlobKey>> decodeBlobCursor(std::string_view cursor)
     return std::optional<BlobKey>(std::move(key));
 }
 
-} // namespace lc
+} // namespace lgc

@@ -15,7 +15,7 @@ int main()
     using namespace std::chrono_literals;
 
     {
-        lc::Thread thread("test-thread");
+        lgc::Thread thread("test-thread");
         std::vector<int> values;
         std::mutex mutex;
 
@@ -49,7 +49,7 @@ int main()
     }
 
     {
-        lc::Thread thread("busy-thread");
+        lgc::Thread thread("busy-thread");
         std::mutex mutex;
         std::condition_variable cv;
         bool release = false;
@@ -61,7 +61,7 @@ int main()
 
         auto idle = thread.waitIdle(1ms);
         assert(!idle.isOk());
-        assert(idle.code() == lc::StatusCode::DeadlineExceeded);
+        assert(idle.code() == lgc::StatusCode::DeadlineExceeded);
         {
             std::lock_guard lock(mutex);
             release = true;
@@ -71,7 +71,7 @@ int main()
     }
 
     {
-        lc::ThreadPool pool(2, 2);
+        lgc::ThreadPool pool(2, 2);
         std::atomic<int> completed { 0 };
         std::mutex mutex;
         std::condition_variable cv;
@@ -89,10 +89,10 @@ int main()
         }).isOk());
         auto rejected = pool.submit([] {});
         assert(!rejected.isOk());
-        assert(rejected.code() == lc::StatusCode::ResourceExhausted);
+        assert(rejected.code() == lgc::StatusCode::ResourceExhausted);
         auto poolIdle = pool.waitIdle(1ms);
         assert(!poolIdle.isOk());
-        assert(poolIdle.code() == lc::StatusCode::DeadlineExceeded);
+        assert(poolIdle.code() == lgc::StatusCode::DeadlineExceeded);
 
         {
             std::lock_guard lock(mutex);
@@ -103,11 +103,11 @@ int main()
         assert(completed.load(std::memory_order_relaxed) == 2);
         auto afterShutdown = pool.submit([] {});
         assert(!afterShutdown.isOk());
-        assert(afterShutdown.code() == lc::StatusCode::FailedPrecondition);
+        assert(afterShutdown.code() == lgc::StatusCode::FailedPrecondition);
     }
 
     {
-        lc::IntervalTimer timer;
+        lgc::IntervalTimer timer;
         std::mutex mutex;
         std::condition_variable cv;
         int count = 0;
@@ -129,11 +129,11 @@ int main()
         assert(timer.isClosed());
         auto afterClose = timer.start(5ms);
         assert(!afterClose.isOk());
-        assert(afterClose.code() == lc::StatusCode::FailedPrecondition);
+        assert(afterClose.code() == lgc::StatusCode::FailedPrecondition);
     }
 
     {
-        lc::IntervalTimer timer;
+        lgc::IntervalTimer timer;
         std::mutex mutex;
         std::condition_variable cv;
         int count = 0;
@@ -158,7 +158,7 @@ int main()
         std::mutex mutex;
         std::condition_variable cv;
         bool fired = false;
-        auto handle = lc::IntervalTimer::singleShot(5ms, [&] {
+        auto handle = lgc::IntervalTimer::singleShot(5ms, [&] {
             std::lock_guard lock(mutex);
             fired = true;
             cv.notify_all();
@@ -174,7 +174,7 @@ int main()
 
     {
         bool fired = false;
-        auto handle = lc::IntervalTimer::singleShot(100ms, [&] {
+        auto handle = lgc::IntervalTimer::singleShot(100ms, [&] {
             fired = true;
         });
         assert(handle.cancel().isOk());

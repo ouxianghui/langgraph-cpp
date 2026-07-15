@@ -12,7 +12,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc {
+namespace lgc {
 
 enum class EncryptionAlgorithm : std::uint8_t {
     AesGcm,
@@ -156,4 +156,4 @@ private:
     const Ciphertext& payload,
     const DecryptionOptions& options = {});
 
-} // namespace lc
+} // namespace lgc

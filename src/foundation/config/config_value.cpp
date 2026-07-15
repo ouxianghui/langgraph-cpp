@@ -10,7 +10,7 @@
 #include <sstream>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 constexpr std::size_t kMaxConfigKeyLength = 256;
@@ -389,4 +389,4 @@ Status validateConfigKey(std::string_view key)
     return Status::ok();
 }
 
-} // namespace lc
+} // namespace lgc

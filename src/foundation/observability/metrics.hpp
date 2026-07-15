@@ -14,7 +14,7 @@
 #include <utility>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 class Redactor;
 
@@ -217,4 +217,4 @@ private:
 [[nodiscard]] std::string_view metricTypeName(MetricType type) noexcept;
 [[nodiscard]] std::string_view metricOverflowPolicyName(MetricOverflowPolicy policy) noexcept;
 
-} // namespace lc
+} // namespace lgc

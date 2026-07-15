@@ -3,7 +3,7 @@
 #include <chrono>
 #include <mutex>
 
-namespace lc {
+namespace lgc {
 
 /// Monotonic time source used for deadlines, retries, timeouts, and tests.
 ///
@@ -74,4 +74,4 @@ private:
     TimePoint now_;
 };
 
-} // namespace lc
+} // namespace lgc

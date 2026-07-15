@@ -9,7 +9,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc::fuzz {
+namespace lgc::fuzz {
 
 inline constexpr std::size_t kMaxInputBytes = 64 * 1024;
 
@@ -48,4 +48,4 @@ inline constexpr std::size_t kMaxInputBytes = 64 * 1024;
     return nlohmann::json::parse(text, nullptr, false);
 }
 
-} // namespace lc::fuzz
+} // namespace lgc::fuzz

@@ -5,7 +5,7 @@
 #include <random>
 #include <string>
 
-namespace lc {
+namespace lgc {
 
 std::string makeReqUuid8()
 {
@@ -72,4 +72,4 @@ std::string basicAuthHeaderValue(std::string_view clientId, std::string_view cli
     return std::string("Basic ") + base64Encode(credentials);
 }
 
-} // namespace lc
+} // namespace lgc

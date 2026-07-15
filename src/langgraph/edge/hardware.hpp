@@ -15,7 +15,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 using HardwareBytes = std::vector<std::uint8_t>;
 
@@ -262,4 +262,4 @@ private:
     std::shared_ptr<IRos2Adapter> ros2_;
 };
 
-} // namespace lc
+} // namespace lgc

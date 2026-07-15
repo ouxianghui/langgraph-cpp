@@ -5,7 +5,7 @@
 #include <limits>
 #include <string>
 
-namespace lc::http_client_detail {
+namespace lgc::http_client_detail {
 
 Status SseParser::feed(std::string_view chunk, const ServerSentEventCallback& callback)
 {
@@ -111,4 +111,4 @@ void SseParser::reset()
     hasData_ = false;
 }
 
-} // namespace lc::http_client_detail
+} // namespace lgc::http_client_detail

@@ -11,15 +11,15 @@ class IEdgeDeviceAdapter {
 public:
     virtual ~IEdgeDeviceAdapter() = default;
 
-    [[nodiscard]] virtual lc::Result<nlohmann::json> readTemperature(
+    [[nodiscard]] virtual lgc::Result<nlohmann::json> readTemperature(
         const nlohmann::json& input) = 0;
-    [[nodiscard]] virtual lc::Result<nlohmann::json> setRelay(
+    [[nodiscard]] virtual lgc::Result<nlohmann::json> setRelay(
         const nlohmann::json& input) = 0;
 };
 
 class MockEdgeDeviceAdapter final : public IEdgeDeviceAdapter {
 public:
-    [[nodiscard]] lc::Result<nlohmann::json> readTemperature(
+    [[nodiscard]] lgc::Result<nlohmann::json> readTemperature(
         const nlohmann::json& input) override
     {
         return nlohmann::json {
@@ -29,7 +29,7 @@ public:
         };
     }
 
-    [[nodiscard]] lc::Result<nlohmann::json> setRelay(
+    [[nodiscard]] lgc::Result<nlohmann::json> setRelay(
         const nlohmann::json& input) override
     {
         relayState_ = input.at("enabled").get<bool>();
@@ -43,7 +43,7 @@ private:
     bool relayState_ { false };
 };
 
-void require(lc::Result<void> result)
+void require(lgc::Result<void> result)
 {
     if (!result.isOk()) {
         std::cerr << result.status() << '\n';
@@ -51,41 +51,41 @@ void require(lc::Result<void> result)
     }
 }
 
-std::shared_ptr<lc::ToolRegistry> makeEdgeToolRegistry(
+std::shared_ptr<lgc::ToolRegistry> makeEdgeToolRegistry(
     std::shared_ptr<IEdgeDeviceAdapter> adapter)
 {
-    auto registry = std::make_shared<lc::ToolRegistry>();
+    auto registry = std::make_shared<lgc::ToolRegistry>();
 
-    require(registry->add(lc::Tool {
+    require(registry->add(lgc::Tool {
         .name_ = "edge.read_temperature",
         .description_ = "Read a temperature sensor on an edge device.",
-        .inputSchema_ = lc::JsonSchema::object()
-                            .property("sensor", lc::JsonSchema::string(), true)
+        .inputSchema_ = lgc::JsonSchema::object()
+                            .property("sensor", lgc::JsonSchema::string(), true)
                             .additionalProperties(false),
-        .outputSchema_ = lc::JsonSchema::object()
-                             .property("sensor", lc::JsonSchema::string(), true)
-                             .property("celsius", lc::JsonSchema::number(), true)
-                             .property("healthy", lc::JsonSchema::boolean(), true)
+        .outputSchema_ = lgc::JsonSchema::object()
+                             .property("sensor", lgc::JsonSchema::string(), true)
+                             .property("celsius", lgc::JsonSchema::number(), true)
+                             .property("healthy", lgc::JsonSchema::boolean(), true)
                              .additionalProperties(false),
         .callable_ = [device = adapter](
-                         const nlohmann::json& input) -> lc::Result<nlohmann::json> {
+                         const nlohmann::json& input) -> lgc::Result<nlohmann::json> {
             return device->readTemperature(input);
         },
     }));
 
-    require(registry->add(lc::Tool {
+    require(registry->add(lgc::Tool {
         .name_ = "edge.set_relay",
         .description_ = "Set a relay on an edge device.",
-        .inputSchema_ = lc::JsonSchema::object()
-                            .property("relay", lc::JsonSchema::string(), true)
-                            .property("enabled", lc::JsonSchema::boolean(), true)
+        .inputSchema_ = lgc::JsonSchema::object()
+                            .property("relay", lgc::JsonSchema::string(), true)
+                            .property("enabled", lgc::JsonSchema::boolean(), true)
                             .additionalProperties(false),
-        .outputSchema_ = lc::JsonSchema::object()
-                             .property("relay", lc::JsonSchema::string(), true)
-                             .property("enabled", lc::JsonSchema::boolean(), true)
+        .outputSchema_ = lgc::JsonSchema::object()
+                             .property("relay", lgc::JsonSchema::string(), true)
+                             .property("enabled", lgc::JsonSchema::boolean(), true)
                              .additionalProperties(false),
         .callable_ = [device = adapter](
-                         const nlohmann::json& input) -> lc::Result<nlohmann::json> {
+                         const nlohmann::json& input) -> lgc::Result<nlohmann::json> {
             return device->setRelay(input);
         },
     }));
@@ -99,14 +99,14 @@ int main()
 {
     auto registry = makeEdgeToolRegistry(std::make_shared<MockEdgeDeviceAdapter>());
 
-    lc::StateGraph graph;
+    lgc::StateGraph graph;
     require(graph.addNode(
         "tools",
-        lc::ToolNode(registry, lc::ToolNodeOptions {
+        lgc::ToolNode(registry, lgc::ToolNodeOptions {
             .validateOutput_ = true,
         })));
-    require(graph.addEdge(std::string(lc::START), "tools"));
-    require(graph.addEdge("tools", std::string(lc::END)));
+    require(graph.addEdge(std::string(lgc::START), "tools"));
+    require(graph.addEdge("tools", std::string(lgc::END)));
 
     auto compiled = graph.compile();
     if (!compiled.isOk()) {
@@ -114,20 +114,20 @@ int main()
         return 1;
     }
 
-    auto input = lc::State::fromJsonValue({
-        { "messages", lc::messagesToJson({
-            lc::BaseMessage::human("Diagnose the cooling loop."),
-            lc::BaseMessage::ai(
+    auto input = lgc::State::fromJsonValue({
+        { "messages", lgc::messagesToJson({
+            lgc::BaseMessage::human("Diagnose the cooling loop."),
+            lgc::BaseMessage::ai(
                 "",
                 {
-                    lc::ToolCall {
+                    lgc::ToolCall {
                         .id_ = "call-temperature",
                         .name_ = "edge.read_temperature",
                         .args_ = {
                             { "sensor", "cooling-loop" },
                         },
                     },
-                    lc::ToolCall {
+                    lgc::ToolCall {
                         .id_ = "call-relay",
                         .name_ = "edge.set_relay",
                         .args_ = {
@@ -143,8 +143,8 @@ int main()
         return 1;
     }
 
-    lc::RunOptions options;
-    options.reducers_.set("messages", lc::ReducerKind::AddMessages);
+    lgc::RunOptions options;
+    options.reducers_.set("messages", lgc::ReducerKind::AddMessages);
 
     auto result = compiled->invoke(*input, options);
     if (!result.isOk()) {

@@ -7,7 +7,7 @@
 #include <memory>
 #include <utility>
 
-namespace lc::tracing_detail {
+namespace lgc::tracing_detail {
 
 [[nodiscard]] TraceOptions normalizeOptions(TraceOptions options)
 {
@@ -60,4 +60,4 @@ namespace lc::tracing_detail {
     return options.redactor_->redact(std::move(span));
 }
 
-} // namespace lc::tracing_detail
+} // namespace lgc::tracing_detail

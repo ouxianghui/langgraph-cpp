@@ -13,7 +13,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc::detail {
+namespace lgc::detail {
 
 struct ParsedStoreEnvelope {
     StoreNamespace namespace_;
@@ -65,4 +65,4 @@ struct StoredStoreItem {
     const StorageStoreOptions& options,
     std::string_view keyPrefix);
 
-} // namespace lc::detail
+} // namespace lgc::detail

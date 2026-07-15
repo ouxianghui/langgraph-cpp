@@ -9,7 +9,7 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace lc {
+namespace lgc {
 
 struct Secret final {
     Secret() = default;
@@ -65,4 +65,4 @@ private:
 
 [[nodiscard]] Status validateSecretKey(std::string_view name);
 
-} // namespace lc
+} // namespace lgc

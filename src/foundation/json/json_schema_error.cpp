@@ -5,7 +5,7 @@
 #include <string>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 using namespace json_schema_detail;
 
 std::string ValidationError::toString() const
@@ -85,4 +85,4 @@ std::string jsonSchemaTypeName(JsonSchemaType type)
     return "any";
 }
 
-} // namespace lc
+} // namespace lgc

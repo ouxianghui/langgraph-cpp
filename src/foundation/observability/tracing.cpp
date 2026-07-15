@@ -1,6 +1,6 @@
 #include "foundation/observability/tracing.hpp"
 
-namespace lc {
+namespace lgc {
 
 std::string_view spanStatusName(SpanStatus status) noexcept
 {
@@ -30,4 +30,4 @@ std::string_view traceOverflowPolicyName(TraceOverflowPolicy policy) noexcept
     return "unknown";
 }
 
-} // namespace lc
+} // namespace lgc

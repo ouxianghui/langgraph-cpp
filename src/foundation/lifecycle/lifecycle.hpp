@@ -14,7 +14,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 enum class LifecycleState : std::uint8_t {
     Created,
@@ -110,4 +110,4 @@ private:
 
 [[nodiscard]] std::string_view stateName(LifecycleState state) noexcept;
 
-} // namespace lc
+} // namespace lgc

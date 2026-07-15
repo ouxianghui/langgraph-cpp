@@ -9,7 +9,7 @@
 #include <optional>
 #include <string>
 
-namespace lc {
+namespace lgc {
 
 using AuthorizationHandler = std::function<Status(HttpRequest& request)>;
 
@@ -96,4 +96,4 @@ private:
     AuthorizationHandler handler_;
 };
 
-} // namespace lc
+} // namespace lgc

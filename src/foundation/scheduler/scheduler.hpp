@@ -18,7 +18,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc {
+namespace lgc {
 
 namespace detail {
 struct TaskRecord;
@@ -258,4 +258,4 @@ private:
 [[nodiscard]] std::string_view periodicModeName(PeriodicScheduleMode mode) noexcept;
 [[nodiscard]] std::string_view closePolicyName(SchedulerClosePolicy policy) noexcept;
 
-} // namespace lc
+} // namespace lgc

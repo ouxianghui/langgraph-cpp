@@ -1,6 +1,6 @@
 #include "foundation/scheduler/scheduler.hpp"
 
-namespace lc {
+namespace lgc {
 
 std::string_view taskStateName(ScheduledTaskState state) noexcept
 {
@@ -64,4 +64,4 @@ std::string_view closePolicyName(SchedulerClosePolicy policy) noexcept
     return "unknown";
 }
 
-} // namespace lc
+} // namespace lgc

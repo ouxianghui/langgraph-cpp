@@ -2,7 +2,7 @@
 
 #include "foundation/serialization/state_codec_common.hh"
 
-namespace lc {
+namespace lgc {
 namespace {
 using namespace state_codec_detail;
 }
@@ -22,4 +22,4 @@ bool isCheckpointWritePayload(std::string_view contentType) noexcept
     return contentType == kCheckpointWriteJsonContentType;
 }
 
-} // namespace lc
+} // namespace lgc

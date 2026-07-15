@@ -29,19 +29,19 @@ void unsetEnv(const char* name)
 
 int main()
 {
-    assert(lc::validateSecretKey("OPENAI_API_KEY").isOk());
-    assert(lc::validateSecretKey("models/openai.api-key").isOk());
-    assert(lc::validateSecretKey("").code() == lc::StatusCode::InvalidArgument);
-    assert(lc::validateSecretKey("bad name").code() == lc::StatusCode::InvalidArgument);
-    assert(lc::validateSecretKey(std::string(257, 'a')).code() == lc::StatusCode::InvalidArgument);
+    assert(lgc::validateSecretKey("OPENAI_API_KEY").isOk());
+    assert(lgc::validateSecretKey("models/openai.api-key").isOk());
+    assert(lgc::validateSecretKey("").code() == lgc::StatusCode::InvalidArgument);
+    assert(lgc::validateSecretKey("bad name").code() == lgc::StatusCode::InvalidArgument);
+    assert(lgc::validateSecretKey(std::string(257, 'a')).code() == lgc::StatusCode::InvalidArgument);
 
-    lc::Secret secret("sk-test-1234567890");
+    lgc::Secret secret("sk-test-1234567890");
     assert(!secret.empty());
     assert(secret.stringValue() == "sk-test-1234567890");
     assert(secret.bytes().size() == secret.stringValue().size());
     assert(secret.masked() != secret.stringValue());
 
-    lc::MemorySecrets memory;
+    lgc::MemorySecrets memory;
     assert(memory.set("OPENAI_API_KEY", secret).isOk());
     assert(memory.contains("OPENAI_API_KEY"));
 
@@ -50,9 +50,9 @@ int main()
     assert(loaded->stringValue() == "sk-test-1234567890");
     assert(loaded->masked() == secret.masked());
 
-    assert(memory.get("MISSING").status().code() == lc::StatusCode::NotFound);
-    assert(memory.set("bad name", "x").code() == lc::StatusCode::InvalidArgument);
-    assert(memory.remove("MISSING").code() == lc::StatusCode::NotFound);
+    assert(memory.get("MISSING").status().code() == lgc::StatusCode::NotFound);
+    assert(memory.set("bad name", "x").code() == lgc::StatusCode::InvalidArgument);
+    assert(memory.remove("MISSING").code() == lgc::StatusCode::NotFound);
     assert(memory.remove("OPENAI_API_KEY").isOk());
     assert(!memory.contains("OPENAI_API_KEY"));
 
@@ -61,13 +61,13 @@ int main()
     assert(!memory.contains("TOKEN"));
 
     setEnv("LC_SECRET_TEST_TOKEN", "env-token");
-    lc::EnvSecrets env;
+    lgc::EnvSecrets env;
     auto envSecret = env.get("LC_SECRET_TEST_TOKEN");
     assert(envSecret.isOk());
     assert(envSecret->stringValue() == "env-token");
 
     unsetEnv("LC_SECRET_TEST_TOKEN");
-    assert(env.get("LC_SECRET_TEST_TOKEN").status().code() == lc::StatusCode::NotFound);
+    assert(env.get("LC_SECRET_TEST_TOKEN").status().code() == lgc::StatusCode::NotFound);
 
     return 0;
 }

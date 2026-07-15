@@ -14,13 +14,13 @@
 | 入口 | 用途 |
 | --- | --- |
 | `#include <langgraph_cpp/langgraph.hpp>` | 推荐公共聚合头。 |
-| `lc` namespace | 所有公开 runtime 类型所在 namespace。 |
-| `lc::Status` / `lc::Result<T>` | recoverable error contract。 |
-| `lc::State` / `lc::StateUpdate` | JSON-backed state 和 partial update。 |
+| `lgc` namespace | 所有公开 runtime 类型所在 namespace。 |
+| `lgc::Status` / `lgc::Result<T>` | recoverable error contract。 |
+| `lgc::State` / `lgc::StateUpdate` | JSON-backed state 和 partial update。 |
 
 ## 2. Graph Builder
 
-`lc::StateGraph` 是可变 graph declaration builder，不是执行引擎。构建完成后调用 `compile()` 得到不可变 `CompiledStateGraph`。
+`lgc::StateGraph` 是可变 graph declaration builder，不是执行引擎。构建完成后调用 `compile()` 得到不可变 `CompiledStateGraph`。
 
 | API | 说明 |
 | --- | --- |
@@ -42,7 +42,7 @@
 
 ## 3. Compiled Runtime
 
-`lc::CompiledStateGraph` 是不可变可执行图，可被多个 run 复用。每次 run 拥有自己的 state、task queue 和 stream projection state。
+`lgc::CompiledStateGraph` 是不可变可执行图，可被多个 run 复用。每次 run 拥有自己的 state、task queue 和 stream projection state。
 
 | API | 说明 |
 | --- | --- |

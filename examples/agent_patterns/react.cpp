@@ -8,7 +8,7 @@
 
 namespace {
 
-void require(lc::Result<void> result)
+void require(lgc::Result<void> result)
 {
     if (!result.isOk()) {
         std::cerr << result.status() << '\n';
@@ -20,11 +20,11 @@ void require(lc::Result<void> result)
 
 int main()
 {
-    auto model = std::make_shared<lc::FakeChatModel>(std::vector<lc::BaseMessage> {
-        lc::BaseMessage::ai(
+    auto model = std::make_shared<lgc::FakeChatModel>(std::vector<lgc::BaseMessage> {
+        lgc::BaseMessage::ai(
             "Reasoning note: inspect live sensor data before answering.",
             {
-                lc::ToolCall {
+                lgc::ToolCall {
                     .id_ = "call-sensor-1",
                     .name_ = "read_sensor",
                     .args_ = {
@@ -32,18 +32,18 @@ int main()
                     },
                 },
             }),
-        lc::BaseMessage::ai(
+        lgc::BaseMessage::ai(
             "Final: cooling-loop-temperature is 42.5 C; schedule a cooling inspection."),
     });
 
-    auto registry = std::make_shared<lc::ToolRegistry>();
-    lc::Tool sensorTool {
+    auto registry = std::make_shared<lgc::ToolRegistry>();
+    lgc::Tool sensorTool {
         .name_ = "read_sensor",
         .description_ = "Read a named lab device sensor.",
-        .inputSchema_ = lc::JsonSchema::object()
-                            .property("sensor", lc::JsonSchema::string(), true)
+        .inputSchema_ = lgc::JsonSchema::object()
+                            .property("sensor", lgc::JsonSchema::string(), true)
                             .additionalProperties(false),
-        .callable_ = [](const nlohmann::json& input) -> lc::Result<nlohmann::json> {
+        .callable_ = [](const nlohmann::json& input) -> lgc::Result<nlohmann::json> {
             return nlohmann::json {
                 { "sensor", input.at("sensor").get<std::string>() },
                 { "reading_celsius", 42.5 },
@@ -53,18 +53,18 @@ int main()
     };
     require(registry->add(std::move(sensorTool)));
 
-    lc::StateGraph graph;
-    require(graph.addNode("model", lc::makeModelNode(model)));
-    require(graph.addNode("tools", lc::ToolNode(registry)));
-    require(graph.addEdge(std::string(lc::START), "model"));
+    lgc::StateGraph graph;
+    require(graph.addNode("model", lgc::makeModelNode(model)));
+    require(graph.addNode("tools", lgc::ToolNode(registry)));
+    require(graph.addEdge(std::string(lgc::START), "model"));
     require(graph.addConditionalEdges(
         "model",
-        [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::NodeId> {
-            if (lc::toolsCondition(state))
+        [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::NodeId> {
+            if (lgc::toolsCondition(state))
                 return std::string("tools");
-            return std::string(lc::END);
+            return std::string(lgc::END);
         },
-        { "tools", std::string(lc::END) }));
+        { "tools", std::string(lgc::END) }));
     require(graph.addEdge("tools", "model"));
 
     auto compiled = graph.compile();
@@ -73,10 +73,10 @@ int main()
         return 1;
     }
 
-    auto input = lc::State::fromJsonValue({
+    auto input = lgc::State::fromJsonValue({
         { "pattern", "react" },
-        { "messages", lc::messagesToJson({
-                          lc::BaseMessage::human(
+        { "messages", lgc::messagesToJson({
+                          lgc::BaseMessage::human(
                               "Check the cooling loop and recommend the next action."),
                       }) },
     });
@@ -85,8 +85,8 @@ int main()
         return 1;
     }
 
-    lc::RunOptions options;
-    options.reducers_.set("messages", lc::ReducerKind::AddMessages);
+    lgc::RunOptions options;
+    options.reducers_.set("messages", lgc::ReducerKind::AddMessages);
 
     auto result = compiled->invoke(*input, options);
     if (!result.isOk()) {

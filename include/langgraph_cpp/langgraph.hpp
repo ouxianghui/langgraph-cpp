@@ -2,9 +2,10 @@
 
 /// Public aggregate header for the pre-1.0 source API.
 ///
+/// Public types live in namespace `lgc` (langgraph-cpp). The source API is governed
+/// by docs/API_CONTRACT.md; ABI and private layout are not frozen before 1.0.
 /// This header intentionally exposes the embeddable runtime surface rather than
-/// implementation internals. The source API is governed by docs/API_CONTRACT.md;
-/// ABI and private layout are not frozen before 1.0.
+/// implementation internals.
 
 #include "foundation/cancellation/cancellation_token.hpp"
 #include "foundation/executor/concurrent_executor.hpp"

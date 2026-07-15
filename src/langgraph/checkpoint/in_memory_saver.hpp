@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 /// In-memory checkpoint store for tests and single-process examples.
 class InMemorySaver final : public BaseCheckpointSaver {
@@ -34,4 +34,4 @@ private:
     std::map<std::string, std::vector<CheckpointWrite>> writes_;
 };
 
-} // namespace lc
+} // namespace lgc

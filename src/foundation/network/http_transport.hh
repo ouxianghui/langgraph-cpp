@@ -10,11 +10,11 @@
 #include <cstddef>
 #include <string>
 
-namespace lc {
+namespace lgc {
 class Redactor;
 }
 
-namespace lc::http_client_detail {
+namespace lgc::http_client_detail {
 
 [[nodiscard]] std::string formatHeadersForLog(
     const httplib::Headers& hdr,
@@ -52,4 +52,4 @@ void configureClientTimeouts(
     std::chrono::milliseconds readTimeout,
     std::chrono::milliseconds writeTimeout);
 
-} // namespace lc::http_client_detail
+} // namespace lgc::http_client_detail

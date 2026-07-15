@@ -7,7 +7,7 @@
 #include <set>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace detail {
 
 [[nodiscard]] Result<void> validateCheckpointForStore(const Checkpoint& checkpoint)
@@ -473,4 +473,4 @@ Result<DeltaChannelHistories> getDeltaChannelHistoryWith(
 
 } // namespace detail
 
-} // namespace lc
+} // namespace lgc

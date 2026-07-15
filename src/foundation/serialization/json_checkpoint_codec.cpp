@@ -8,7 +8,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 namespace {
 using nlohmann::json;
 using namespace state_codec_detail;
@@ -265,4 +265,4 @@ Result<CheckpointWrite> JsonCheckpointCodec::decodeWrite(const Payload& payload)
     return write;
 }
 
-} // namespace lc
+} // namespace lgc

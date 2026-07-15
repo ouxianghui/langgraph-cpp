@@ -6,7 +6,7 @@
 #include <string_view>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 enum class StatusCode : std::uint8_t {
     Ok = 0,
@@ -226,4 +226,4 @@ inline std::ostream& operator<<(std::ostream& os, const Status& status)
     return os;
 }
 
-} // namespace lc
+} // namespace lgc

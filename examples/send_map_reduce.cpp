@@ -6,7 +6,7 @@
 
 namespace {
 
-bool ok(const lc::Result<void>& result)
+bool ok(const lgc::Result<void>& result)
 {
     if (result.isOk())
         return true;
@@ -18,29 +18,29 @@ bool ok(const lc::Result<void>& result)
 
 int main()
 {
-    lc::StateGraph graph;
+    lgc::StateGraph graph;
 
-    if (!ok(graph.addNode("plan", [](const lc::State&, lc::Runtime&) {
-            return lc::StateUpdate::fromJson(R"({"subjects":["edge","robot","sensor"]})");
+    if (!ok(graph.addNode("plan", [](const lgc::State&, lgc::Runtime&) {
+            return lgc::StateUpdate::fromJson(R"({"subjects":["edge","robot","sensor"]})");
         }))) {
         return 1;
     }
-    if (!ok(graph.addNode("generate", [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::StateUpdate> {
+    if (!ok(graph.addNode("generate", [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
             auto json = state.toJson();
             if (!json.isOk())
                 return json.status();
             const auto subject = json->at("subject").get<std::string>();
-            return lc::StateUpdate::fromJsonValue({
+            return lgc::StateUpdate::fromJsonValue({
                 { "drafts", nlohmann::json::array({ subject + "-draft" }) },
             });
         }))) {
         return 1;
     }
-    if (!ok(graph.addNode("join", [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::StateUpdate> {
+    if (!ok(graph.addNode("join", [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
             auto json = state.toJson();
             if (!json.isOk())
                 return json.status();
-            return lc::StateUpdate::fromJsonValue({
+            return lgc::StateUpdate::fromJsonValue({
                 { "draft_count", json->at("drafts").size() },
                 { "joined", true },
             });
@@ -48,23 +48,23 @@ int main()
         return 1;
     }
 
-    if (!ok(graph.addEdge(std::string(lc::START), "plan")))
+    if (!ok(graph.addEdge(std::string(lgc::START), "plan")))
         return 1;
     if (!ok(graph.addConditionalEdges(
             "plan",
-            [](const lc::State& state, lc::Runtime&) -> lc::Result<std::vector<lc::Send>> {
+            [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<std::vector<lgc::Send>> {
                 auto json = state.toJson();
                 if (!json.isOk())
                     return json.status();
 
-                std::vector<lc::Send> sends;
+                std::vector<lgc::Send> sends;
                 for (const auto& subject : json->at("subjects")) {
-                    auto branch = lc::State::fromJsonValue({
+                    auto branch = lgc::State::fromJsonValue({
                         { "subject", subject },
                     });
                     if (!branch.isOk())
                         return branch.status();
-                    sends.push_back(lc::Send("generate", std::move(*branch)));
+                    sends.push_back(lgc::Send("generate", std::move(*branch)));
                 }
                 return sends;
             },
@@ -73,7 +73,7 @@ int main()
     }
     if (!ok(graph.addEdge("generate", "join")))
         return 1;
-    if (!ok(graph.addEdge("join", std::string(lc::END))))
+    if (!ok(graph.addEdge("join", std::string(lgc::END))))
         return 1;
 
     auto compiled = graph.compile();
@@ -82,10 +82,10 @@ int main()
         return 1;
     }
 
-    lc::RunOptions options;
-    options.reducers_.set("drafts", lc::ReducerKind::Append);
+    lgc::RunOptions options;
+    options.reducers_.set("drafts", lgc::ReducerKind::Append);
 
-    auto input = lc::State::fromJson("{}");
+    auto input = lgc::State::fromJson("{}");
     if (!input.isOk()) {
         std::cerr << input.status().toString() << '\n';
         return 1;

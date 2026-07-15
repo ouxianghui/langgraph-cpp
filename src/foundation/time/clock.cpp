@@ -2,7 +2,7 @@
 
 #include <chrono>
 
-namespace lc {
+namespace lgc {
 
 const SteadyClock& SteadyClock::instance() noexcept
 {
@@ -72,4 +72,4 @@ void ManualWallClock::advance(Duration delta) noexcept
     now_ += delta;
 }
 
-} // namespace lc
+} // namespace lgc

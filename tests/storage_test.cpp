@@ -36,7 +36,7 @@ namespace {
     return out;
 }
 
-[[nodiscard]] nlohmann::json namespaceJson(const lc::StoreNamespace& nameSpace)
+[[nodiscard]] nlohmann::json namespaceJson(const lgc::StoreNamespace& nameSpace)
 {
     auto out = nlohmann::json::array();
     for (const auto& part : nameSpace)
@@ -44,8 +44,8 @@ namespace {
     return out;
 }
 
-[[nodiscard]] lc::StorageKey storageStoreKey(
-    const lc::StoreNamespace& nameSpace,
+[[nodiscard]] lgc::StorageKey storageStoreKey(
+    const lgc::StoreNamespace& nameSpace,
     std::string_view key)
 {
     std::string storageKey = "items/";
@@ -55,18 +55,18 @@ namespace {
     }
     storageKey.append("@/");
     storageKey.append(hexEncode(key));
-    return lc::StorageKey {
+    return lgc::StorageKey {
         .scope_ = "langgraph/store",
         .key_ = std::move(storageKey),
     };
 }
 
-void exerciseStorage(lc::IStorage& storage)
+void exerciseStorage(lgc::IStorage& storage)
 {
-    const lc::StorageKey first { .scope_ = "thread-a", .key_ = "checkpoint-1" };
-    const lc::StorageKey second { .scope_ = "thread-a", .key_ = "checkpoint-2" };
-    const lc::StorageKey third { .scope_ = "thread-a", .key_ = "checkpoint-3" };
-    const lc::StorageKey otherScope { .scope_ = "thread-b", .key_ = "checkpoint-1" };
+    const lgc::StorageKey first { .scope_ = "thread-a", .key_ = "checkpoint-1" };
+    const lgc::StorageKey second { .scope_ = "thread-a", .key_ = "checkpoint-2" };
+    const lgc::StorageKey third { .scope_ = "thread-a", .key_ = "checkpoint-3" };
+    const lgc::StorageKey otherScope { .scope_ = "thread-b", .key_ = "checkpoint-1" };
 
     assert(storage.put(first, R"({"step":1})").isOk());
     assert(storage.put(second, R"({"step":2})").isOk());
@@ -81,25 +81,25 @@ void exerciseStorage(lc::IStorage& storage)
     assert((*item)->version_ == 1);
     const auto createdAt = (*item)->createdAt_;
 
-    auto duplicate = storage.put(first, "duplicate", lc::StoragePutOptions {
-        .mode_ = lc::StoragePutMode::InsertOnly,
+    auto duplicate = storage.put(first, "duplicate", lgc::StoragePutOptions {
+        .mode_ = lgc::StoragePutMode::InsertOnly,
     });
     assert(!duplicate.isOk());
-    assert(duplicate.status().code() == lc::StatusCode::AlreadyExists);
+    assert(duplicate.status().code() == lgc::StatusCode::AlreadyExists);
 
-    auto missingReplace = storage.put({ .scope_ = "thread-a", .key_ = "missing" }, "missing", lc::StoragePutOptions {
-        .mode_ = lc::StoragePutMode::ReplaceOnly,
+    auto missingReplace = storage.put({ .scope_ = "thread-a", .key_ = "missing" }, "missing", lgc::StoragePutOptions {
+        .mode_ = lgc::StoragePutMode::ReplaceOnly,
     });
     assert(!missingReplace.isOk());
-    assert(missingReplace.status().code() == lc::StatusCode::NotFound);
+    assert(missingReplace.status().code() == lgc::StatusCode::NotFound);
 
-    auto mismatch = storage.put(first, R"({"step":9})", lc::StoragePutOptions {
+    auto mismatch = storage.put(first, R"({"step":9})", lgc::StoragePutOptions {
         .expectedVersion_ = 99,
     });
     assert(!mismatch.isOk());
-    assert(mismatch.status().code() == lc::StatusCode::FailedPrecondition);
+    assert(mismatch.status().code() == lgc::StatusCode::FailedPrecondition);
 
-    assert(storage.put(first, R"({"step":10})", lc::StoragePutOptions {
+    assert(storage.put(first, R"({"step":10})", lgc::StoragePutOptions {
         .expectedVersion_ = 1,
     }).isOk());
     item = storage.get(first);
@@ -110,7 +110,7 @@ void exerciseStorage(lc::IStorage& storage)
     assert((*item)->updatedAt_ >= createdAt);
     assert((*item)->version_ == 2);
 
-    auto list = storage.list(lc::StorageListOptions {
+    auto list = storage.list(lgc::StorageListOptions {
         .scope_ = "thread-a",
         .keyPrefix_ = "checkpoint-",
     });
@@ -121,7 +121,7 @@ void exerciseStorage(lc::IStorage& storage)
     assert(list->items_[2].key_.key_ == "checkpoint-3");
     assert(list->nextCursor_.empty());
 
-    auto firstPage = storage.list(lc::StorageListOptions {
+    auto firstPage = storage.list(lgc::StorageListOptions {
         .scope_ = "thread-a",
         .keyPrefix_ = "checkpoint-",
         .limit_ = 1,
@@ -130,7 +130,7 @@ void exerciseStorage(lc::IStorage& storage)
     assert(firstPage->items_.size() == 1);
     assert(!firstPage->nextCursor_.empty());
 
-    auto secondPage = storage.list(lc::StorageListOptions {
+    auto secondPage = storage.list(lgc::StorageListOptions {
         .scope_ = "thread-a",
         .keyPrefix_ = "checkpoint-",
         .limit_ = 2,
@@ -148,20 +148,20 @@ void exerciseStorage(lc::IStorage& storage)
     assert(!item->has_value());
 
     assert(storage.clearScope("thread-a").isOk());
-    list = storage.list(lc::StorageListOptions { .scope_ = "thread-a" });
+    list = storage.list(lgc::StorageListOptions { .scope_ = "thread-a" });
     assert(list.isOk());
     assert(list->items_.empty());
 
-    list = storage.list(lc::StorageListOptions { .scope_ = "thread-b" });
+    list = storage.list(lgc::StorageListOptions { .scope_ = "thread-b" });
     assert(list.isOk());
     assert(list->items_.size() == 1);
 
-    auto invalidCursor = storage.list(lc::StorageListOptions { .cursor_ = "not-a-cursor" });
+    auto invalidCursor = storage.list(lgc::StorageListOptions { .cursor_ = "not-a-cursor" });
     assert(!invalidCursor.isOk());
-    assert(invalidCursor.status().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidCursor.status().code() == lgc::StatusCode::InvalidArgument);
 }
 
-void exerciseStore(lc::BaseStore& store)
+void exerciseStore(lgc::BaseStore& store)
 {
     const std::vector<std::string> ns { "agents", "thread-a" };
 
@@ -184,7 +184,7 @@ void exerciseStore(lc::BaseStore& store)
     assert(missing.isOk());
     assert(!missing->has_value());
 
-    auto agents = store.search(lc::StoreSearchOptions {
+    auto agents = store.search(lgc::StoreSearchOptions {
         .namespacePrefix_ = { "agents" },
     });
     assert(agents.isOk());
@@ -192,7 +192,7 @@ void exerciseStore(lc::BaseStore& store)
     assert(agents->at(0).namespace_ == std::vector<std::string>({ "agents", "thread-a" }));
     assert(agents->at(1).namespace_ == std::vector<std::string>({ "agents", "thread-b" }));
 
-    auto limited = store.search(lc::StoreSearchOptions {
+    auto limited = store.search(lgc::StoreSearchOptions {
         .namespacePrefix_ = { "agents" },
         .limit_ = 1,
         .offset_ = 1,
@@ -202,7 +202,7 @@ void exerciseStore(lc::BaseStore& store)
     assert(limited->front().namespace_ == std::vector<std::string>({ "agents", "thread-b" }));
     assert(!limited->front().score_.has_value());
 
-    auto filtered = store.search(lc::StoreSearchOptions {
+    auto filtered = store.search(lgc::StoreSearchOptions {
         .namespacePrefix_ = { "agents" },
         .filter_ = nlohmann::json {
             { "score", { { "$gte", 7 } } },
@@ -212,7 +212,7 @@ void exerciseStore(lc::BaseStore& store)
     assert(filtered->size() == 1);
     assert(filtered->front().namespace_ == ns);
 
-    auto missingFilter = store.search(lc::StoreSearchOptions {
+    auto missingFilter = store.search(lgc::StoreSearchOptions {
         .namespacePrefix_ = { "agents" },
         .filter_ = nlohmann::json {
             { "score", { { "$gt", 99 } } },
@@ -221,14 +221,14 @@ void exerciseStore(lc::BaseStore& store)
     assert(missingFilter.isOk());
     assert(missingFilter->empty());
 
-    auto unsupportedQuery = store.search(lc::StoreSearchOptions {
+    auto unsupportedQuery = store.search(lgc::StoreSearchOptions {
         .namespacePrefix_ = { "agents" },
         .query_ = std::string("edge profile"),
     });
     assert(!unsupportedQuery.isOk());
-    assert(unsupportedQuery.status().code() == lc::StatusCode::Unimplemented);
+    assert(unsupportedQuery.status().code() == lgc::StatusCode::Unimplemented);
 
-    auto namespaces = store.listNamespaces(lc::StoreListNamespacesOptions {
+    auto namespaces = store.listNamespaces(lgc::StoreListNamespacesOptions {
         .prefix_ = { "agents" },
     });
     assert(namespaces.isOk());
@@ -236,7 +236,7 @@ void exerciseStore(lc::BaseStore& store)
     assert(namespaces->at(0) == std::vector<std::string>({ "agents", "thread-a" }));
     assert(namespaces->at(1) == std::vector<std::string>({ "agents", "thread-b" }));
 
-    auto shallowNamespaces = store.listNamespaces(lc::StoreListNamespacesOptions {
+    auto shallowNamespaces = store.listNamespaces(lgc::StoreListNamespacesOptions {
         .prefix_ = { "agents" },
         .maxDepth_ = 1,
     });
@@ -244,7 +244,7 @@ void exerciseStore(lc::BaseStore& store)
     assert(shallowNamespaces->size() == 1);
     assert(shallowNamespaces->front() == std::vector<std::string>({ "agents" }));
 
-    auto suffixedNamespaces = store.listNamespaces(lc::StoreListNamespacesOptions {
+    auto suffixedNamespaces = store.listNamespaces(lgc::StoreListNamespacesOptions {
         .suffix_ = { "thread-a" },
     });
     assert(suffixedNamespaces.isOk());
@@ -252,23 +252,23 @@ void exerciseStore(lc::BaseStore& store)
     assert(suffixedNamespaces->at(0) == std::vector<std::string>({ "agents", "thread-a" }));
     assert(suffixedNamespaces->at(1) == std::vector<std::string>({ "logs", "thread-a" }));
 
-    auto batch = store.batch(std::vector<lc::StoreOp> {
-        lc::StoreGetOp {
+    auto batch = store.batch(std::vector<lgc::StoreOp> {
+        lgc::StoreGetOp {
             .namespace_ = ns,
             .key_ = "profile",
         },
-        lc::StoreSearchOp {
+        lgc::StoreSearchOp {
             .namespacePrefix_ = { "agents" },
         },
-        lc::StorePutOp {
+        lgc::StorePutOp {
             .namespace_ = { "agents", "thread-c" },
             .key_ = "profile",
             .value_ = nlohmann::json { { "name", "batched" } },
         },
-        lc::StoreListNamespacesOp {
+        lgc::StoreListNamespacesOp {
             .matchConditions_ = {
-                lc::StoreNamespaceMatchCondition {
-                    .matchType_ = lc::StoreNamespaceMatchType::Prefix,
+                lgc::StoreNamespaceMatchCondition {
+                    .matchType_ = lgc::StoreNamespaceMatchType::Prefix,
                     .path_ = { "agents" },
                 },
             },
@@ -276,14 +276,14 @@ void exerciseStore(lc::BaseStore& store)
     });
     assert(batch.isOk());
     assert(batch->size() == 4);
-    const auto* batchItem = std::get_if<lc::StoreItem>(&batch->at(0));
+    const auto* batchItem = std::get_if<lgc::StoreItem>(&batch->at(0));
     assert(batchItem != nullptr);
     assert(batchItem->key_ == "profile");
-    const auto* batchSearch = std::get_if<std::vector<lc::StoreSearchItem>>(&batch->at(1));
+    const auto* batchSearch = std::get_if<std::vector<lgc::StoreSearchItem>>(&batch->at(1));
     assert(batchSearch != nullptr);
     assert(batchSearch->size() == 2);
     assert(std::holds_alternative<std::monostate>(batch->at(2)));
-    const auto* batchNamespaces = std::get_if<std::vector<lc::StoreNamespace>>(&batch->at(3));
+    const auto* batchNamespaces = std::get_if<std::vector<lgc::StoreNamespace>>(&batch->at(3));
     assert(batchNamespaces != nullptr);
     assert(batchNamespaces->size() == 2);
 
@@ -292,7 +292,7 @@ void exerciseStore(lc::BaseStore& store)
     assert(batchInserted->has_value());
     assert((*batchInserted)->value_.at("name") == "batched");
 
-    auto wildcardNamespaces = store.listNamespaces(lc::StoreListNamespacesOptions {
+    auto wildcardNamespaces = store.listNamespaces(lgc::StoreListNamespacesOptions {
         .prefix_ = { "*", "thread-a" },
     });
     assert(wildcardNamespaces.isOk());
@@ -300,16 +300,16 @@ void exerciseStore(lc::BaseStore& store)
     assert(wildcardNamespaces->at(0) == std::vector<std::string>({ "agents", "thread-a" }));
     assert(wildcardNamespaces->at(1) == std::vector<std::string>({ "logs", "thread-a" }));
 
-    auto deleteBatch = store.batch(std::vector<lc::StoreOp> {
-        lc::StorePutOp {
+    auto deleteBatch = store.batch(std::vector<lgc::StoreOp> {
+        lgc::StorePutOp {
             .namespace_ = { "agents", "thread-b" },
             .key_ = "profile",
             .value_ = std::nullopt,
         },
-        lc::StoreListNamespacesOp {
+        lgc::StoreListNamespacesOp {
             .matchConditions_ = {
-                lc::StoreNamespaceMatchCondition {
-                    .matchType_ = lc::StoreNamespaceMatchType::Prefix,
+                lgc::StoreNamespaceMatchCondition {
+                    .matchType_ = lgc::StoreNamespaceMatchType::Prefix,
                     .path_ = { "agents" },
                 },
             },
@@ -318,14 +318,14 @@ void exerciseStore(lc::BaseStore& store)
     assert(deleteBatch.isOk());
     assert(deleteBatch->size() == 2);
     assert(std::holds_alternative<std::monostate>(deleteBatch->at(0)));
-    const auto* namespacesBeforeDelete = std::get_if<std::vector<lc::StoreNamespace>>(&deleteBatch->at(1));
+    const auto* namespacesBeforeDelete = std::get_if<std::vector<lgc::StoreNamespace>>(&deleteBatch->at(1));
     assert(namespacesBeforeDelete != nullptr);
     assert(namespacesBeforeDelete->size() == 3);
 
     auto batchDeleted = store.get({ "agents", "thread-b" }, "profile");
     assert(batchDeleted.isOk());
     assert(!batchDeleted->has_value());
-    auto agentsAfterBatchDelete = store.search(lc::StoreSearchOptions {
+    auto agentsAfterBatchDelete = store.search(lgc::StoreSearchOptions {
         .namespacePrefix_ = { "agents" },
     });
     assert(agentsAfterBatchDelete.isOk());
@@ -341,19 +341,19 @@ void exerciseStore(lc::BaseStore& store)
 
     auto invalid = store.put({ "" }, "profile", nlohmann::json::object());
     assert(!invalid.isOk());
-    assert(invalid.status().code() == lc::StatusCode::InvalidArgument);
+    assert(invalid.status().code() == lgc::StatusCode::InvalidArgument);
 
     auto emptyNamespace = store.put({}, "profile", nlohmann::json::object());
     assert(!emptyNamespace.isOk());
-    assert(emptyNamespace.status().code() == lc::StatusCode::InvalidArgument);
+    assert(emptyNamespace.status().code() == lgc::StatusCode::InvalidArgument);
 
     auto dottedNamespace = store.put({ "agent.v1" }, "profile", nlohmann::json::object());
     assert(!dottedNamespace.isOk());
-    assert(dottedNamespace.status().code() == lc::StatusCode::InvalidArgument);
+    assert(dottedNamespace.status().code() == lgc::StatusCode::InvalidArgument);
 
     auto reservedNamespace = store.put({ "langgraph", "system" }, "profile", nlohmann::json::object());
     assert(!reservedNamespace.isOk());
-    assert(reservedNamespace.status().code() == lc::StatusCode::InvalidArgument);
+    assert(reservedNamespace.status().code() == lgc::StatusCode::InvalidArgument);
 
     auto allItems = store.search();
     assert(allItems.isOk());
@@ -362,12 +362,12 @@ void exerciseStore(lc::BaseStore& store)
 
 void exerciseStorageStoreSchemaMaintenance()
 {
-    auto storage = std::make_shared<lc::MemoryStorage>();
-    lc::StorageStore store(storage, lc::StorageStoreOptions {
+    auto storage = std::make_shared<lgc::MemoryStorage>();
+    lgc::StorageStore store(storage, lgc::StorageStoreOptions {
                                        .listPageSize_ = 1,
                                    });
 
-    const lc::StoreNamespace legacyNamespace { "legacy", "thread-a" };
+    const lgc::StoreNamespace legacyNamespace { "legacy", "thread-a" };
     const auto legacyKey = storageStoreKey(legacyNamespace, "profile");
     const nlohmann::json legacyEnvelope {
         { "namespace", namespaceJson(legacyNamespace) },
@@ -390,7 +390,7 @@ void exerciseStorageStoreSchemaMaintenance()
     assert(rewrittenEnvelope.at("schema_version") == 1);
     assert(rewrittenEnvelope.at("value").at("name") == "rewritten");
 
-    const lc::StoreNamespace futureNamespace { "legacy", "future" };
+    const lgc::StoreNamespace futureNamespace { "legacy", "future" };
     const nlohmann::json futureEnvelope {
         { "schema_version", 999 },
         { "namespace", namespaceJson(futureNamespace) },
@@ -400,7 +400,7 @@ void exerciseStorageStoreSchemaMaintenance()
     assert(storage->put(storageStoreKey(futureNamespace, "profile"), futureEnvelope.dump()).isOk());
     auto futureLoaded = store.get(futureNamespace, "profile");
     assert(!futureLoaded.isOk());
-    assert(futureLoaded.status().code() == lc::StatusCode::Unimplemented);
+    assert(futureLoaded.status().code() == lgc::StatusCode::Unimplemented);
 }
 
 std::filesystem::path temporaryDatabasePath()
@@ -414,37 +414,37 @@ std::filesystem::path temporaryDatabasePath()
 
 int main()
 {
-    lc::MemoryStorage memoryStorage;
+    lgc::MemoryStorage memoryStorage;
     exerciseStorage(memoryStorage);
 
-    lc::InMemoryStore memoryStore;
+    lgc::InMemoryStore memoryStore;
     exerciseStore(memoryStore);
 
-    auto memoryStoreStorage = std::make_shared<lc::MemoryStorage>();
-    lc::StorageStore memoryBackedStore(memoryStoreStorage);
+    auto memoryStoreStorage = std::make_shared<lgc::MemoryStorage>();
+    lgc::StorageStore memoryBackedStore(memoryStoreStorage);
     exerciseStore(memoryBackedStore);
     exerciseStorageStoreSchemaMaintenance();
 
-    auto invalid = memoryStorage.put(lc::StorageKey { .scope_ = "", .key_ = "key" }, "value");
+    auto invalid = memoryStorage.put(lgc::StorageKey { .scope_ = "", .key_ = "key" }, "value");
     assert(!invalid.isOk());
-    assert(invalid.status().code() == lc::StatusCode::InvalidArgument);
+    assert(invalid.status().code() == lgc::StatusCode::InvalidArgument);
 
     auto invalidClear = memoryStorage.clearScope("");
     assert(!invalidClear.isOk());
-    assert(invalidClear.status().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidClear.status().code() == lgc::StatusCode::InvalidArgument);
 
-    assert(lc::storageKeyFromCursor("999:short").status().code() == lc::StatusCode::InvalidArgument);
+    assert(lgc::storageKeyFromCursor("999:short").status().code() == lgc::StatusCode::InvalidArgument);
 
     assert(memoryStorage.flush().isOk());
     assert(memoryStorage.close().isOk());
     assert(memoryStorage.isClosed());
     auto afterMemoryClose = memoryStorage.get({ .scope_ = "thread-b", .key_ = "checkpoint-1" });
     assert(!afterMemoryClose.isOk());
-    assert(afterMemoryClose.status().code() == lc::StatusCode::Unavailable);
+    assert(afterMemoryClose.status().code() == lgc::StatusCode::Unavailable);
 
-    lc::ManualWallClock wall(lc::WallClock::TimePoint(std::chrono::milliseconds(42)));
-    lc::MemoryStorage limitedStorage(
-        lc::StorageLimits {
+    lgc::ManualWallClock wall(lgc::WallClock::TimePoint(std::chrono::milliseconds(42)));
+    lgc::MemoryStorage limitedStorage(
+        lgc::StorageLimits {
             .maxScopeBytes_ = 16,
             .maxKeyBytes_ = 16,
             .maxValueBytes_ = 4,
@@ -456,20 +456,20 @@ int main()
     auto limitedItem = limitedStorage.get({ .scope_ = "scope", .key_ = "key" });
     assert(limitedItem.isOk());
     assert(limitedItem->has_value());
-    assert((*limitedItem)->createdAt_ == lc::WallClock::TimePoint(std::chrono::milliseconds(42)));
+    assert((*limitedItem)->createdAt_ == lgc::WallClock::TimePoint(std::chrono::milliseconds(42)));
     assert(limitedStorage.put({ .scope_ = "scope", .key_ = "too-many" }, "1").status().code()
-        == lc::StatusCode::ResourceExhausted);
+        == lgc::StatusCode::ResourceExhausted);
     assert(limitedStorage.put({ .scope_ = "scope", .key_ = "key" }, "12345").status().code()
-        == lc::StatusCode::ResourceExhausted);
-    assert(limitedStorage.list(lc::StorageListOptions { .limit_ = 0 }).status().code()
-        == lc::StatusCode::InvalidArgument);
-    assert(limitedStorage.list(lc::StorageListOptions { .limit_ = 3 }).status().code()
-        == lc::StatusCode::ResourceExhausted);
+        == lgc::StatusCode::ResourceExhausted);
+    assert(limitedStorage.list(lgc::StorageListOptions { .limit_ = 0 }).status().code()
+        == lgc::StatusCode::InvalidArgument);
+    assert(limitedStorage.list(lgc::StorageListOptions { .limit_ = 3 }).status().code()
+        == lgc::StatusCode::ResourceExhausted);
 
 #if LANGGRAPH_CPP_WITH_SQLITE
-    lc::SQLiteStorageOptions invalidOptions;
+    lgc::SQLiteStorageOptions invalidOptions;
     invalidOptions.busyTimeout_ = std::chrono::milliseconds(-1);
-    assert(invalidOptions.validate().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidOptions.validate().code() == lgc::StatusCode::InvalidArgument);
 
     const auto path = temporaryDatabasePath();
     const auto backupPath = temporaryDatabasePath();
@@ -477,7 +477,7 @@ int main()
     std::filesystem::remove(backupPath);
 
     {
-        lc::SQLiteStorage sqliteStorage(path.string());
+        lgc::SQLiteStorage sqliteStorage(path.string());
         assert(sqliteStorage.open().isOk());
         assert(sqliteStorage.isOpen());
         exerciseStorage(sqliteStorage);
@@ -489,11 +489,11 @@ int main()
         assert(sqliteStorage.isClosed());
         auto afterClose = sqliteStorage.get({ .scope_ = "thread-persisted", .key_ = "latest" });
         assert(!afterClose.isOk());
-        assert(afterClose.status().code() == lc::StatusCode::Unavailable);
+        assert(afterClose.status().code() == lgc::StatusCode::Unavailable);
     }
 
     {
-        lc::SQLiteStorage reopened(path.string());
+        lgc::SQLiteStorage reopened(path.string());
         auto persisted = reopened.get({ .scope_ = "thread-persisted", .key_ = "latest" });
         assert(persisted.isOk());
         assert(persisted->has_value());
@@ -502,7 +502,7 @@ int main()
     }
 
     {
-        lc::SQLiteStorage backup(backupPath.string());
+        lgc::SQLiteStorage backup(backupPath.string());
         auto persisted = backup.get({ .scope_ = "thread-persisted", .key_ = "latest" });
         assert(persisted.isOk());
         assert(persisted->has_value());
@@ -513,15 +513,15 @@ int main()
         const auto storePath = temporaryDatabasePath();
         std::filesystem::remove(storePath);
         {
-            auto sqliteStorage = std::make_shared<lc::SQLiteStorage>(storePath.string());
-            lc::StorageStore store(sqliteStorage);
+            auto sqliteStorage = std::make_shared<lgc::SQLiteStorage>(storePath.string());
+            lgc::StorageStore store(sqliteStorage);
             exerciseStore(store);
             assert(store.put({ "agents", "thread-a" }, "profile", { { "name", "persisted" } }).isOk());
             assert(sqliteStorage->close().isOk());
         }
         {
-            auto reopenedStorage = std::make_shared<lc::SQLiteStorage>(storePath.string());
-            lc::StorageStore store(reopenedStorage);
+            auto reopenedStorage = std::make_shared<lgc::SQLiteStorage>(storePath.string());
+            lgc::StorageStore store(reopenedStorage);
             auto item = store.get({ "agents", "thread-a" }, "profile");
             assert(item.isOk());
             assert(item->has_value());
@@ -534,7 +534,7 @@ int main()
     {
         const auto pressurePath = temporaryDatabasePath();
         std::filesystem::remove(pressurePath);
-        lc::SQLiteStorage pressure(pressurePath.string());
+        lgc::SQLiteStorage pressure(pressurePath.string());
         constexpr int count = 256;
         for (int i = 0; i < count; ++i) {
             const auto key = "checkpoint-" + std::to_string(100000 + i);
@@ -545,7 +545,7 @@ int main()
         std::string cursor;
         int seen = 0;
         do {
-            auto page = pressure.list(lc::StorageListOptions {
+            auto page = pressure.list(lgc::StorageListOptions {
                 .scope_ = "thread-pressure",
                 .keyPrefix_ = "checkpoint-",
                 .limit_ = 17,
@@ -567,27 +567,27 @@ int main()
     {
         const auto lockPath = temporaryDatabasePath();
         std::filesystem::remove(lockPath);
-        const lc::SQLiteStorageOptions lockOptions {
+        const lgc::SQLiteStorageOptions lockOptions {
             .useProcessLock_ = true,
         };
 
-        lc::SQLiteStorage first(
+        lgc::SQLiteStorage first(
             lockPath.string(),
-            lc::Logger::defaultLogger(),
+            lgc::Logger::defaultLogger(),
             {},
-            lc::SystemWallClock::instance(),
+            lgc::SystemWallClock::instance(),
             lockOptions);
         assert(first.open().isOk());
 
-        lc::SQLiteStorage second(
+        lgc::SQLiteStorage second(
             lockPath.string(),
-            lc::Logger::defaultLogger(),
+            lgc::Logger::defaultLogger(),
             {},
-            lc::SystemWallClock::instance(),
+            lgc::SystemWallClock::instance(),
             lockOptions);
         auto locked = second.open();
         assert(!locked.isOk());
-        assert(locked.status().code() == lc::StatusCode::FailedPrecondition);
+        assert(locked.status().code() == lgc::StatusCode::FailedPrecondition);
 
         assert(first.close().isOk());
         assert(second.open().isOk());
@@ -596,7 +596,7 @@ int main()
     }
 
     {
-        lc::SQLiteStorage invalid(std::filesystem::temp_directory_path().string());
+        lgc::SQLiteStorage invalid(std::filesystem::temp_directory_path().string());
         assert(!invalid.open().isOk());
     }
 

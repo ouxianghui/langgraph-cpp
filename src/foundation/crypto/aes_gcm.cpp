@@ -10,7 +10,7 @@
 
 #include <openssl/evp.h>
 
-namespace lc {
+namespace lgc {
 namespace {
 using namespace encryption_detail;
 
@@ -261,4 +261,4 @@ const std::string& AesGcm::defaultKeyId() const noexcept
     return defaultKeyId_;
 }
 
-} // namespace lc
+} // namespace lgc

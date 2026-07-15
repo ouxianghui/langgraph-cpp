@@ -9,12 +9,12 @@
 #include <memory>
 #include <string>
 
-namespace lc {
+namespace lgc {
 class IMetricRecorder;
 class ITraceSink;
 }
 
-namespace lc::http_client_detail {
+namespace lgc::http_client_detail {
 
 class HttpObservation final {
 public:
@@ -50,4 +50,4 @@ private:
     bool finished_ { false };
 };
 
-} // namespace lc::http_client_detail
+} // namespace lgc::http_client_detail

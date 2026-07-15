@@ -9,7 +9,7 @@
 #include <memory>
 #include <source_location>
 
-namespace lc {
+namespace lgc {
 
 /// Internal substrate for concurrent executor implementations.
 ///
@@ -81,4 +81,4 @@ public:
     [[nodiscard]] virtual ThreadPoolStats stats() const noexcept = 0;
 };
 
-} // namespace lc
+} // namespace lgc

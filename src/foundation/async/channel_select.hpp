@@ -2,7 +2,7 @@
 
 #include "foundation/async/channel_types.hpp"
 
-namespace lc {
+namespace lgc {
 
 class SelectOp final {
 public:
@@ -136,4 +136,4 @@ template <typename... Operations>
     return select(std::span<SelectOp>(selectOperations));
 }
 
-} // namespace lc
+} // namespace lgc

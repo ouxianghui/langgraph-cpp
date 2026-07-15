@@ -12,7 +12,7 @@
 #include <string_view>
 #include <utility>
 
-namespace lc::http_client_detail {
+namespace lgc::http_client_detail {
 
 inline std::string_view trimView(std::string_view s)
 {
@@ -210,4 +210,4 @@ inline std::string formatOrigin(const HttpClientConfig& cfg)
     return oss.str();
 }
 
-} // namespace lc::http_client_detail
+} // namespace lgc::http_client_detail

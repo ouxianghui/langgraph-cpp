@@ -18,13 +18,13 @@ int main()
 
     bool threwCapacity = false;
     try {
-        lc::BoundedChannel<int> invalid(0);
+        lgc::BoundedChannel<int> invalid(0);
     } catch (const std::invalid_argument&) {
         threwCapacity = true;
     }
     assert(threwCapacity);
 
-    lc::Promise<int> promise;
+    lgc::Promise<int> promise;
     auto future = promise.future();
     assert(future.valid());
     assert(!future.ready());
@@ -37,44 +37,44 @@ int main()
     assert(future.wait(1s));
     assert(future.get().value() == 42);
     assert(future.take().value() == 42);
-    assert(future.take().status().code() == lc::StatusCode::FailedPrecondition);
+    assert(future.take().status().code() == lgc::StatusCode::FailedPrecondition);
     producer.join();
 
-    lc::Promise<std::string> errorPromise;
+    lgc::Promise<std::string> errorPromise;
     auto errorFuture = errorPromise.future();
-    assert(errorPromise.reject(lc::Status::unavailable("worker stopped")).isOk());
+    assert(errorPromise.reject(lgc::Status::unavailable("worker stopped")).isOk());
     auto error = errorFuture.get();
     assert(!error.isOk());
-    assert(error.status().code() == lc::StatusCode::Unavailable);
+    assert(error.status().code() == lgc::StatusCode::Unavailable);
 
-    lc::Future<int> abandonedFuture;
+    lgc::Future<int> abandonedFuture;
     {
-        lc::Promise<int> abandoned;
+        lgc::Promise<int> abandoned;
         abandonedFuture = abandoned.future();
     }
     auto abandoned = abandonedFuture.get();
     assert(!abandoned.isOk());
-    assert(abandoned.status().code() == lc::StatusCode::Cancelled);
+    assert(abandoned.status().code() == lgc::StatusCode::Cancelled);
 
-    lc::Promise<void> voidPromise;
+    lgc::Promise<void> voidPromise;
     auto voidFuture = voidPromise.future();
     assert(voidPromise.resolve().isOk());
     assert(voidFuture.get().isOk());
 
-    lc::Promise<std::unique_ptr<int>> moveOnlyPromise;
+    lgc::Promise<std::unique_ptr<int>> moveOnlyPromise;
     auto moveOnlyFuture = moveOnlyPromise.future();
     assert(moveOnlyPromise.resolve(std::make_unique<int>(7)).isOk());
     auto moved = moveOnlyFuture.take();
     assert(moved.isOk());
     assert(**moved == 7);
 
-    lc::BoundedChannel<std::string> channel(2);
+    lgc::BoundedChannel<std::string> channel(2);
     assert(channel.capacity() == 2);
     assert(channel.trySend("one").isOk());
     assert(channel.trySend("two").isOk());
     auto full = channel.trySend("three");
     assert(!full.isOk());
-    assert(full.code() == lc::StatusCode::ResourceExhausted);
+    assert(full.code() == lgc::StatusCode::ResourceExhausted);
 
     auto first = channel.receive();
     assert(first.isOk());
@@ -94,7 +94,7 @@ int main()
     assert(third.isOk());
     assert(third->has_value());
     assert(third->value() == "three");
-    assert(channel.receiveFor(1ms).status().code() == lc::StatusCode::DeadlineExceeded);
+    assert(channel.receiveFor(1ms).status().code() == lgc::StatusCode::DeadlineExceeded);
 
     std::thread blockingReceiver([&channel] {
         auto item = channel.receive();
@@ -106,13 +106,13 @@ int main()
     assert(channel.send("async").isOk());
     blockingReceiver.join();
 
-    assert(channel.tryReceive().status().code() == lc::StatusCode::Unavailable);
+    assert(channel.tryReceive().status().code() == lgc::StatusCode::Unavailable);
     channel.close();
     assert(channel.isClosed());
     auto drained = channel.receive();
     assert(drained.isOk());
     assert(!drained->has_value());
-    assert(channel.trySend("closed").code() == lc::StatusCode::Unavailable);
+    assert(channel.trySend("closed").code() == lgc::StatusCode::Unavailable);
 
     auto stats = channel.stats();
     assert(stats.closed_);
@@ -120,7 +120,7 @@ int main()
     assert(stats.received_ == 4);
     assert(stats.rejectedAfterClose_ == 1);
 
-    lc::BoundedChannel<int> endpointChannel(1);
+    lgc::BoundedChannel<int> endpointChannel(1);
     auto endpointSender = endpointChannel.sender();
     auto endpointReceiver = endpointChannel.receiver();
     assert(endpointSender.valid());
@@ -131,13 +131,13 @@ int main()
     assert(endpointValue->has_value());
     assert(**endpointValue == 11);
 
-    lc::BoundedChannel<int> blockingChannel(1);
+    lgc::BoundedChannel<int> blockingChannel(1);
     assert(blockingChannel.trySend(1).isOk());
     auto sendTimeout = blockingChannel.sendFor(2, 1ms);
     assert(!sendTimeout.isOk());
-    assert(sendTimeout.code() == lc::StatusCode::DeadlineExceeded);
+    assert(sendTimeout.code() == lgc::StatusCode::DeadlineExceeded);
 
-    lc::BoundedChannel<int> concurrentChannel(4);
+    lgc::BoundedChannel<int> concurrentChannel(4);
     std::atomic<int> receivedSum { 0 };
     std::thread producerA([&] {
         for (int i = 1; i <= 10; ++i)
@@ -169,8 +169,8 @@ int main()
     consumerB.join();
     assert(receivedSum.load(std::memory_order_relaxed) == 210);
 
-    lc::UnbufferedChannel<std::string> rendezvous;
-    assert(rendezvous.trySend("no receiver").code() == lc::StatusCode::ResourceExhausted);
+    lgc::UnbufferedChannel<std::string> rendezvous;
+    assert(rendezvous.trySend("no receiver").code() == lgc::StatusCode::ResourceExhausted);
     std::atomic<bool> sendCompleted { false };
     std::thread rendezvousSender([&] {
         assert(rendezvous.send("handoff").isOk());
@@ -185,19 +185,19 @@ int main()
     rendezvousSender.join();
     assert(sendCompleted.load(std::memory_order_acquire));
 
-    lc::CancellationSource receiveCancel;
-    lc::BoundedChannel<int> cancellableChannel(1);
+    lgc::CancellationSource receiveCancel;
+    lgc::BoundedChannel<int> cancellableChannel(1);
     std::thread canceller([&] {
         std::this_thread::sleep_for(10ms);
         assert(receiveCancel.cancel("stop receive"));
     });
     auto cancelledReceive = cancellableChannel.receive(receiveCancel.token());
     assert(!cancelledReceive.isOk());
-    assert(cancelledReceive.status().code() == lc::StatusCode::Cancelled);
+    assert(cancelledReceive.status().code() == lgc::StatusCode::Cancelled);
     canceller.join();
 
-    lc::CancellationSource sendCancel;
-    lc::BoundedChannel<int> fullChannel(1);
+    lgc::CancellationSource sendCancel;
+    lgc::BoundedChannel<int> fullChannel(1);
     assert(fullChannel.send(1).isOk());
     std::thread sendCanceller([&] {
         std::this_thread::sleep_for(10ms);
@@ -205,11 +205,11 @@ int main()
     });
     auto cancelledSend = fullChannel.send(2, sendCancel.token());
     assert(!cancelledSend.isOk());
-    assert(cancelledSend.code() == lc::StatusCode::Cancelled);
+    assert(cancelledSend.code() == lgc::StatusCode::Cancelled);
     sendCanceller.join();
 
-    lc::BoundedChannel<int> selectA(1);
-    lc::BoundedChannel<int> selectB(1);
+    lgc::BoundedChannel<int> selectA(1);
+    lgc::BoundedChannel<int> selectB(1);
     auto selectAReceiver = selectA.receiver();
     auto selectBReceiver = selectB.receiver();
     std::thread selectProducer([&] {
@@ -218,13 +218,13 @@ int main()
     });
     int selectedValue = 0;
     bool selectedClosed = false;
-    auto selected = lc::select(
-        lc::recv(selectAReceiver, [&](lc::ChannelReceive<int> received) {
+    auto selected = lgc::select(
+        lgc::recv(selectAReceiver, [&](lgc::ChannelReceive<int> received) {
             selectedClosed = received.closed_;
             if (received.value_.has_value())
                 selectedValue = *received.value_;
         }),
-        lc::recv(selectBReceiver, [&](lc::ChannelReceive<int> received) {
+        lgc::recv(selectBReceiver, [&](lgc::ChannelReceive<int> received) {
             selectedClosed = received.closed_;
             if (received.value_.has_value())
                 selectedValue = *received.value_;
@@ -236,14 +236,14 @@ int main()
     selectProducer.join();
 
     bool timeoutSelected = false;
-    auto selectTimeout = lc::select(
-        lc::recv(selectAReceiver, [](lc::ChannelReceive<int>) {
+    auto selectTimeout = lgc::select(
+        lgc::recv(selectAReceiver, [](lgc::ChannelReceive<int>) {
             assert(false);
         }),
-        lc::recv(selectBReceiver, [](lc::ChannelReceive<int>) {
+        lgc::recv(selectBReceiver, [](lgc::ChannelReceive<int>) {
             assert(false);
         }),
-        lc::after(1ms, [&] {
+        lgc::after(1ms, [&] {
             timeoutSelected = true;
         }));
     assert(selectTimeout.isOk());
@@ -251,24 +251,24 @@ int main()
     assert(timeoutSelected);
 
     selectA.close();
-    auto closedSelection = lc::select(
-        lc::recv(selectAReceiver, [&](lc::ChannelReceive<int> received) {
+    auto closedSelection = lgc::select(
+        lgc::recv(selectAReceiver, [&](lgc::ChannelReceive<int> received) {
             selectedClosed = received.closed_;
         }),
-        lc::recv(selectBReceiver, [](lc::ChannelReceive<int>) {
+        lgc::recv(selectBReceiver, [](lgc::ChannelReceive<int>) {
             assert(false);
         }));
     assert(closedSelection.isOk());
     assert(*closedSelection == 0);
     assert(selectedClosed);
 
-    lc::BoundedChannel<int> selectSendChannel(1);
+    lgc::BoundedChannel<int> selectSendChannel(1);
     bool sendSelected = false;
-    auto sendSelection = lc::select(
-        lc::send(selectSendChannel.sender(), 7, [&] {
+    auto sendSelection = lgc::select(
+        lgc::send(selectSendChannel.sender(), 7, [&] {
             sendSelected = true;
         }),
-        lc::after(1s, [] {
+        lgc::after(1s, [] {
             assert(false);
         }));
     assert(sendSelection.isOk());
@@ -281,11 +281,11 @@ int main()
 
     assert(selectSendChannel.send(1).isOk());
     bool otherwiseSelected = false;
-    auto defaultSelection = lc::select(
-        lc::send(selectSendChannel.sender(), 2, [] {
+    auto defaultSelection = lgc::select(
+        lgc::send(selectSendChannel.sender(), 2, [] {
             assert(false);
         }),
-        lc::otherwise([&] {
+        lgc::otherwise([&] {
             otherwiseSelected = true;
         }));
     assert(defaultSelection.isOk());
@@ -296,37 +296,37 @@ int main()
     assert(retainedValue->has_value());
     assert(**retainedValue == 1);
 
-    lc::CancellationSource selectCancel;
+    lgc::CancellationSource selectCancel;
     assert(selectCancel.cancel("select cancelled"));
     bool cancelSelected = false;
-    auto cancelSelection = lc::select(
-        lc::cancelled(selectCancel.token(), [&](const std::string& reason) {
+    auto cancelSelection = lgc::select(
+        lgc::cancelled(selectCancel.token(), [&](const std::string& reason) {
             cancelSelected = reason == "select cancelled";
         }),
-        lc::after(1s, [] {
+        lgc::after(1s, [] {
             assert(false);
         }));
     assert(cancelSelection.isOk());
     assert(*cancelSelection == 0);
     assert(cancelSelected);
 
-    lc::BoundedChannel<int> numberChannel(1);
-    lc::BoundedChannel<std::string> textChannel(1);
+    lgc::BoundedChannel<int> numberChannel(1);
+    lgc::BoundedChannel<std::string> textChannel(1);
     assert(textChannel.send("ready").isOk());
     std::string textValue;
-    auto heterogeneousSelection = lc::select(
-        lc::recv(numberChannel.receiver(), [](int) {
+    auto heterogeneousSelection = lgc::select(
+        lgc::recv(numberChannel.receiver(), [](int) {
             assert(false);
         }),
-        lc::recv(textChannel.receiver(), [&](std::string value) {
+        lgc::recv(textChannel.receiver(), [&](std::string value) {
             textValue = std::move(value);
         }));
     assert(heterogeneousSelection.isOk());
     assert(*heterogeneousSelection == 1);
     assert(textValue == "ready");
 
-    lc::BoundedChannel<std::unique_ptr<int>> moveOnlyChannel(1);
-    auto moveOnlySelection = lc::select(lc::send(moveOnlyChannel.sender(), std::make_unique<int>(31)));
+    lgc::BoundedChannel<std::unique_ptr<int>> moveOnlyChannel(1);
+    auto moveOnlySelection = lgc::select(lgc::send(moveOnlyChannel.sender(), std::make_unique<int>(31)));
     assert(moveOnlySelection.isOk());
     assert(*moveOnlySelection == 0);
     auto moveOnlyItem = moveOnlyChannel.receive();

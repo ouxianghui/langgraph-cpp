@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 /// LangGraph-style long-term store.
 ///
@@ -41,4 +41,4 @@ public:
         const StoreListNamespacesOptions& options = {});
 };
 
-} // namespace lc
+} // namespace lgc

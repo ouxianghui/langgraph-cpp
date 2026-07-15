@@ -8,7 +8,7 @@
 #include <string>
 #include <utility>
 
-namespace lc::sqlite_detail {
+namespace lgc::sqlite_detail {
 
 [[nodiscard]] std::optional<std::string> prefixUpperBound(std::string prefix)
 {
@@ -155,4 +155,4 @@ namespace lc::sqlite_detail {
     };
 }
 
-} // namespace lc::sqlite_detail
+} // namespace lgc::sqlite_detail

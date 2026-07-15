@@ -6,7 +6,7 @@
 
 namespace {
 
-void require(lc::Result<void> result)
+void require(lgc::Result<void> result)
 {
     if (!result.isOk()) {
         std::cerr << result.status() << '\n';
@@ -18,11 +18,11 @@ void require(lc::Result<void> result)
 
 int main()
 {
-    auto model = std::make_shared<lc::FakeChatModel>(std::vector<lc::BaseMessage> {
-        lc::BaseMessage::ai(
+    auto model = std::make_shared<lgc::FakeChatModel>(std::vector<lgc::BaseMessage> {
+        lgc::BaseMessage::ai(
             "",
             {
-                lc::ToolCall {
+                lgc::ToolCall {
                     .id_ = "call-1",
                     .name_ = "add",
                     .args_ = {
@@ -31,18 +31,18 @@ int main()
                     },
                 },
             }),
-        lc::BaseMessage::ai("The answer is 5."),
+        lgc::BaseMessage::ai("The answer is 5."),
     });
 
-    auto registry = std::make_shared<lc::ToolRegistry>();
-    lc::Tool addTool {
+    auto registry = std::make_shared<lgc::ToolRegistry>();
+    lgc::Tool addTool {
         .name_ = "add",
         .description_ = "Add two integers.",
-        .inputSchema_ = lc::JsonSchema::object()
-                            .property("a", lc::JsonSchema::integer(), true)
-                            .property("b", lc::JsonSchema::integer(), true)
+        .inputSchema_ = lgc::JsonSchema::object()
+                            .property("a", lgc::JsonSchema::integer(), true)
+                            .property("b", lgc::JsonSchema::integer(), true)
                             .additionalProperties(false),
-        .callable_ = [](const nlohmann::json& input) -> lc::Result<nlohmann::json> {
+        .callable_ = [](const nlohmann::json& input) -> lgc::Result<nlohmann::json> {
             return nlohmann::json {
                 { "value", input.at("a").get<int>() + input.at("b").get<int>() },
             };
@@ -50,18 +50,18 @@ int main()
     };
     require(registry->add(std::move(addTool)));
 
-    lc::StateGraph graph;
-    require(graph.addNode("model", lc::makeModelNode(model)));
-    require(graph.addNode("tools", lc::ToolNode(registry)));
-    require(graph.addEdge(std::string(lc::START), "model"));
+    lgc::StateGraph graph;
+    require(graph.addNode("model", lgc::makeModelNode(model)));
+    require(graph.addNode("tools", lgc::ToolNode(registry)));
+    require(graph.addEdge(std::string(lgc::START), "model"));
     require(graph.addConditionalEdges(
         "model",
-        [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::NodeId> {
-            if (lc::toolsCondition(state))
+        [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::NodeId> {
+            if (lgc::toolsCondition(state))
                 return std::string("tools");
-            return std::string(lc::END);
+            return std::string(lgc::END);
         },
-        { "tools", std::string(lc::END) }));
+        { "tools", std::string(lgc::END) }));
     require(graph.addEdge("tools", "model"));
 
     auto compiled = graph.compile();
@@ -70,9 +70,9 @@ int main()
         return 1;
     }
 
-    auto input = lc::State::fromJsonValue({
-        { "messages", lc::messagesToJson({
-            lc::BaseMessage::human("What is 2 + 3?"),
+    auto input = lgc::State::fromJsonValue({
+        { "messages", lgc::messagesToJson({
+            lgc::BaseMessage::human("What is 2 + 3?"),
         }) },
     });
     if (!input.isOk()) {
@@ -80,8 +80,8 @@ int main()
         return 1;
     }
 
-    lc::RunOptions options;
-    options.reducers_.set("messages", lc::ReducerKind::AddMessages);
+    lgc::RunOptions options;
+    options.reducers_.set("messages", lgc::ReducerKind::AddMessages);
 
     auto result = compiled->invoke(*input, options);
     if (!result.isOk()) {

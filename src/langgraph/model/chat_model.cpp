@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] nlohmann::json toolCallChunkToJson(const ToolCallChunk& chunk)
@@ -176,4 +176,4 @@ NodeHandler makeModelNode(
     };
 }
 
-} // namespace lc
+} // namespace lgc

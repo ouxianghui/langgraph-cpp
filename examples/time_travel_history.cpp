@@ -7,29 +7,29 @@
 
 namespace {
 
-lc::Result<lc::CompiledStateGraph> buildCountingGraph()
+lgc::Result<lgc::CompiledStateGraph> buildCountingGraph()
 {
-    lc::StateGraph graph;
-    if (auto status = graph.addNode("tick", [](const lc::State& state, lc::Runtime&)
-            -> lc::Result<lc::StateUpdate> {
-            return lc::StateUpdate::fromJsonValue({
+    lgc::StateGraph graph;
+    if (auto status = graph.addNode("tick", [](const lgc::State& state, lgc::Runtime&)
+            -> lgc::Result<lgc::StateUpdate> {
+            return lgc::StateUpdate::fromJsonValue({
                 { "count", state.view().value("count", 0) + 1 },
             });
         });
         !status.isOk())
         return status.status();
 
-    if (auto status = graph.addEdge(std::string(lc::START), "tick"); !status.isOk())
+    if (auto status = graph.addEdge(std::string(lgc::START), "tick"); !status.isOk())
         return status.status();
 
     auto routed = graph.addConditionalEdges(
         "tick",
-        [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::NodeId> {
+        [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::NodeId> {
             if (state.view().value("count", 0) >= 3)
-                return std::string(lc::END);
+                return std::string(lgc::END);
             return std::string("tick");
         },
-        { "tick", std::string(lc::END) });
+        { "tick", std::string(lgc::END) });
     if (!routed.isOk())
         return routed.status();
 
@@ -46,12 +46,12 @@ int main()
         return 1;
     }
 
-    auto checkpointer = std::make_shared<lc::InMemorySaver>();
-    lc::RunOptions options;
+    auto checkpointer = std::make_shared<lgc::InMemorySaver>();
+    lgc::RunOptions options;
     options.threadId_ = "time-travel-demo";
     options.checkpointer_ = checkpointer;
 
-    auto input = lc::State::fromJson(R"({"count":0})");
+    auto input = lgc::State::fromJson(R"({"count":0})");
     if (!input.isOk()) {
         std::cerr << input.status() << '\n';
         return 1;
@@ -72,7 +72,7 @@ int main()
     auto stepOne = std::find_if(
         history->begin(),
         history->end(),
-        [](const lc::StateSnapshot& snapshot) {
+        [](const lgc::StateSnapshot& snapshot) {
             return snapshot.step_ == 1;
         });
     if (stepOne == history->end()) {
@@ -86,13 +86,13 @@ int main()
         return 1;
     }
 
-    auto update = lc::StateUpdate::fromJson(R"({"count":10})");
+    auto update = lgc::StateUpdate::fromJson(R"({"count":10})");
     if (!update.isOk()) {
         std::cerr << update.status() << '\n';
         return 1;
     }
 
-    lc::StateUpdateOptions updateOptions;
+    lgc::StateUpdateOptions updateOptions;
     updateOptions.checkpointId_ = stepOne->checkpointId_;
     updateOptions.asNode_ = "tick";
     auto forked = compiled->updateState("time-travel-demo", *update, options, updateOptions);

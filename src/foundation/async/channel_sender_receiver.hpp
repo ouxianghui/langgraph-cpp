@@ -2,7 +2,7 @@
 
 #include "foundation/async/channel_select.hpp"
 
-namespace lc {
+namespace lgc {
 
 template <typename T>
 class IChannel {
@@ -198,4 +198,4 @@ private:
     IChannel<T>* channel_ { nullptr };
 };
 
-} // namespace lc
+} // namespace lgc

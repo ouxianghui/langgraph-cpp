@@ -11,7 +11,7 @@
 #include <unordered_set>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 struct ConfigEnvBinding {
     std::string key_;
@@ -74,4 +74,4 @@ public:
         const ConfigLoaderOptions& options = {});
 };
 
-} // namespace lc
+} // namespace lgc

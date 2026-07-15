@@ -20,7 +20,7 @@ int main()
     using nlohmann::json;
     using namespace std::chrono_literals;
 
-    auto event = lc::RuntimeEvent::create(lc::RuntimeEventType::NodeStarted);
+    auto event = lgc::RuntimeEvent::create(lgc::RuntimeEventType::NodeStarted);
     event.runId_ = "run-1";
     event.threadId_ = "thread-1";
     event.step_ = 3;
@@ -30,12 +30,12 @@ int main()
         { "input_tokens", 12 },
     };
 
-    assert(lc::runtimeEventTypeName(event.type_) == "node_started");
+    assert(lgc::runtimeEventTypeName(event.type_) == "node_started");
     assert(!event.eventId_.empty());
     assert(event.sequence_ > 0);
-    assert(lc::validateRuntimeEvent(event).isOk());
+    assert(lgc::validateRuntimeEvent(event).isOk());
 
-    lc::MemoryEventSink memorySink;
+    lgc::MemoryEventSink memorySink;
     auto status = memorySink.publish(event);
     assert(status.isOk());
     assert(memorySink.size() == 1);
@@ -52,20 +52,20 @@ int main()
     assert(memorySink.isClosed());
     status = memorySink.publish(event);
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unavailable);
+    assert(status.code() == lgc::StatusCode::Unavailable);
 
-    lc::MemoryEventSink boundedSink(lc::MemoryEventSinkOptions {
+    lgc::MemoryEventSink boundedSink(lgc::MemoryEventSinkOptions {
         .capacity_ = 1,
-        .overflowPolicy_ = lc::EventOverflowPolicy::Reject,
+        .overflowPolicy_ = lgc::EventOverflowPolicy::Reject,
     });
     assert(boundedSink.publish(event).isOk());
     status = boundedSink.publish(event);
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::ResourceExhausted);
+    assert(status.code() == lgc::StatusCode::ResourceExhausted);
 
-    lc::MemoryEventSink identitySink;
-    lc::RuntimeEvent manual;
-    manual.type_ = lc::RuntimeEventType::RunStarted;
+    lgc::MemoryEventSink identitySink;
+    lgc::RuntimeEvent manual;
+    manual.type_ = lgc::RuntimeEventType::RunStarted;
     assert(identitySink.publish(std::move(manual)).isOk());
     auto identityEvents = identitySink.events();
     assert(identityEvents.size() == 1);
@@ -77,63 +77,63 @@ int main()
     auto second = event;
     second.sequence_ = 2;
 
-    lc::MemoryEventSink dropOldestSink(lc::MemoryEventSinkOptions {
+    lgc::MemoryEventSink dropOldestSink(lgc::MemoryEventSinkOptions {
         .capacity_ = 1,
-        .overflowPolicy_ = lc::EventOverflowPolicy::DropOldest,
+        .overflowPolicy_ = lgc::EventOverflowPolicy::DropOldest,
     });
     assert(dropOldestSink.publish(first).isOk());
     assert(dropOldestSink.publish(second).isOk());
     assert(dropOldestSink.events().size() == 1);
     assert(dropOldestSink.events().front().sequence_ == 2);
 
-    lc::MemoryEventSink dropNewestSink(lc::MemoryEventSinkOptions {
+    lgc::MemoryEventSink dropNewestSink(lgc::MemoryEventSinkOptions {
         .capacity_ = 1,
-        .overflowPolicy_ = lc::EventOverflowPolicy::DropNewest,
+        .overflowPolicy_ = lgc::EventOverflowPolicy::DropNewest,
     });
     assert(dropNewestSink.publish(first).isOk());
     assert(dropNewestSink.publish(second).isOk());
     assert(dropNewestSink.events().size() == 1);
     assert(dropNewestSink.events().front().sequence_ == 1);
 
-    auto invalid = lc::RuntimeEvent::create(lc::RuntimeEventType::Unknown);
+    auto invalid = lgc::RuntimeEvent::create(lgc::RuntimeEventType::Unknown);
     status = boundedSink.publish(invalid);
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::InvalidArgument);
+    assert(status.code() == lgc::StatusCode::InvalidArgument);
 
     auto missingSequence = event;
     missingSequence.sequence_ = 0;
-    status = lc::validateRuntimeEvent(missingSequence);
+    status = lgc::validateRuntimeEvent(missingSequence);
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::InvalidArgument);
+    assert(status.code() == lgc::StatusCode::InvalidArgument);
 
     auto badEventId = event;
     badEventId.eventId_ = "bad id";
-    status = lc::validateRuntimeEvent(badEventId);
+    status = lgc::validateRuntimeEvent(badEventId);
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::InvalidArgument);
+    assert(status.code() == lgc::StatusCode::InvalidArgument);
 
-    auto custom = lc::RuntimeEvent::create(lc::RuntimeEventType::Custom);
-    status = lc::validateRuntimeEvent(custom);
+    auto custom = lgc::RuntimeEvent::create(lgc::RuntimeEventType::Custom);
+    status = lgc::validateRuntimeEvent(custom);
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::InvalidArgument);
+    assert(status.code() == lgc::StatusCode::InvalidArgument);
     custom.name_ = "debug.note";
-    assert(lc::validateRuntimeEvent(custom).isOk());
+    assert(lgc::validateRuntimeEvent(custom).isOk());
 
     auto badRunId = event;
     badRunId.runId_ = "bad id with spaces";
-    status = lc::validateRuntimeEvent(badRunId);
+    status = lgc::validateRuntimeEvent(badRunId);
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::InvalidArgument);
+    assert(status.code() == lgc::StatusCode::InvalidArgument);
 
     auto tooLarge = event;
     tooLarge.payload_ = json {
         { "text", std::string(64, 'x') },
     };
-    status = lc::validateRuntimeEvent(tooLarge, lc::RuntimeEventLimits {
+    status = lgc::validateRuntimeEvent(tooLarge, lgc::RuntimeEventLimits {
                                                    .maxPayloadBytes_ = 16,
                                                });
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::ResourceExhausted);
+    assert(status.code() == lgc::StatusCode::ResourceExhausted);
 
     auto tooDeep = event;
     tooDeep.payload_ = json {
@@ -143,53 +143,53 @@ int main()
                           } },
                } },
     };
-    status = lc::validateRuntimeEvent(tooDeep, lc::RuntimeEventLimits {
+    status = lgc::validateRuntimeEvent(tooDeep, lgc::RuntimeEventLimits {
                                                  .maxJsonDepth_ = 2,
                                              });
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::ResourceExhausted);
+    assert(status.code() == lgc::StatusCode::ResourceExhausted);
 
     auto tooManyNodes = event;
     tooManyNodes.payload_ = json::array({ 1, 2, 3 });
-    status = lc::validateRuntimeEvent(tooManyNodes, lc::RuntimeEventLimits {
+    status = lgc::validateRuntimeEvent(tooManyNodes, lgc::RuntimeEventLimits {
                                                         .maxJsonNodes_ = 2,
                                                     });
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::ResourceExhausted);
+    assert(status.code() == lgc::StatusCode::ResourceExhausted);
 
     auto tooManyItems = event;
     tooManyItems.payload_ = json::array({ 1, 2, 3 });
-    status = lc::validateRuntimeEvent(tooManyItems, lc::RuntimeEventLimits {
+    status = lgc::validateRuntimeEvent(tooManyItems, lgc::RuntimeEventLimits {
                                                         .maxJsonItems_ = 2,
                                                     });
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::ResourceExhausted);
+    assert(status.code() == lgc::StatusCode::ResourceExhausted);
 
-    auto tooLong = lc::RuntimeEvent::create(
-        lc::RuntimeEventType::NodeStarted,
-        lc::RuntimeEventOptions {
+    auto tooLong = lgc::RuntimeEvent::create(
+        lgc::RuntimeEventType::NodeStarted,
+        lgc::RuntimeEventOptions {
             .generateEventId_ = false,
         });
     tooLong.eventId_ = "id";
     tooLong.message_ = std::string(13, 'x');
-    status = lc::validateRuntimeEvent(tooLong, lc::RuntimeEventLimits {
+    status = lgc::validateRuntimeEvent(tooLong, lgc::RuntimeEventLimits {
                                                  .maxStringLength_ = 12,
                                              });
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::ResourceExhausted);
+    assert(status.code() == lgc::StatusCode::ResourceExhausted);
 
     auto tooLongPayloadString = event;
     tooLongPayloadString.payload_ = json {
         { "text", std::string(13, 'x') },
     };
-    status = lc::validateRuntimeEvent(tooLongPayloadString, lc::RuntimeEventLimits {
+    status = lgc::validateRuntimeEvent(tooLongPayloadString, lgc::RuntimeEventLimits {
                                                                 .maxStringLength_ = 12,
                                                             });
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::ResourceExhausted);
+    assert(status.code() == lgc::StatusCode::ResourceExhausted);
 
-    lc::MemoryEventSink redactingSink;
-    auto sensitive = lc::RuntimeEvent::create(lc::RuntimeEventType::ToolCallStarted);
+    lgc::MemoryEventSink redactingSink;
+    auto sensitive = lgc::RuntimeEvent::create(lgc::RuntimeEventType::ToolCallStarted);
     sensitive.message_ = "Authorization: Bearer abcdefghijklmnop for user@example.com";
     sensitive.payload_ = json {
         { "api_key", "sk-1234567890abcdef" },
@@ -203,38 +203,38 @@ int main()
     assert(redacted.front().payload_["api_key"] == "[REDACTED]");
     assert(redacted.front().payload_["input"] == "normal");
 
-    std::vector<lc::RuntimeEvent> observed;
-    lc::CallbackEventSink callbackSink(lc::CallbackEventSink::VoidCallback(
-        [&observed](const lc::RuntimeEvent& item) {
+    std::vector<lgc::RuntimeEvent> observed;
+    lgc::CallbackEventSink callbackSink(lgc::CallbackEventSink::VoidCallback(
+        [&observed](const lgc::RuntimeEvent& item) {
             observed.push_back(item);
         }));
     assert(callbackSink.publish(event).isOk());
     assert(observed.size() == 1);
-    assert(observed.front().type_ == lc::RuntimeEventType::NodeStarted);
+    assert(observed.front().type_ == lgc::RuntimeEventType::NodeStarted);
 
-    lc::CallbackEventSink statusCallbackSink(lc::CallbackEventSink::Callback(
-        [](const lc::RuntimeEvent&) {
-            return lc::Status::permissionDenied("observer denied");
+    lgc::CallbackEventSink statusCallbackSink(lgc::CallbackEventSink::Callback(
+        [](const lgc::RuntimeEvent&) {
+            return lgc::Status::permissionDenied("observer denied");
         }));
     status = statusCallbackSink.publish(event);
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::PermissionDenied);
+    assert(status.code() == lgc::StatusCode::PermissionDenied);
 
-    lc::CallbackEventSink throwingSink(lc::CallbackEventSink::VoidCallback(
-        [](const lc::RuntimeEvent&) {
+    lgc::CallbackEventSink throwingSink(lgc::CallbackEventSink::VoidCallback(
+        [](const lgc::RuntimeEvent&) {
             throw std::runtime_error("boom");
         }));
     status = throwingSink.publish(event);
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Internal);
+    assert(status.code() == lgc::StatusCode::Internal);
 
     {
         std::mutex mutex;
         std::condition_variable cv;
         bool started = false;
         bool release = false;
-        lc::CallbackEventSink blockingSink(lc::CallbackEventSink::VoidCallback(
-            [&](const lc::RuntimeEvent&) {
+        lgc::CallbackEventSink blockingSink(lgc::CallbackEventSink::VoidCallback(
+            [&](const lgc::RuntimeEvent&) {
                 std::unique_lock lock(mutex);
                 started = true;
                 cv.notify_all();
@@ -255,10 +255,10 @@ int main()
         }
         status = blockingSink.waitIdle(1ms);
         assert(!status.isOk());
-        assert(status.code() == lc::StatusCode::DeadlineExceeded);
+        assert(status.code() == lgc::StatusCode::DeadlineExceeded);
         status = blockingSink.close(1ms);
         assert(!status.isOk());
-        assert(status.code() == lc::StatusCode::DeadlineExceeded);
+        assert(status.code() == lgc::StatusCode::DeadlineExceeded);
         assert(blockingSink.isClosed());
 
         {
@@ -272,7 +272,7 @@ int main()
     }
 
     {
-        lc::MemoryEventSink concurrentSink(lc::MemoryEventSinkOptions {
+        lgc::MemoryEventSink concurrentSink(lgc::MemoryEventSinkOptions {
             .capacity_ = 1000,
         });
         std::atomic<int> failures { 0 };
@@ -297,11 +297,11 @@ int main()
     assert(callbackSink.isClosed());
     status = callbackSink.publish(event);
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::Unavailable);
+    assert(status.code() == lgc::StatusCode::Unavailable);
 
     {
-        auto inner = std::make_shared<lc::MemoryEventSink>();
-        lc::QueuedEventSink queued(inner, lc::QueuedEventSinkOptions {
+        auto inner = std::make_shared<lgc::MemoryEventSink>();
+        lgc::QueuedEventSink queued(inner, lgc::QueuedEventSinkOptions {
                                               .capacity_ = 4,
                                           });
 
@@ -316,7 +316,7 @@ int main()
         assert(queued.isClosed());
         status = queued.publish(queuedEvent);
         assert(!status.isOk());
-        assert(status.code() == lc::StatusCode::Unavailable);
+        assert(status.code() == lgc::StatusCode::Unavailable);
     }
 
     {
@@ -324,8 +324,8 @@ int main()
         std::condition_variable cv;
         bool callbackStarted = false;
         bool release = false;
-        auto inner = std::make_shared<lc::CallbackEventSink>(lc::CallbackEventSink::VoidCallback(
-            [&](const lc::RuntimeEvent&) {
+        auto inner = std::make_shared<lgc::CallbackEventSink>(lgc::CallbackEventSink::VoidCallback(
+            [&](const lgc::RuntimeEvent&) {
                 std::unique_lock lock(mutex);
                 callbackStarted = true;
                 cv.notify_all();
@@ -333,7 +333,7 @@ int main()
                     return release;
                 });
             }));
-        lc::QueuedEventSink queued(inner, lc::QueuedEventSinkOptions {
+        lgc::QueuedEventSink queued(inner, lgc::QueuedEventSinkOptions {
                                               .capacity_ = 4,
                                           });
 
@@ -348,7 +348,7 @@ int main()
         assert(queued.publish(event).isOk());
         status = queued.waitIdle(1ms);
         assert(!status.isOk());
-        assert(status.code() == lc::StatusCode::DeadlineExceeded);
+        assert(status.code() == lgc::StatusCode::DeadlineExceeded);
 
         {
             std::lock_guard lock(mutex);

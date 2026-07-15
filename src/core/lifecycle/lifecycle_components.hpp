@@ -12,7 +12,7 @@
 #include <memory>
 #include <string>
 
-namespace lc {
+namespace lgc {
 
 // Typed ILifecycle component factories for concrete foundation subsystems
 // (executor, scheduler, event sink, storage, metrics, trace, HTTP client).
@@ -47,4 +47,4 @@ namespace lc {
     std::string name,
     std::shared_ptr<IHttpClient> httpClient);
 
-} // namespace lc
+} // namespace lgc

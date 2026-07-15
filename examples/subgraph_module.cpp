@@ -5,15 +5,15 @@
 
 namespace {
 
-lc::Result<lc::CompiledStateGraph> buildDiagnosticSubgraph()
+lgc::Result<lgc::CompiledStateGraph> buildDiagnosticSubgraph()
 {
-    lc::StateGraph child;
-    if (auto status = child.addNode("sense", [](const lc::State&, lc::Runtime& context)
-            -> lc::Result<lc::StateUpdate> {
+    lgc::StateGraph child;
+    if (auto status = child.addNode("sense", [](const lgc::State&, lgc::Runtime& context)
+            -> lgc::Result<lgc::StateUpdate> {
             if (auto written = context.streamWriter().write("diagnostic-progress", { { "phase", "sense" } });
                 !written.isOk())
                 return written;
-            return lc::StateUpdate::fromJson(R"({
+            return lgc::StateUpdate::fromJson(R"({
                 "diagnosis": {
                     "fault": "overheat",
                     "temperature_c": 72.0
@@ -23,11 +23,11 @@ lc::Result<lc::CompiledStateGraph> buildDiagnosticSubgraph()
         !status.isOk())
         return status.status();
 
-    if (auto status = child.addNode("recommend", [](const lc::State& state, lc::Runtime&)
-            -> lc::Result<lc::StateUpdate> {
+    if (auto status = child.addNode("recommend", [](const lgc::State& state, lgc::Runtime&)
+            -> lgc::Result<lgc::StateUpdate> {
             const auto& diagnosis = state.view().at("diagnosis");
             const auto severity = diagnosis.at("temperature_c").get<double>() > 70.0 ? "high" : "normal";
-            return lc::StateUpdate::fromJsonValue({
+            return lgc::StateUpdate::fromJsonValue({
                 { "repair_plan",
                     {
                         { "action", "reduce_load" },
@@ -39,9 +39,9 @@ lc::Result<lc::CompiledStateGraph> buildDiagnosticSubgraph()
         return status.status();
 
     const auto edgeStatuses = {
-        child.addEdge(std::string(lc::START), "sense"),
+        child.addEdge(std::string(lgc::START), "sense"),
         child.addEdge("sense", "recommend"),
-        child.addEdge("recommend", std::string(lc::END)),
+        child.addEdge("recommend", std::string(lgc::END)),
     };
     for (const auto& status : edgeStatuses) {
         if (!status.isOk())
@@ -61,23 +61,23 @@ int main()
         return 1;
     }
 
-    lc::StateGraph parent;
-    lc::SubgraphOptions subgraphOptions;
-    subgraphOptions.persistence_ = lc::SubgraphPersistenceMode::PerThread;
+    lgc::StateGraph parent;
+    lgc::SubgraphOptions subgraphOptions;
+    subgraphOptions.persistence_ = lgc::SubgraphPersistenceMode::PerThread;
     subgraphOptions.checkpointNamespace_ = "diagnostic";
     if (auto status = parent.addSubgraph(
             "diagnose_device",
-            std::make_shared<lc::CompiledStateGraph>(*diagnostic),
+            std::make_shared<lgc::CompiledStateGraph>(*diagnostic),
             subgraphOptions);
         !status.isOk()) {
         std::cerr << status.status() << '\n';
         return 1;
     }
 
-    if (auto status = parent.addNode("dispatch", [](const lc::State& state, lc::Runtime&)
-            -> lc::Result<lc::StateUpdate> {
+    if (auto status = parent.addNode("dispatch", [](const lgc::State& state, lgc::Runtime&)
+            -> lgc::Result<lgc::StateUpdate> {
             const auto& plan = state.view().at("repair_plan");
-            return lc::StateUpdate::fromJsonValue({
+            return lgc::StateUpdate::fromJsonValue({
                 { "ticket",
                     {
                         { "route", "edge-maintenance" },
@@ -93,9 +93,9 @@ int main()
     }
 
     const auto edgeStatuses = {
-        parent.addEdge(std::string(lc::START), "diagnose_device"),
+        parent.addEdge(std::string(lgc::START), "diagnose_device"),
         parent.addEdge("diagnose_device", "dispatch"),
-        parent.addEdge("dispatch", std::string(lc::END)),
+        parent.addEdge("dispatch", std::string(lgc::END)),
     };
     for (const auto& status : edgeStatuses) {
         if (!status.isOk()) {
@@ -110,12 +110,12 @@ int main()
         return 1;
     }
 
-    lc::RunOptions options;
+    lgc::RunOptions options;
     options.threadId_ = "subgraph-module-demo";
-    options.checkpointer_ = std::make_shared<lc::InMemorySaver>();
+    options.checkpointer_ = std::make_shared<lgc::InMemorySaver>();
     options.checkpointNamespace_ = "parent";
 
-    auto input = lc::State::fromJson(R"({"device_id":"pump-17"})");
+    auto input = lgc::State::fromJson(R"({"device_id":"pump-17"})");
     if (!input.isOk()) {
         std::cerr << input.status() << '\n';
         return 1;

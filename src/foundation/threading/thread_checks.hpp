@@ -7,7 +7,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc {
+namespace lgc {
 
 [[nodiscard]] inline std::shared_ptr<IThread> requireThread(
     std::shared_ptr<IThread> thread,
@@ -31,4 +31,4 @@ inline void requireOnThread(
     }
 }
 
-} // namespace lc
+} // namespace lgc

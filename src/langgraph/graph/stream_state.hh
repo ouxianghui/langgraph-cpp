@@ -7,7 +7,7 @@
 #include <future>
 #include <thread>
 
-namespace lc {
+namespace lgc {
 
 struct RunEventStreamState final {
     explicit RunEventStreamState(std::size_t capacity);
@@ -39,4 +39,4 @@ struct RunPartStreamState final {
     std::thread worker_;
 };
 
-} // namespace lc
+} // namespace lgc

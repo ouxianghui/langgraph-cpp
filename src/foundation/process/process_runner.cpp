@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 ProcessRunner::ProcessRunner(const Clock& clock, std::shared_ptr<ILogger> logger)
     : clock_(&clock)
@@ -74,4 +74,4 @@ Result<ProcessResult> runProcess(const ProcessOptions& options)
     return ProcessRunner().run(options);
 }
 
-} // namespace lc
+} // namespace lgc

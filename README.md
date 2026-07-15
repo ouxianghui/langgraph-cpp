@@ -102,7 +102,7 @@ The current contract is documented in
 [docs/API_CONTRACT.md](docs/API_CONTRACT.md). The guardrails are:
 
 - C++ source API reachable from `include/langgraph_cpp/langgraph.hpp` is
-  governed by API contract version `25`.
+  governed by API contract version `26`.
 - Persisted checkpoint/content/storage schemas are versioned and reject future
   versions by default.
 - ABI, private implementation details, and optional provider/hardware adapters
@@ -213,15 +213,15 @@ The example is intentionally small:
 ```cpp
 #include <langgraph_cpp/langgraph.hpp>
 
-lc::StateGraph graph;
-graph.addNode("hello", [](const lc::State&, lc::Runtime&) {
-    return lc::StateUpdate::fromJson(R"({"message":"hello from langgraph-cpp"})");
+lgc::StateGraph graph;
+graph.addNode("hello", [](const lgc::State&, lgc::Runtime&) {
+    return lgc::StateUpdate::fromJson(R"({"message":"hello from langgraph-cpp"})");
 });
 graph.setEntryPoint("hello");
 graph.setFinishPoint("hello");
 
 auto compiled = graph.compile();
-auto input = lc::State::fromJson("{}");
+auto input = lgc::State::fromJson("{}");
 auto result = compiled->invoke(*input);
 ```
 

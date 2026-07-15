@@ -12,17 +12,17 @@ int main()
 {
     using namespace std::chrono_literals;
 
-    lc::ManualClock clock;
+    lgc::ManualClock clock;
 
     {
-        auto policy = lc::RateLimitPolicy {
+        auto policy = lgc::RateLimitPolicy {
             .capacity_ = 2,
             .refill_ = 1,
             .interval_ = 1s,
         };
         assert(policy.validate().isOk());
 
-        lc::TokenBucketRateLimiter limiter(policy, clock);
+        lgc::TokenBucketRateLimiter limiter(policy, clock);
         auto result = limiter.acquire();
         assert(result.allowed_);
         assert(result.status_.isOk());
@@ -34,7 +34,7 @@ int main()
 
         result = limiter.acquire();
         assert(!result.allowed_);
-        assert(result.status_.code() == lc::StatusCode::ResourceExhausted);
+        assert(result.status_.code() == lgc::StatusCode::ResourceExhausted);
         assert(result.retryAfter_ == 1s);
 
         clock.advance(500ms);
@@ -52,21 +52,21 @@ int main()
     }
 
     {
-        auto policy = lc::RateLimitPolicy::perSecond(3, 5);
+        auto policy = lgc::RateLimitPolicy::perSecond(3, 5);
         assert(policy.capacity_ == 5);
         assert(policy.refill_ == 3);
         assert(policy.interval_ == 1s);
 
-        lc::TokenBucketRateLimiter limiter(policy, clock);
+        lgc::TokenBucketRateLimiter limiter(policy, clock);
         auto result = limiter.acquire(6);
         assert(!result.allowed_);
-        assert(result.retryAfter_ == lc::Clock::Duration::max());
+        assert(result.retryAfter_ == lgc::Clock::Duration::max());
     }
 
     {
-        lc::ManualClock overflowClock;
+        lgc::ManualClock overflowClock;
         const auto max = std::numeric_limits<std::uint64_t>::max();
-        lc::TokenBucketRateLimiter limiter(lc::RateLimitPolicy {
+        lgc::TokenBucketRateLimiter limiter(lgc::RateLimitPolicy {
             .capacity_ = max,
             .refill_ = max,
             .interval_ = 1s,
@@ -82,7 +82,7 @@ int main()
     }
 
     {
-        auto policy = lc::CircuitBreakerPolicy {
+        auto policy = lgc::CircuitBreakerPolicy {
             .failureThreshold_ = 2,
             .successThreshold_ = 1,
             .halfOpenMaxCalls_ = 1,
@@ -90,70 +90,70 @@ int main()
         };
         assert(policy.validate().isOk());
 
-        lc::CircuitBreaker breaker(policy, clock);
+        lgc::CircuitBreaker breaker(policy, clock);
         auto result = breaker.acquire();
         assert(result.allowed_);
-        assert(result.state_ == lc::CircuitState::Closed);
+        assert(result.state_ == lgc::CircuitState::Closed);
 
         breaker.recordFailure();
-        assert(breaker.state() == lc::CircuitState::Closed);
+        assert(breaker.state() == lgc::CircuitState::Closed);
         assert(breaker.consecutiveFailures() == 1);
 
         breaker.recordFailure();
-        assert(breaker.state() == lc::CircuitState::Open);
+        assert(breaker.state() == lgc::CircuitState::Open);
 
         result = breaker.acquire();
         assert(!result.allowed_);
-        assert(result.state_ == lc::CircuitState::Open);
-        assert(result.status_.code() == lc::StatusCode::Unavailable);
+        assert(result.state_ == lgc::CircuitState::Open);
+        assert(result.status_.code() == lgc::StatusCode::Unavailable);
         assert(result.retryAfter_ == 2s);
 
         clock.advance(2s);
         result = breaker.acquire();
         assert(result.allowed_);
-        assert(result.state_ == lc::CircuitState::HalfOpen);
+        assert(result.state_ == lgc::CircuitState::HalfOpen);
 
         auto secondProbe = breaker.acquire();
         assert(!secondProbe.allowed_);
-        assert(secondProbe.state_ == lc::CircuitState::HalfOpen);
+        assert(secondProbe.state_ == lgc::CircuitState::HalfOpen);
 
         breaker.recordSuccess();
-        assert(breaker.state() == lc::CircuitState::Closed);
+        assert(breaker.state() == lgc::CircuitState::Closed);
     }
 
     {
-        auto policy = lc::CircuitBreakerPolicy {
+        auto policy = lgc::CircuitBreakerPolicy {
             .failureThreshold_ = 1,
             .successThreshold_ = 1,
             .halfOpenMaxCalls_ = 1,
             .openTimeout_ = 1s,
         };
-        lc::CircuitBreaker breaker(policy, clock);
+        lgc::CircuitBreaker breaker(policy, clock);
 
         assert(breaker.acquire().allowed_);
         breaker.recordFailure();
-        assert(breaker.state() == lc::CircuitState::Open);
+        assert(breaker.state() == lgc::CircuitState::Open);
 
         clock.advance(1s);
         assert(breaker.acquire().allowed_);
-        assert(breaker.state() == lc::CircuitState::HalfOpen);
+        assert(breaker.state() == lgc::CircuitState::HalfOpen);
         breaker.recordFailure();
-        assert(breaker.state() == lc::CircuitState::Open);
+        assert(breaker.state() == lgc::CircuitState::Open);
 
         breaker.reset();
-        assert(breaker.state() == lc::CircuitState::Closed);
-        assert(lc::circuitStateName(lc::CircuitState::HalfOpen) == std::string_view("half_open"));
+        assert(breaker.state() == lgc::CircuitState::Closed);
+        assert(lgc::circuitStateName(lgc::CircuitState::HalfOpen) == std::string_view("half_open"));
     }
 
     {
-        auto policy = lc::CircuitBreakerPolicy {
+        auto policy = lgc::CircuitBreakerPolicy {
             .failureThreshold_ = 1,
             .successThreshold_ = 1,
             .halfOpenMaxCalls_ = 1,
             .openTimeout_ = 1s,
             .halfOpenProbeTimeout_ = 50ms,
         };
-        lc::CircuitBreaker breaker(policy, clock);
+        lgc::CircuitBreaker breaker(policy, clock);
 
         assert(breaker.acquire().allowed_);
         breaker.recordFailure();
@@ -168,7 +168,7 @@ int main()
         auto recovered = breaker.acquire();
         assert(recovered.allowed_);
         breaker.recordSuccess();
-        assert(breaker.state() == lc::CircuitState::Closed);
+        assert(breaker.state() == lgc::CircuitState::Closed);
     }
 
     return 0;

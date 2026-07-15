@@ -4,7 +4,7 @@
 
 #include <string_view>
 
-namespace lc::tracing_detail {
+namespace lgc::tracing_detail {
 
 inline constexpr std::string_view kDefaultTraceFlags = "01";
 
@@ -31,4 +31,4 @@ inline constexpr std::string_view kDefaultTraceFlags = "01";
 [[nodiscard]] Result<TraceContext> makeRootContext(const TraceOptions& options);
 [[nodiscard]] Result<TraceContext> makeChildContext(const TraceContext& parent, const TraceOptions& options);
 
-} // namespace lc::tracing_detail
+} // namespace lgc::tracing_detail

@@ -17,7 +17,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 using NodeHandler = std::function<Result<StateUpdate>(const State&, Runtime&)>;
 struct NodeOutput;
@@ -121,4 +121,4 @@ struct SubgraphOptions {
     std::string checkpointNamespace_;
 };
 
-} // namespace lc
+} // namespace lgc

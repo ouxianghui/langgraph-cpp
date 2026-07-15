@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 /// LangGraph-style thread-scoped checkpoint saver used by graph resume.
 ///
@@ -34,4 +34,4 @@ public:
         DeltaChannelHistoryQuery query) = 0;
 };
 
-} // namespace lc
+} // namespace lgc

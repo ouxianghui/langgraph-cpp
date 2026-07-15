@@ -5,7 +5,7 @@
 #include <limits>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 Deadline::Deadline(std::optional<TimePoint> timePoint) noexcept
     : timePoint_(std::move(timePoint))
@@ -76,4 +76,4 @@ Status Deadline::statusIfExpired(const Clock& clock, std::string message) const
     return Status::deadlineExceeded(std::move(message));
 }
 
-} // namespace lc
+} // namespace lgc

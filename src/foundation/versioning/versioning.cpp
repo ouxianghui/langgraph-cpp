@@ -7,7 +7,7 @@
 #include <string>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] StorageKey toStorageKey(const StorageVersionKey& key)
@@ -428,4 +428,4 @@ const std::vector<StorageMigration>& StorageMigrator::migrations() const noexcep
     return migrations_;
 }
 
-} // namespace lc
+} // namespace lgc

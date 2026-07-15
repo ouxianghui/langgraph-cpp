@@ -9,7 +9,7 @@
 #include <string>
 #include <utility>
 
-namespace lc::blob_detail {
+namespace lgc::blob_detail {
 
 [[nodiscard]] Status metadataError(std::string message)
 {
@@ -252,4 +252,4 @@ namespace lc::blob_detail {
 }
 
 
-} // namespace lc::blob_detail
+} // namespace lgc::blob_detail

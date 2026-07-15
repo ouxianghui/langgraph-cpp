@@ -14,7 +14,7 @@
 #include <string_view>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] Status requireService(bool required, bool present, std::string_view name)
@@ -166,4 +166,4 @@ RuntimeServices defaultRuntimeServices()
     return services;
 }
 
-} // namespace lc
+} // namespace lgc

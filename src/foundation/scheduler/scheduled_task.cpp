@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 using scheduler_detail::isTerminal;
 using scheduler_detail::requestCancel;
@@ -80,4 +80,4 @@ bool ScheduledTask::isFinished() const noexcept
     return isTerminal(state());
 }
 
-} // namespace lc
+} // namespace lgc

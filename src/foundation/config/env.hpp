@@ -6,7 +6,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc {
+namespace lgc {
 
 class Env final {
 public:
@@ -17,4 +17,4 @@ public:
 
 [[nodiscard]] Status validateEnvName(std::string_view name);
 
-} // namespace lc
+} // namespace lgc

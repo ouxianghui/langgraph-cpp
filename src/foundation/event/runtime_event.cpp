@@ -7,7 +7,7 @@
 #include <cctype>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] IdGenerator& runtimeEventIdGenerator()
@@ -222,4 +222,4 @@ Status validateRuntimeEvent(const RuntimeEvent& event, const RuntimeEventLimits&
     return Status::ok();
 }
 
-} // namespace lc
+} // namespace lgc

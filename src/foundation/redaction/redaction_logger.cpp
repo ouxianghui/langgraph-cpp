@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 RedactionLogger::RedactionLogger(std::shared_ptr<ILogger> inner, Redactor redactor)
     : inner_(std::move(inner))
@@ -59,4 +59,4 @@ bool RedactionLogger::isClosed() const noexcept
     return inner_->isClosed();
 }
 
-} // namespace lc
+} // namespace lgc

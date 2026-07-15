@@ -15,7 +15,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 struct RunStreamOptions {
     std::size_t capacity_ { 1024 };
@@ -128,4 +128,4 @@ private:
 
 [[nodiscard]] RunStatus runStatusFromStatus(const Status& status) noexcept;
 
-} // namespace lc
+} // namespace lgc

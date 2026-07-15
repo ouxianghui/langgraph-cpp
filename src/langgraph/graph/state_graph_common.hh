@@ -5,7 +5,7 @@
 
 #include <string_view>
 
-namespace lc::graph_detail {
+namespace lgc::graph_detail {
 
 inline constexpr char kCheckpointNamespaceSeparator = '|';
 inline constexpr char kCheckpointNamespaceTaskSeparator = ':';
@@ -23,4 +23,4 @@ inline constexpr char kCheckpointNamespaceTaskSeparator = ':';
     return okResult();
 }
 
-} // namespace lc::graph_detail
+} // namespace lgc::graph_detail

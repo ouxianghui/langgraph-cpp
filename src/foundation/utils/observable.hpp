@@ -19,7 +19,7 @@
 #include <utility>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 inline constexpr std::string_view kObservableLog { "Observable" };
 
@@ -607,4 +607,4 @@ private:
     bool debug_ = false;
 };
 
-} // namespace lc
+} // namespace lgc

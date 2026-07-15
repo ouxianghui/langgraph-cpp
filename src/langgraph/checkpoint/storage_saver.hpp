@@ -7,7 +7,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc {
+namespace lgc {
 
 struct StorageSaverOptions {
     /// Storage scope prefix used for checkpoint keys.
@@ -91,4 +91,4 @@ private:
     StorageSaverOptions options_;
 };
 
-} // namespace lc
+} // namespace lgc

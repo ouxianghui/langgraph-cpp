@@ -12,7 +12,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 struct JsonDecodeLimits {
     std::size_t maxBytes_ { 64 * 1024 * 1024 };
@@ -180,4 +180,4 @@ namespace detail {
     return Status::ok();
 }
 
-} // namespace lc
+} // namespace lgc

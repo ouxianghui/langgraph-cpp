@@ -12,7 +12,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc::content_envelope_detail {
+namespace lgc::content_envelope_detail {
 
 [[nodiscard]] std::span<const std::uint8_t> bytesView(const Bytes& bytes) noexcept
 {
@@ -36,28 +36,28 @@ namespace lc::content_envelope_detail {
 
 [[nodiscard]] std::string compressionNameJson(CompressionAlgorithm algorithm)
 {
-    return std::string(lc::compressionName(algorithm));
+    return std::string(lgc::compressionName(algorithm));
 }
 
 [[nodiscard]] Result<CompressionAlgorithm> compressionFromName(std::string_view name)
 {
-    if (name == lc::compressionName(CompressionAlgorithm::None)
+    if (name == lgc::compressionName(CompressionAlgorithm::None)
         || name == compressionEncoding(CompressionAlgorithm::None)) {
         return CompressionAlgorithm::None;
     }
-    if (name == lc::compressionName(CompressionAlgorithm::Gzip)
+    if (name == lgc::compressionName(CompressionAlgorithm::Gzip)
         || name == compressionEncoding(CompressionAlgorithm::Gzip)) {
         return CompressionAlgorithm::Gzip;
     }
-    if (name == lc::compressionName(CompressionAlgorithm::Zstd)
+    if (name == lgc::compressionName(CompressionAlgorithm::Zstd)
         || name == compressionEncoding(CompressionAlgorithm::Zstd)) {
         return CompressionAlgorithm::Zstd;
     }
     return Status::unimplemented("unsupported envelope compression algorithm");
 }
-} // namespace lc::content_envelope_detail
+} // namespace lgc::content_envelope_detail
 
-namespace lc {
+namespace lgc {
 namespace {
 using nlohmann::json;
 using namespace content_envelope_detail;
@@ -366,4 +366,4 @@ bool isEnvelopePayload(const Payload& payload) noexcept
     return payload.contentType_ == kEnvelopeContentType;
 }
 
-} // namespace lc
+} // namespace lgc

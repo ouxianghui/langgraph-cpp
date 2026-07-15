@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 /// Mutable graph builder.
 ///
@@ -104,4 +104,4 @@ private:
     StateSchemaOptions schemas_;
 };
 
-} // namespace lc
+} // namespace lgc

@@ -7,57 +7,57 @@
 
 int main()
 {
-    const lc::Status ok = lc::Status::ok();
+    const lgc::Status ok = lgc::Status::ok();
     assert(ok.isOk());
-    assert(ok.code() == lc::StatusCode::Ok);
+    assert(ok.code() == lgc::StatusCode::Ok);
     assert(ok.toString() == "ok");
 
-    const lc::Status okWithMessage(lc::StatusCode::Ok, "ignored");
+    const lgc::Status okWithMessage(lgc::StatusCode::Ok, "ignored");
     assert(okWithMessage.isOk());
     assert(okWithMessage.message().empty());
     assert(okWithMessage.toString() == "ok");
 
-    const lc::Status unknownCode(static_cast<lc::StatusCode>(255), "bad code");
+    const lgc::Status unknownCode(static_cast<lgc::StatusCode>(255), "bad code");
     assert(!unknownCode.isOk());
-    assert(unknownCode.code() == lc::StatusCode::Unknown);
+    assert(unknownCode.code() == lgc::StatusCode::Unknown);
     assert(unknownCode.toString() == "unknown: bad code");
 
-    const lc::Status missing = lc::Status::notFound("checkpoint");
+    const lgc::Status missing = lgc::Status::notFound("checkpoint");
     assert(!missing.isOk());
-    assert(missing.code() == lc::StatusCode::NotFound);
+    assert(missing.code() == lgc::StatusCode::NotFound);
     assert(missing.message() == "checkpoint");
     assert(missing.toString() == "not_found: checkpoint");
 
-    lc::Result<int> value = 42;
+    lgc::Result<int> value = 42;
     assert(value.isOk());
     assert(value.status().isOk());
     assert(value.value() == 42);
     assert(*value == 42);
 
-    lc::Result<int> error = lc::Status::invalidArgument("bad node id");
+    lgc::Result<int> error = lgc::Status::invalidArgument("bad node id");
     assert(!error.isOk());
-    assert(error.status().code() == lc::StatusCode::InvalidArgument);
+    assert(error.status().code() == lgc::StatusCode::InvalidArgument);
 
-    lc::Result<int> invalidError = lc::Status::ok();
+    lgc::Result<int> invalidError = lgc::Status::ok();
     assert(!invalidError.isOk());
-    assert(invalidError.status().code() == lc::StatusCode::Internal);
+    assert(invalidError.status().code() == lgc::StatusCode::Internal);
 
-    lc::Result<std::unique_ptr<std::string>> owned(
+    lgc::Result<std::unique_ptr<std::string>> owned(
         std::make_unique<std::string>("state"));
     assert(owned.isOk());
     assert(*owned.value() == "state");
 
-    lc::Result<void> voidOk;
+    lgc::Result<void> voidOk;
     assert(voidOk.isOk());
     voidOk.value();
 
-    lc::Result<void> voidError = lc::Status::unavailable("storage");
+    lgc::Result<void> voidError = lgc::Status::unavailable("storage");
     assert(!voidError.isOk());
-    assert(voidError.status().code() == lc::StatusCode::Unavailable);
+    assert(voidError.status().code() == lgc::StatusCode::Unavailable);
 
-    lc::Result<void> invalidVoidError = lc::Status::ok();
+    lgc::Result<void> invalidVoidError = lgc::Status::ok();
     assert(!invalidVoidError.isOk());
-    assert(invalidVoidError.status().code() == lc::StatusCode::Internal);
+    assert(invalidVoidError.status().code() == lgc::StatusCode::Internal);
 
     return 0;
 }

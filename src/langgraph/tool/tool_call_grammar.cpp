@@ -7,7 +7,7 @@
 #include <string_view>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 using nlohmann::json;
@@ -489,4 +489,4 @@ Result<BaseMessage> assistantMessageFromToolCallJson(std::string content)
     return BaseMessage::ai(std::move(assistantContent), std::move(calls));
 }
 
-} // namespace lc
+} // namespace lgc

@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 EnvelopedStateCodec::EnvelopedStateCodec(
     std::shared_ptr<IStateCodec> inner,
@@ -33,4 +33,4 @@ Result<State> EnvelopedStateCodec::decode(const Payload& payload) const
     return inner_->decode(*decoded);
 }
 
-} // namespace lc
+} // namespace lgc

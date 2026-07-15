@@ -15,7 +15,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 struct RedactionConfig {
     std::string replacement_ { "[REDACTED]" };
@@ -160,4 +160,4 @@ private:
     Redactor redactor_;
 };
 
-} // namespace lc
+} // namespace lgc

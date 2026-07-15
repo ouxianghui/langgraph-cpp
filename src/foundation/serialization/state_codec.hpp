@@ -13,7 +13,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 struct Payload {
     std::string contentType_;
@@ -146,4 +146,4 @@ private:
 [[nodiscard]] bool isCheckpointPayload(std::string_view contentType) noexcept;
 [[nodiscard]] bool isCheckpointWritePayload(std::string_view contentType) noexcept;
 
-} // namespace lc
+} // namespace lgc

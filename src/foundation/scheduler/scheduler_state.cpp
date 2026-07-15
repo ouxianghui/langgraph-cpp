@@ -5,7 +5,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc::scheduler_detail {
+namespace lgc::scheduler_detail {
 
 [[nodiscard]] TimePoint clockNow(const Clock& clock) noexcept
 {
@@ -407,4 +407,4 @@ void attachCancellation(
     return executor->post(std::move(task));
 }
 
-} // namespace lc::scheduler_detail
+} // namespace lgc::scheduler_detail

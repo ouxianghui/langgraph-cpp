@@ -2,7 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 template <typename T>
 static void putValue(json& output, const char* key,
@@ -44,14 +44,14 @@ static void assignValue(const json& input, const char* key, T& value)
     }
 }
 
-} // namespace lc
+} // namespace lgc
 
 #define JM(field) #field, field
 
 #define JSON_WRITE_FIELD(key, field) \
-    ::lc::putValue(output, key, value.field);
+    ::lgc::putValue(output, key, value.field);
 #define JSON_READ_FIELD(key, field) \
-    ::lc::assignValue(input, key, value.field);
+    ::lgc::assignValue(input, key, value.field);
 
 #define JSON_PAIR_APPLY_0(M, ...)
 #define JSON_PAIR_APPLY_2(M, k, v, ...) \
@@ -407,9 +407,9 @@ static void assignValue(const json& input, const char* key, T& value)
 /// Declares `fromJson` / `toJson` (implementations live in a `.cpp` via
 /// `DEFINE_JSON_FROM_TO`) and nlohmann ADL `from_json` / `to_json` so
 /// `json(value)`, `j.get<T>()`, and `j[key] = nestedStruct` work. Expand inside
-/// `namespace lc`.
+/// `namespace lgc`.
 #define DECLARE_JSON_ADL(TYPE)                                        \
-    void fromJson(const lc::json& input, TYPE& value);                \
-    void toJson(lc::json& output, const TYPE& value);                 \
-    inline void to_json(lc::json& j, const TYPE& v) { toJson(j, v); } \
-    inline void from_json(const lc::json& j, TYPE& v) { fromJson(j, v); }
+    void fromJson(const lgc::json& input, TYPE& value);                \
+    void toJson(lgc::json& output, const TYPE& value);                 \
+    inline void to_json(lgc::json& j, const TYPE& v) { toJson(j, v); } \
+    inline void from_json(const lgc::json& j, TYPE& v) { fromJson(j, v); }

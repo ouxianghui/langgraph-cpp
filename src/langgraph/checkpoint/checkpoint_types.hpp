@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 enum class CheckpointListOrder : std::uint8_t {
     OldestFirst,
@@ -102,4 +102,4 @@ struct DeltaChannelHistory {
 
 using DeltaChannelHistories = std::map<std::string, DeltaChannelHistory>;
 
-} // namespace lc
+} // namespace lgc

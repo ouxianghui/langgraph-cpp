@@ -9,7 +9,7 @@
 #include <string>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 std::mutex& registryMutex()
@@ -433,4 +433,4 @@ Status validateLogRecord(const LogRecord& record, const LogLimits& limits)
     return Status::ok();
 }
 
-} // namespace lc
+} // namespace lgc

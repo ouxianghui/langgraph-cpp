@@ -19,7 +19,7 @@
 
 #include <string>
 
-namespace lc {
+namespace lgc {
 
 struct CancellationState;
 
@@ -157,4 +157,4 @@ void throwIfCancelledOrDeadlineExceeded(
     std::string cancelMessage = "operation cancelled",
     std::string deadlineMessage = "deadline exceeded");
 
-} // namespace lc
+} // namespace lgc

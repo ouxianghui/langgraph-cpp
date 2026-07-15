@@ -6,7 +6,7 @@
 #include <string>
 #include <utility>
 
-namespace lc::process_detail {
+namespace lgc::process_detail {
 
 void appendBounded(std::string& out, bool& truncated, const char* data, std::size_t size, std::size_t limit)
 {
@@ -61,4 +61,4 @@ bool hasStreamingStdin(const ProcessOptions& options) noexcept
     return options.stdin_.has_value() || static_cast<bool>(options.stdinProvider_);
 }
 
-} // namespace lc::process_detail
+} // namespace lgc::process_detail

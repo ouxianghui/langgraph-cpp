@@ -9,7 +9,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 enum class UsageMetadataSource : std::uint8_t {
     Unknown = 0,
@@ -52,4 +52,4 @@ struct UsageMetadata {
 [[nodiscard]] nlohmann::json usageMetadataToJson(const UsageMetadata& usage);
 [[nodiscard]] Result<UsageMetadata> usageMetadataFromJson(const nlohmann::json& value);
 
-} // namespace lc
+} // namespace lgc

@@ -9,7 +9,7 @@
 #include <thread>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] ITimer::Duration normalizeDelay(ITimer::Duration delay) noexcept
@@ -422,4 +422,4 @@ TimerHandle IntervalTimer::singleShot(Duration delay, Callback handler, std::sha
     return TimerHandle(std::move(state));
 }
 
-} // namespace lc
+} // namespace lgc

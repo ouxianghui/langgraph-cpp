@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 struct GbnfGrammarOptions {
     /// Upper bound used when a JSON Schema array has no maxItems.
@@ -46,4 +46,4 @@ struct ToolCallGrammarOptions {
 /// Parse a constrained tool-call JSON response into an assistant message.
 [[nodiscard]] Result<BaseMessage> assistantMessageFromToolCallJson(std::string content);
 
-} // namespace lc
+} // namespace lgc

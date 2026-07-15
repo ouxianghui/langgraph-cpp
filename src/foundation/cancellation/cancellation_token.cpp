@@ -6,7 +6,7 @@
 #include <utility>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 #if LC_HAS_STD_STOP_TOKEN
 struct CancellationState final {
@@ -407,4 +407,4 @@ void throwIfCancelledOrDeadlineExceeded(
         std::move(deadlineMessage));
 }
 
-} // namespace lc
+} // namespace lgc

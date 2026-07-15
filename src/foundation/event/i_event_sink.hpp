@@ -6,7 +6,7 @@
 #include <chrono>
 #include <memory>
 
-namespace lc {
+namespace lgc {
 
 class Redactor;
 
@@ -51,4 +51,4 @@ public:
     [[nodiscard]] virtual bool isClosed() const noexcept = 0;
 };
 
-} // namespace lc
+} // namespace lgc

@@ -5,7 +5,7 @@
 
 #include <memory>
 
-namespace lc {
+namespace lgc {
 
 class IHttpClient;
 class IAuthorizationProvider;
@@ -45,4 +45,4 @@ private:
 [[nodiscard]] std::shared_ptr<IHttpClientFactory> defaultHttpClientFactory(
     HttpClientFactoryOptions options = {});
 
-} // namespace lc
+} // namespace lgc

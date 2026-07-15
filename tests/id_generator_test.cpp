@@ -17,20 +17,20 @@
 
 namespace {
 
-class FixedRandomSource final : public lc::IRandomSource {
+class FixedRandomSource final : public lgc::IRandomSource {
 public:
     explicit FixedRandomSource(std::byte seed = std::byte { 0 })
         : seed_(seed)
     {
     }
 
-    [[nodiscard]] lc::Result<void> fill(std::span<std::byte> data) override
+    [[nodiscard]] lgc::Result<void> fill(std::span<std::byte> data) override
     {
         const auto base = counter_.fetch_add(1, std::memory_order_relaxed);
         for (std::size_t i = 0; i < data.size(); ++i)
             data[i] = static_cast<std::byte>(
                 (static_cast<unsigned char>(seed_) + ((base >> ((i % 8U) * 8U)) & 0xffU) + i) & 0xffU);
-        return lc::okResult();
+        return lgc::okResult();
     }
 
 private:
@@ -38,39 +38,39 @@ private:
     std::atomic<std::uint64_t> counter_ { 0 };
 };
 
-class FailingRandomSource final : public lc::IRandomSource {
+class FailingRandomSource final : public lgc::IRandomSource {
 public:
-    [[nodiscard]] lc::Result<void> fill(std::span<std::byte>) override
+    [[nodiscard]] lgc::Result<void> fill(std::span<std::byte>) override
     {
-        return lc::Status::unavailable("random source unavailable");
+        return lgc::Status::unavailable("random source unavailable");
     }
 };
 
-class ConstantRandomSource final : public lc::IRandomSource {
+class ConstantRandomSource final : public lgc::IRandomSource {
 public:
     explicit ConstantRandomSource(std::byte value)
         : value_(value)
     {
     }
 
-    [[nodiscard]] lc::Result<void> fill(std::span<std::byte> data) override
+    [[nodiscard]] lgc::Result<void> fill(std::span<std::byte> data) override
     {
         std::ranges::fill(data, value_);
-        return lc::okResult();
+        return lgc::okResult();
     }
 
 private:
     std::byte value_;
 };
 
-class FixedIdClock final : public lc::IIdClock {
+class FixedIdClock final : public lgc::IIdClock {
 public:
     explicit FixedIdClock(std::chrono::milliseconds::rep value)
         : value_(value)
     {
     }
 
-    [[nodiscard]] lc::Result<std::chrono::milliseconds::rep> unixTimeMs() const override
+    [[nodiscard]] lgc::Result<std::chrono::milliseconds::rep> unixTimeMs() const override
     {
         return value_.load(std::memory_order_relaxed);
     }
@@ -84,11 +84,11 @@ private:
     std::atomic<std::chrono::milliseconds::rep> value_;
 };
 
-class FailingIdClock final : public lc::IIdClock {
+class FailingIdClock final : public lgc::IIdClock {
 public:
-    [[nodiscard]] lc::Result<std::chrono::milliseconds::rep> unixTimeMs() const override
+    [[nodiscard]] lgc::Result<std::chrono::milliseconds::rep> unixTimeMs() const override
     {
-        return lc::Status::unavailable("clock unavailable");
+        return lgc::Status::unavailable("clock unavailable");
     }
 };
 
@@ -105,12 +105,12 @@ public:
 
 void verifyUuid()
 {
-    auto generator = lc::IdGenerator::uuidV4("run");
+    auto generator = lgc::IdGenerator::uuidV4("run");
     const auto id = generator.next();
     assert(id.isOk());
 
     assert(generator.status().isOk());
-    assert(generator.strategy() == lc::IdStrategy::UuidV4);
+    assert(generator.strategy() == lgc::IdStrategy::UuidV4);
     assert(generator.prefix() == "run");
     assert(generator.separator() == "_");
     assert(id->starts_with("run_"));
@@ -135,8 +135,8 @@ void verifyUlid()
 {
     auto clock = std::make_shared<FixedIdClock>(1'700'000'000'000);
     auto random = std::make_shared<FixedRandomSource>();
-    lc::IdGenerator generator(lc::IdGeneratorOptions {
-        .strategy_ = lc::IdStrategy::Ulid,
+    lgc::IdGenerator generator(lgc::IdGeneratorOptions {
+        .strategy_ = lgc::IdStrategy::Ulid,
         .prefix_ = "thread",
         .randomSource_ = random,
         .clock_ = clock,
@@ -166,9 +166,9 @@ void verifyUlid()
 
 void verifyMonotonic()
 {
-    auto generator = lc::IdGenerator::monotonic("node_exec", 7);
+    auto generator = lgc::IdGenerator::monotonic("node_exec", 7);
 
-    assert(generator.strategy() == lc::IdStrategy::Monotonic);
+    assert(generator.strategy() == lgc::IdStrategy::Monotonic);
     auto first = generator.next();
     auto second = generator.next();
     auto checkpoint = generator.next("checkpoint");
@@ -180,11 +180,11 @@ void verifyMonotonic()
     assert(*checkpoint == "checkpoint_9");
 }
 
-void verifyConcurrent(lc::IdStrategy strategy)
+void verifyConcurrent(lgc::IdStrategy strategy)
 {
-    std::shared_ptr<lc::IRandomSource> random = std::make_shared<FixedRandomSource>();
-    std::shared_ptr<lc::IIdClock> clock = std::make_shared<FixedIdClock>(1'700'000'000'000);
-    lc::IdGenerator generator(lc::IdGeneratorOptions {
+    std::shared_ptr<lgc::IRandomSource> random = std::make_shared<FixedRandomSource>();
+    std::shared_ptr<lgc::IIdClock> clock = std::make_shared<FixedIdClock>(1'700'000'000'000);
+    lgc::IdGenerator generator(lgc::IdGeneratorOptions {
         .strategy_ = strategy,
         .prefix_ = "run",
         .randomSource_ = random,
@@ -224,7 +224,7 @@ void verifyConcurrent(lc::IdStrategy strategy)
 
 void verifyConcurrentMonotonic()
 {
-    auto generator = lc::IdGenerator::monotonic("run", 1);
+    auto generator = lgc::IdGenerator::monotonic("run", 1);
     std::mutex mutex;
     std::unordered_set<std::string> ids;
 
@@ -259,62 +259,62 @@ void verifyConcurrentMonotonic()
 void verifyFailurePaths()
 {
     {
-        lc::IdGenerator generator(lc::IdGeneratorOptions {
-            .strategy_ = lc::IdStrategy::UuidV4,
+        lgc::IdGenerator generator(lgc::IdGeneratorOptions {
+            .strategy_ = lgc::IdStrategy::UuidV4,
             .randomSource_ = std::make_shared<FailingRandomSource>(),
         });
         auto id = generator.next();
         assert(!id.isOk());
-        assert(id.status().code() == lc::StatusCode::Unavailable);
+        assert(id.status().code() == lgc::StatusCode::Unavailable);
     }
 
     {
-        lc::IdGenerator generator(lc::IdGeneratorOptions {
-            .strategy_ = lc::IdStrategy::Ulid,
+        lgc::IdGenerator generator(lgc::IdGeneratorOptions {
+            .strategy_ = lgc::IdStrategy::Ulid,
             .randomSource_ = std::make_shared<FailingRandomSource>(),
             .clock_ = std::make_shared<FixedIdClock>(1'700'000'000'000),
         });
         auto id = generator.next();
         assert(!id.isOk());
-        assert(id.status().code() == lc::StatusCode::Unavailable);
+        assert(id.status().code() == lgc::StatusCode::Unavailable);
     }
 
     {
-        lc::IdGenerator generator(lc::IdGeneratorOptions {
-            .strategy_ = lc::IdStrategy::Ulid,
+        lgc::IdGenerator generator(lgc::IdGeneratorOptions {
+            .strategy_ = lgc::IdStrategy::Ulid,
             .randomSource_ = std::make_shared<FixedRandomSource>(),
             .clock_ = std::make_shared<FailingIdClock>(),
         });
         auto id = generator.next();
         assert(!id.isOk());
-        assert(id.status().code() == lc::StatusCode::Unavailable);
+        assert(id.status().code() == lgc::StatusCode::Unavailable);
     }
 
     {
-        lc::IdGenerator generator(lc::IdGeneratorOptions {
-            .strategy_ = lc::IdStrategy::Ulid,
+        lgc::IdGenerator generator(lgc::IdGeneratorOptions {
+            .strategy_ = lgc::IdStrategy::Ulid,
             .randomSource_ = std::make_shared<FixedRandomSource>(),
             .clock_ = std::make_shared<FixedIdClock>(-1),
         });
         auto id = generator.next();
         assert(!id.isOk());
-        assert(id.status().code() == lc::StatusCode::OutOfRange);
+        assert(id.status().code() == lgc::StatusCode::OutOfRange);
     }
 
     {
-        lc::IdGenerator generator(lc::IdGeneratorOptions {
-            .strategy_ = lc::IdStrategy::Ulid,
+        lgc::IdGenerator generator(lgc::IdGeneratorOptions {
+            .strategy_ = lgc::IdStrategy::Ulid,
             .randomSource_ = std::make_shared<FixedRandomSource>(),
             .clock_ = std::make_shared<FixedIdClock>(static_cast<std::chrono::milliseconds::rep>(1ULL << 48U)),
         });
         auto id = generator.next();
         assert(!id.isOk());
-        assert(id.status().code() == lc::StatusCode::OutOfRange);
+        assert(id.status().code() == lgc::StatusCode::OutOfRange);
     }
 
     {
-        lc::IdGenerator generator(lc::IdGeneratorOptions {
-            .strategy_ = lc::IdStrategy::Ulid,
+        lgc::IdGenerator generator(lgc::IdGeneratorOptions {
+            .strategy_ = lgc::IdStrategy::Ulid,
             .randomSource_ = std::make_shared<ConstantRandomSource>(std::byte { 0xff }),
             .clock_ = std::make_shared<FixedIdClock>(1'700'000'000'000),
         });
@@ -322,54 +322,54 @@ void verifyFailurePaths()
         assert(first.isOk());
         auto exhausted = generator.next();
         assert(!exhausted.isOk());
-        assert(exhausted.status().code() == lc::StatusCode::ResourceExhausted);
+        assert(exhausted.status().code() == lgc::StatusCode::ResourceExhausted);
     }
 
     {
-        auto generator = lc::IdGenerator::monotonic({}, std::numeric_limits<std::uint64_t>::max());
+        auto generator = lgc::IdGenerator::monotonic({}, std::numeric_limits<std::uint64_t>::max());
         auto id = generator.next();
         assert(!id.isOk());
-        assert(id.status().code() == lc::StatusCode::OutOfRange);
+        assert(id.status().code() == lgc::StatusCode::OutOfRange);
     }
 
     {
-        lc::IdGenerator invalidPrefix(lc::IdGeneratorOptions {
+        lgc::IdGenerator invalidPrefix(lgc::IdGeneratorOptions {
             .prefix_ = "bad prefix",
         });
         assert(!invalidPrefix.status().isOk());
-        assert(invalidPrefix.status().code() == lc::StatusCode::InvalidArgument);
+        assert(invalidPrefix.status().code() == lgc::StatusCode::InvalidArgument);
         assert(!invalidPrefix.next().isOk());
     }
 
     {
-        lc::IdGenerator invalidPrefix(lc::IdGeneratorOptions {
+        lgc::IdGenerator invalidPrefix(lgc::IdGeneratorOptions {
             .prefix_ = std::string(65, 'a'),
         });
         assert(!invalidPrefix.status().isOk());
-        assert(invalidPrefix.status().code() == lc::StatusCode::InvalidArgument);
+        assert(invalidPrefix.status().code() == lgc::StatusCode::InvalidArgument);
     }
 
     {
-        lc::IdGenerator invalidSeparator(lc::IdGeneratorOptions {
+        lgc::IdGenerator invalidSeparator(lgc::IdGeneratorOptions {
             .separator_ = "/",
         });
         assert(!invalidSeparator.status().isOk());
-        assert(invalidSeparator.status().code() == lc::StatusCode::InvalidArgument);
+        assert(invalidSeparator.status().code() == lgc::StatusCode::InvalidArgument);
     }
 
     {
-        lc::IdGenerator invalidSeparator(lc::IdGeneratorOptions {
+        lgc::IdGenerator invalidSeparator(lgc::IdGeneratorOptions {
             .separator_ = std::string(9, '_'),
         });
         assert(!invalidSeparator.status().isOk());
-        assert(invalidSeparator.status().code() == lc::StatusCode::InvalidArgument);
+        assert(invalidSeparator.status().code() == lgc::StatusCode::InvalidArgument);
     }
 
     {
-        auto generator = lc::IdGenerator::uuidV4();
+        auto generator = lgc::IdGenerator::uuidV4();
         auto id = generator.next("bad prefix");
         assert(!id.isOk());
-        assert(id.status().code() == lc::StatusCode::InvalidArgument);
+        assert(id.status().code() == lgc::StatusCode::InvalidArgument);
     }
 }
 
@@ -380,8 +380,8 @@ int main()
     verifyUuid();
     verifyUlid();
     verifyMonotonic();
-    verifyConcurrent(lc::IdStrategy::UuidV4);
-    verifyConcurrent(lc::IdStrategy::Ulid);
+    verifyConcurrent(lgc::IdStrategy::UuidV4);
+    verifyConcurrent(lgc::IdStrategy::Ulid);
     verifyConcurrentMonotonic();
     verifyFailurePaths();
     return 0;

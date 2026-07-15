@@ -7,7 +7,7 @@
 #include <functional>
 #include <source_location>
 
-namespace lc {
+namespace lgc {
 
 /// Internal substrate for executor implementations.
 ///
@@ -82,4 +82,4 @@ public:
     [[nodiscard]] virtual ThreadStats stats() const noexcept = 0;
 };
 
-} // namespace lc
+} // namespace lgc

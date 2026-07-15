@@ -17,7 +17,7 @@
 #include <pthread.h>
 #endif
 
-namespace lc {
+namespace lgc {
 
 class ThreadContext final {
 public:
@@ -94,4 +94,4 @@ private:
     }
 };
 
-} // namespace lc
+} // namespace lgc

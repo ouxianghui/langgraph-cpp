@@ -16,7 +16,7 @@
 #include <utility>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 thread_local const void* tlsPoolSelf = nullptr;
@@ -507,4 +507,4 @@ ThreadPoolStats ThreadPool::stats() const noexcept
     return impl_->stats();
 }
 
-} // namespace lc
+} // namespace lgc

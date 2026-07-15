@@ -7,7 +7,7 @@
 #include <set>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 using namespace detail;
 
@@ -202,4 +202,4 @@ Result<std::vector<StoreBatchResult>> InMemoryStore::batch(std::vector<StoreOp> 
     return okResult(std::move(results));
 }
 
-} // namespace lc
+} // namespace lgc

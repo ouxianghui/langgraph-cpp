@@ -10,16 +10,16 @@ namespace {
 
 void testReadmeMinimalGraphSnippet()
 {
-    lc::StateGraph graph;
-    assert(graph.addNode("hello", [](const lc::State&, lc::Runtime&) {
-        return lc::StateUpdate::fromJson(R"({"message":"hello from langgraph-cpp"})");
+    lgc::StateGraph graph;
+    assert(graph.addNode("hello", [](const lgc::State&, lgc::Runtime&) {
+        return lgc::StateUpdate::fromJson(R"({"message":"hello from langgraph-cpp"})");
     }).isOk());
     assert(graph.setEntryPoint("hello").isOk());
     assert(graph.setFinishPoint("hello").isOk());
 
     auto compiled = graph.compile();
     assert(compiled.isOk());
-    auto input = lc::State::fromJson("{}");
+    auto input = lgc::State::fromJson("{}");
     assert(input.isOk());
     auto result = compiled->invoke(*input);
     assert(result.isOk());
@@ -28,32 +28,32 @@ void testReadmeMinimalGraphSnippet()
 
 void testApiExamplesStateGraphLoopSnippet()
 {
-    lc::StateGraph graph;
+    lgc::StateGraph graph;
 
-    assert(graph.addNode("tick", [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::StateUpdate> {
+    assert(graph.addNode("tick", [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
         auto json = state.toJson();
         if (!json.isOk())
             return json.status();
 
-        return lc::StateUpdate::fromJsonValue({
+        return lgc::StateUpdate::fromJsonValue({
             { "count", json->value("count", 0) + 1 },
         });
     }).isOk());
 
-    assert(graph.addEdge(std::string(lc::START), "tick").isOk());
+    assert(graph.addEdge(std::string(lgc::START), "tick").isOk());
     assert(graph.addConditionalEdges(
         "tick",
-        [](const lc::State& state, lc::Runtime&) -> lc::Result<lc::NodeId> {
+        [](const lgc::State& state, lgc::Runtime&) -> lgc::Result<lgc::NodeId> {
             auto json = state.toJson();
             if (!json.isOk())
                 return json.status();
-            return json->value("count", 0) >= 3 ? std::string(lc::END) : std::string("tick");
+            return json->value("count", 0) >= 3 ? std::string(lgc::END) : std::string("tick");
         },
-        { "tick", std::string(lc::END) }).isOk());
+        { "tick", std::string(lgc::END) }).isOk());
 
     auto compiled = graph.compile();
     assert(compiled.isOk());
-    auto input = lc::State::fromJson(R"({"count":0})");
+    auto input = lgc::State::fromJson(R"({"count":0})");
     assert(input.isOk());
     auto result = compiled->invoke(*input);
     assert(result.isOk());
@@ -62,30 +62,30 @@ void testApiExamplesStateGraphLoopSnippet()
 
 void testStreamProjectionSnippet()
 {
-    lc::StateGraph graph;
-    assert(graph.addNode("answer", [](const lc::State&, lc::Runtime& runtime) -> lc::Result<lc::StateUpdate> {
+    lgc::StateGraph graph;
+    assert(graph.addNode("answer", [](const lgc::State&, lgc::Runtime& runtime) -> lgc::Result<lgc::StateUpdate> {
         if (auto status = runtime.streamWriter().write("docs", { { "phase", "answer" } }); !status.isOk())
             return status;
-        return lc::StateUpdate::fromJson(R"({"messages":[{"type":"ai","content":"ok"}],"answer":"ok"})");
+        return lgc::StateUpdate::fromJson(R"({"messages":[{"type":"ai","content":"ok"}],"answer":"ok"})");
     }).isOk());
     assert(graph.setEntryPoint("answer").isOk());
     assert(graph.setFinishPoint("answer").isOk());
     auto compiled = graph.compile();
     assert(compiled.isOk());
-    auto input = lc::State::fromJson("{}");
+    auto input = lgc::State::fromJson("{}");
     assert(input.isOk());
 
-    lc::RunOptions options;
-    options.reducers_.set("messages", lc::ReducerKind::AddMessages);
+    lgc::RunOptions options;
+    options.reducers_.set("messages", lgc::ReducerKind::AddMessages);
     auto parts = compiled->streamProjected(
         *input,
         options,
-        lc::RunProjectionOptions {
+        lgc::RunProjectionOptions {
             .modes_ = {
-                lc::StreamMode::Updates,
-                lc::StreamMode::Messages,
-                lc::StreamMode::Custom,
-                lc::StreamMode::Output,
+                lgc::StreamMode::Updates,
+                lgc::StreamMode::Messages,
+                lgc::StreamMode::Custom,
+                lgc::StreamMode::Output,
             },
             .capacity_ = 128,
             .outputKeys_ = { "messages" },
@@ -99,7 +99,7 @@ void testStreamProjectionSnippet()
         assert(part.isOk());
         if (!part->has_value())
             break;
-        sawOutput = sawOutput || (*part)->mode_ == lc::StreamMode::Output;
+        sawOutput = sawOutput || (*part)->mode_ == lgc::StreamMode::Output;
     }
     auto final = stream.result();
     assert(final.isOk());
@@ -108,11 +108,11 @@ void testStreamProjectionSnippet()
 
 void testStoreAndCheckpointSnippet()
 {
-    lc::StateGraph graph;
-    assert(graph.addNode("remember", [](const lc::State&, lc::Runtime& context) -> lc::Result<lc::StateUpdate> {
+    lgc::StateGraph graph;
+    assert(graph.addNode("remember", [](const lgc::State&, lgc::Runtime& context) -> lgc::Result<lgc::StateUpdate> {
         auto store = context.store();
         if (!store)
-            return lc::Status::failedPrecondition("store is missing");
+            return lgc::Status::failedPrecondition("store is missing");
         if (auto status = store->put(
                 { "profile", std::string(context.executionInfo().threadId_) },
                 "profile",
@@ -120,20 +120,20 @@ void testStoreAndCheckpointSnippet()
             !status.isOk()) {
             return status.status();
         }
-        return lc::StateUpdate::fromJson(R"({"remembered":true})");
+        return lgc::StateUpdate::fromJson(R"({"remembered":true})");
     }).isOk());
     assert(graph.setEntryPoint("remember").isOk());
     assert(graph.setFinishPoint("remember").isOk());
     auto compiled = graph.compile();
     assert(compiled.isOk());
-    auto input = lc::State::fromJson("{}");
+    auto input = lgc::State::fromJson("{}");
     assert(input.isOk());
 
-    auto store = std::make_shared<lc::InMemoryStore>();
-    auto storage = std::make_shared<lc::MemoryStorage>();
-    auto checkpointer = std::make_shared<lc::StorageSaver>(storage);
+    auto store = std::make_shared<lgc::InMemoryStore>();
+    auto storage = std::make_shared<lgc::MemoryStorage>();
+    auto checkpointer = std::make_shared<lgc::StorageSaver>(storage);
 
-    lc::RunOptions options;
+    lgc::RunOptions options;
     options.threadId_ = "docs-thread";
     options.checkpointNamespace_ = "root";
     options.store_ = store;
@@ -142,7 +142,7 @@ void testStoreAndCheckpointSnippet()
     auto result = compiled->invoke(*input, options);
     assert(result.isOk());
 
-    auto memories = store->search(lc::StoreSearchOptions {
+    auto memories = store->search(lgc::StoreSearchOptions {
         .namespacePrefix_ = { "profile" },
         .filter_ = nlohmann::json {
             { "name", "edge" },
@@ -151,11 +151,11 @@ void testStoreAndCheckpointSnippet()
     assert(memories.isOk());
     assert(memories->size() == 1);
 
-    auto record = checkpointer->getTuple(lc::CheckpointQuery::latest("docs-thread", "root"));
+    auto record = checkpointer->getTuple(lgc::CheckpointQuery::latest("docs-thread", "root"));
     assert(record.isOk());
     assert(record->has_value());
 
-    auto page = checkpointer->list(lc::CheckpointListOptions {
+    auto page = checkpointer->list(lgc::CheckpointListOptions {
         .threadId_ = "docs-thread",
         .checkpointNamespace_ = std::string("root"),
         .limit_ = 10,
@@ -166,7 +166,7 @@ void testStoreAndCheckpointSnippet()
 
 void testRunnableConfigSnippet()
 {
-    auto config = lc::RunnableConfig::fromJson({
+    auto config = lgc::RunnableConfig::fromJson({
         { "tags", { "docs", "snippet" } },
         { "metadata", { { "source", "docs" } } },
         { "run_name", "docs-run" },
@@ -178,7 +178,7 @@ void testRunnableConfigSnippet()
     });
     assert(config.isOk());
 
-    auto patched = lc::patchRunnableConfig(
+    auto patched = lgc::patchRunnableConfig(
         *config,
         {
             { "tags", { "patched" } },
@@ -188,10 +188,10 @@ void testRunnableConfigSnippet()
         });
     assert(patched.isOk());
 
-    auto merged = lc::mergeRunnableConfigs({ *config, *patched });
+    auto merged = lgc::mergeRunnableConfigs({ *config, *patched });
     assert(merged.isOk());
 
-    auto options = lc::applyRunnableConfig(lc::RunOptions {}, *merged);
+    auto options = lgc::applyRunnableConfig(lgc::RunOptions {}, *merged);
     assert(options.isOk());
     assert(options->threadId_ == "docs-thread");
     assert(options->checkpointNamespace_ == "root");

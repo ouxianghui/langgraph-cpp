@@ -11,7 +11,7 @@
     "official_upstream_port": false
   },
   "contracts": {
-    "api_contract_version": 25,
+    "api_contract_version": 26,
     "schema_contract_version": 1,
     "checkpoint_json_schema_version": 3,
     "content_envelope_version": 1,
@@ -25,9 +25,15 @@
     "architecture": "docs/ARCHITECTURE.md",
     "api_contract": "docs/API_CONTRACT.md",
     "quality_model": "docs/QUALITY_MODEL.md",
-    "release_checklist": "docs/RELEASE_CHECKLIST.md"
+    "release_checklist": "docs/RELEASE_CHECKLIST.md",
+    "agent_context": "context/README.md",
+    "agent_authority": "context/AUTHORITY.md"
   },
   "source_modules": [
+    {
+      "path": "src/core",
+      "role": "Optional lgc::core assembly: RuntimeServices, RuntimeContainer, lifecycle component factories over foundation."
+    },
     {
       "path": "src/langgraph/graph",
       "role": "Graph declaration, compiled execution, stream projection, resume, replay, subgraph boundaries."
@@ -66,8 +72,10 @@
     }
   ],
   "architecture_rules": [
-    "src/foundation must not depend on src/langgraph.",
-    "include/langgraph_cpp/langgraph.hpp is the public aggregate header and must not include internal .hh headers.",
+    "src/foundation must not depend on src/langgraph or src/core.",
+    "src/core (lgc::core) must not depend on src/langgraph.",
+    "src/langgraph must not depend on src/core (lgc::core).",
+    "include/langgraph_cpp/langgraph.hpp is the public aggregate header and must not include internal .hh headers or lgc::core assembly headers.",
     "Optional provider, hardware, llama.cpp, SQLite, network, crypto, gzip, and logging integrations must remain behind CMake options or injected interfaces.",
     "Recoverable errors must flow through Status or Result<T>.",
     "Core tests must not require Python, real hardware, real cloud providers, or external llama.cpp."
@@ -78,6 +86,7 @@
     "test": "ctest --test-dir build/unix-debug --output-on-failure",
     "docs_test": "ctest --test-dir build/unix-debug -L docs --output-on-failure",
     "dependency_policy": "scripts/check-dependency-policy.sh",
+    "context_skills": "scripts/check-context-skills.sh",
     "example_smoke": "scripts/run-examples.sh",
     "quality_report": "scripts/generate-quality-report.sh",
     "coverage": "scripts/coverage.sh"
@@ -93,7 +102,9 @@
     "api_examples": "docs/tutorials/API_EXAMPLES.md",
     "golden_fixtures": "testdata/langgraph/README.md",
     "latest_quality_report": "docs/reports/latest-quality-report.md",
-    "example_smoke_report": "docs/reports/example-smoke-report.md"
+    "example_smoke_report": "docs/reports/example-smoke-report.md",
+    "context_skills": "context/SKILL_INVENTORY.md",
+    "context_authority": "context/AUTHORITY.md"
   },
   "known_non_goals": [
     "Not an official LangGraph or LangChain C++ port.",

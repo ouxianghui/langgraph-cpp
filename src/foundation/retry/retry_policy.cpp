@@ -9,7 +9,7 @@
 #include <string>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 using Duration = Clock::Duration;
@@ -381,4 +381,4 @@ Status RetryPolicy::validate() const
     return Status::ok();
 }
 
-} // namespace lc
+} // namespace lgc

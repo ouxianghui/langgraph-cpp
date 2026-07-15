@@ -10,7 +10,7 @@
 #include <mutex>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 template <typename T>
 class Promise;
@@ -357,4 +357,4 @@ private:
     std::shared_ptr<detail::FutureState<void>> state_;
 };
 
-} // namespace lc
+} // namespace lgc

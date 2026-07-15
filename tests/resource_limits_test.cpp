@@ -11,16 +11,16 @@ int main()
 {
     using namespace std::chrono_literals;
 
-    lc::ManualClock clock;
-    auto limits = lc::ResourceLimits::unlimited()
+    lgc::ManualClock clock;
+    auto limits = lgc::ResourceLimits::unlimited()
                       .maxSteps(2)
                       .maxDuration(10ms)
                       .maxRetries(1)
                       .maxMemory(1024);
 
-    assert(lc::validateResourceLimits(limits).isOk());
+    assert(lgc::validateResourceLimits(limits).isOk());
 
-    lc::ExecutionBudget budget(limits, clock);
+    lgc::ExecutionBudget budget(limits, clock);
     assert(budget.check(clock).isOk());
     assert(budget.startedAt() == clock.now());
     assert(budget.deadline().hasDeadline());
@@ -36,13 +36,13 @@ int main()
 
     status = budget.consumeStep(1, clock);
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::ResourceExhausted);
+    assert(status.code() == lgc::StatusCode::ResourceExhausted);
     assert(budget.usage().steps_ == 2);
 
     assert(budget.consumeRetry(1, clock).isOk());
     status = budget.consumeRetry(1, clock);
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::ResourceExhausted);
+    assert(status.code() == lgc::StatusCode::ResourceExhausted);
 
     assert(budget.recordMemory(512, clock).isOk());
     assert(budget.usage().memoryBytes_ == 512);
@@ -52,29 +52,29 @@ int main()
     assert(budget.usage().peakMemoryBytes_ == 512);
     status = budget.recordMemory(2048, clock);
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::ResourceExhausted);
+    assert(status.code() == lgc::StatusCode::ResourceExhausted);
 
     clock.advance(10ms);
     status = budget.check(clock);
     assert(!status.isOk());
-    assert(status.code() == lc::StatusCode::DeadlineExceeded);
+    assert(status.code() == lgc::StatusCode::DeadlineExceeded);
     assert(budget.elapsed(clock) == 10ms);
     assert(budget.remaining(clock) == 0ms);
 
-    lc::ResourceLimits bad;
+    lgc::ResourceLimits bad;
     bad.maxDuration_ = -1ms;
-    assert(lc::validateResourceLimits(bad).code() == lc::StatusCode::InvalidArgument);
-    lc::ExecutionBudget badBudget(bad, clock);
-    assert(badBudget.check(clock).code() == lc::StatusCode::InvalidArgument);
+    assert(lgc::validateResourceLimits(bad).code() == lgc::StatusCode::InvalidArgument);
+    lgc::ExecutionBudget badBudget(bad, clock);
+    assert(badBudget.check(clock).code() == lgc::StatusCode::InvalidArgument);
 
-    lc::ExecutionBudget unlimited;
+    lgc::ExecutionBudget unlimited;
     assert(unlimited.check().isOk());
     assert(unlimited.consumeStep(100).isOk());
     assert(unlimited.consumeRetry(10).isOk());
     assert(unlimited.recordMemory(1024 * 1024).isOk());
 
-    lc::ManualClock threadedClock;
-    lc::ExecutionBudget threaded(lc::ResourceLimits::unlimited().maxSteps(1000), threadedClock);
+    lgc::ManualClock threadedClock;
+    lgc::ExecutionBudget threaded(lgc::ResourceLimits::unlimited().maxSteps(1000), threadedClock);
     std::vector<std::thread> workers;
     workers.reserve(4);
     for (int i = 0; i < 4; ++i) {

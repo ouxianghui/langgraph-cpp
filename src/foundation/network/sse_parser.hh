@@ -8,7 +8,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc::http_client_detail {
+namespace lgc::http_client_detail {
 
 class SseParser final {
 public:
@@ -30,4 +30,4 @@ private:
     bool hasData_ { false };
 };
 
-} // namespace lc::http_client_detail
+} // namespace lgc::http_client_detail

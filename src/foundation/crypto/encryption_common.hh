@@ -8,7 +8,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc::encryption_detail {
+namespace lgc::encryption_detail {
 
 inline constexpr std::size_t kAesGcmNonceSize = 12;
 inline constexpr std::size_t kAesGcmTagSize = 16;
@@ -23,4 +23,4 @@ inline constexpr std::string_view kEncryptedCheckpointContentType =
 [[nodiscard]] Status validateCiphertextSize(std::size_t size, const EncryptedPayloadOptions& options);
 [[nodiscard]] Status validateAssociatedDataSize(std::size_t size, const EncryptedPayloadOptions& options);
 
-} // namespace lc::encryption_detail
+} // namespace lgc::encryption_detail

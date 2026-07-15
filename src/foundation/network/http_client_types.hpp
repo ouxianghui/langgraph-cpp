@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 class CircuitBreaker;
 class IRateLimiter;
@@ -206,4 +206,4 @@ struct AuthorizationGate {
 using HttpResult = Result<HttpResponse>;
 using HttpCallback = std::function<void(HttpResult)>;
 
-} // namespace lc
+} // namespace lgc

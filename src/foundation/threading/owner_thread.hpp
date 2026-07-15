@@ -10,7 +10,7 @@
 #include <string_view>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 /// Small rule object for owner-thread state machines.
 ///
@@ -72,4 +72,4 @@ private:
     std::string name_;
 };
 
-} // namespace lc
+} // namespace lgc

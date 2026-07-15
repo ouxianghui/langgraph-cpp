@@ -11,7 +11,7 @@
 #include <source_location>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 /// Internal fixed-size worker pool used by `ConcurrentExecutor`.
 ///
@@ -66,4 +66,4 @@ private:
     return std::make_unique<ThreadPool>(threadCount, maxPendingSubmit, std::move(logger));
 }
 
-} // namespace lc
+} // namespace lgc

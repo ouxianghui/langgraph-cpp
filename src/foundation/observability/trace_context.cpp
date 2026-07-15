@@ -7,7 +7,7 @@
 #include <string>
 #include <utility>
 
-namespace lc::tracing_detail {
+namespace lgc::tracing_detail {
 
 [[nodiscard]] Result<std::string> nextTraceHex(
     const TraceOptions& options,
@@ -71,9 +71,9 @@ namespace lc::tracing_detail {
     return context;
 }
 
-} // namespace lc::tracing_detail
+} // namespace lgc::tracing_detail
 
-namespace lc {
+namespace lgc {
 namespace {
 using tracing_detail::allZero;
 using tracing_detail::isLowerHex;
@@ -177,4 +177,4 @@ Result<TraceContext> makeChildContext(const TraceContext& parent)
     return makeChildContext(parent, options);
 }
 
-} // namespace lc
+} // namespace lgc

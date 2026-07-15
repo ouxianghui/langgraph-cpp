@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <optional>
 
-namespace lc {
+namespace lgc {
 
 struct ResourceLimits {
     std::optional<std::uint64_t> maxSteps_;
@@ -86,4 +86,4 @@ private:
     std::atomic<std::size_t> peakMemoryBytes_ { 0 };
 };
 
-} // namespace lc
+} // namespace lgc

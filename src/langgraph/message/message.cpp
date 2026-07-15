@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] std::string_view providerRoleName(MessageType type) noexcept
@@ -543,4 +543,4 @@ Result<std::vector<BaseMessage>> messagesFromStateJson(
     return messagesFromJson(state.at(key));
 }
 
-} // namespace lc
+} // namespace lgc

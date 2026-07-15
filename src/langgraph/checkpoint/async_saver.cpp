@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 AsyncCheckpointSaver::AsyncCheckpointSaver(
     std::shared_ptr<BaseCheckpointSaver> checkpointer,
@@ -101,4 +101,4 @@ Future<DeltaChannelHistories> AsyncCheckpointSaver::getDeltaChannelHistory(
         });
 }
 
-} // namespace lc
+} // namespace lgc

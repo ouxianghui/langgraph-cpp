@@ -17,7 +17,7 @@
 
 #include <memory>
 
-namespace lc {
+namespace lgc {
 
 struct RuntimeServiceRequirements {
     bool logger_ { true };
@@ -56,4 +56,4 @@ struct RuntimeServices {
 
 [[nodiscard]] RuntimeServices defaultRuntimeServices();
 
-} // namespace lc
+} // namespace lgc

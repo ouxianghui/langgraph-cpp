@@ -15,7 +15,7 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace lc {
+namespace lgc {
 
 struct CacheKey {
     std::string namespace_;
@@ -122,4 +122,4 @@ private:
 
 [[nodiscard]] Status validateCacheKey(const CacheKey& key);
 
-} // namespace lc
+} // namespace lgc

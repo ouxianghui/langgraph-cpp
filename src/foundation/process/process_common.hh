@@ -7,7 +7,7 @@
 #include <string_view>
 #include <utility>
 
-namespace lc::process_detail {
+namespace lgc::process_detail {
 
 [[nodiscard]] std::string lowerAscii(std::string_view value);
 void appendBounded(std::string& out, bool& truncated, const char* data, std::size_t size, std::size_t limit);
@@ -52,4 +52,4 @@ template <typename Write>
     return Status::ok();
 }
 
-} // namespace lc::process_detail
+} // namespace lgc::process_detail

@@ -14,7 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 /// Called repeatedly to write stdin before the process starts. Return an empty string to finish.
 using ProcessStdinProvider = std::function<Result<std::string>()>;
@@ -67,4 +67,4 @@ private:
 [[nodiscard]] Status validateProcessOptions(const ProcessOptions& options);
 [[nodiscard]] Result<ProcessResult> runProcess(const ProcessOptions& options);
 
-} // namespace lc
+} // namespace lgc

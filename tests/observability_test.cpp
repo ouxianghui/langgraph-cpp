@@ -18,17 +18,17 @@
 
 namespace {
 
-class FailingRandomSource final : public lc::IRandomSource {
+class FailingRandomSource final : public lgc::IRandomSource {
 public:
-    [[nodiscard]] lc::Result<void> fill(std::span<std::byte>) override
+    [[nodiscard]] lgc::Result<void> fill(std::span<std::byte>) override
     {
-        return lc::Status::unavailable("random source failed");
+        return lgc::Status::unavailable("random source failed");
     }
 };
 
-[[nodiscard]] lc::TraceContext requireRootContext()
+[[nodiscard]] lgc::TraceContext requireRootContext()
 {
-    auto context = lc::makeRootContext();
+    auto context = lgc::makeRootContext();
     assert(context.isOk());
     return std::move(*context);
 }
@@ -39,17 +39,17 @@ int main()
 {
     using namespace std::chrono_literals;
 
-    lc::InMemoryMetricRecorder metrics;
+    lgc::InMemoryMetricRecorder metrics;
     assert(metrics.incrementCounter("graph.runs", 1, { { "status", "ok" } }).isOk());
     assert(metrics.incrementCounter("graph.runs", 2, { { "status", "ok" } }).isOk());
     assert(metrics.recordHistogram("node.output.bytes", 10).isOk());
     assert(metrics.recordHistogram("node.output.bytes", 30).isOk());
     assert(metrics.recordDuration("node.duration", 1500us).isOk());
-    assert(metrics.recordDuration("node.duration", -1us).code() == lc::StatusCode::InvalidArgument);
+    assert(metrics.recordDuration("node.duration", -1us).code() == lgc::StatusCode::InvalidArgument);
 
-    lc::ManualClock clock;
+    lgc::ManualClock clock;
     {
-        lc::ScopedMetricTimer timer(metrics, "scoped.duration", {}, clock);
+        lgc::ScopedMetricTimer timer(metrics, "scoped.duration", {}, clock);
         clock.advance(7ms);
         assert(timer.stop().isOk());
         assert(timer.stopped());
@@ -63,21 +63,21 @@ int main()
     for (const auto& snapshot : snapshots) {
         if (snapshot.name_ == "graph.runs") {
             sawCounter = true;
-            assert(snapshot.type_ == lc::MetricType::Counter);
+            assert(snapshot.type_ == lgc::MetricType::Counter);
             assert(snapshot.count_ == 2);
             assert(snapshot.sum_ == 3.0);
             assert(snapshot.tags_.front().key_ == "status");
         }
         if (snapshot.name_ == "node.output.bytes") {
             sawHistogram = true;
-            assert(snapshot.type_ == lc::MetricType::Histogram);
+            assert(snapshot.type_ == lgc::MetricType::Histogram);
             assert(snapshot.count_ == 2);
             assert(snapshot.min_ == 10.0);
             assert(snapshot.max_ == 30.0);
         }
         if (snapshot.name_ == "scoped.duration") {
             sawScopedTimer = true;
-            assert(snapshot.type_ == lc::MetricType::Timer);
+            assert(snapshot.type_ == lgc::MetricType::Timer);
             assert(snapshot.count_ == 1);
             assert(snapshot.last_ == 7.0);
         }
@@ -85,32 +85,32 @@ int main()
     assert(sawCounter);
     assert(sawHistogram);
     assert(sawScopedTimer);
-    assert(metrics.incrementCounter("", 1).code() == lc::StatusCode::InvalidArgument);
-    assert(metrics.incrementCounter("graph.runs", -1).code() == lc::StatusCode::InvalidArgument);
-    assert(metrics.incrementCounter("graph.runs", 0).code() == lc::StatusCode::InvalidArgument);
+    assert(metrics.incrementCounter("", 1).code() == lgc::StatusCode::InvalidArgument);
+    assert(metrics.incrementCounter("graph.runs", -1).code() == lgc::StatusCode::InvalidArgument);
+    assert(metrics.incrementCounter("graph.runs", 0).code() == lgc::StatusCode::InvalidArgument);
     assert(metrics.recordGauge("queue.depth", -2).isOk());
-    assert(lc::metricTypeName(lc::MetricType::Timer) == "timer");
+    assert(lgc::metricTypeName(lgc::MetricType::Timer) == "timer");
     metrics.clear();
     assert(metrics.snapshots().empty());
 
     {
-        lc::InMemoryMetricRecorder bounded(lc::MetricOptions {
-            .limits_ = lc::MetricLimits {
+        lgc::InMemoryMetricRecorder bounded(lgc::MetricOptions {
+            .limits_ = lgc::MetricLimits {
                 .maxMetrics_ = 1,
             },
-            .overflowPolicy_ = lc::MetricOverflowPolicy::DropOldest,
+            .overflowPolicy_ = lgc::MetricOverflowPolicy::DropOldest,
         });
         assert(bounded.incrementCounter("first").isOk());
         assert(bounded.incrementCounter("second").isOk());
         const auto boundedSnapshots = bounded.snapshots();
         assert(boundedSnapshots.size() == 1);
         assert(boundedSnapshots.front().name_ == "second");
-        assert(lc::metricOverflowPolicyName(lc::MetricOverflowPolicy::DropNewest) == "drop_newest");
+        assert(lgc::metricOverflowPolicyName(lgc::MetricOverflowPolicy::DropNewest) == "drop_newest");
     }
 
     {
-        auto redactor = std::make_shared<lc::Redactor>();
-        lc::InMemoryMetricRecorder redacted(lc::MetricOptions {
+        auto redactor = std::make_shared<lgc::Redactor>();
+        lgc::InMemoryMetricRecorder redacted(lgc::MetricOptions {
             .redactor_ = redactor,
         });
         assert(redacted.incrementCounter(
@@ -137,8 +137,8 @@ int main()
     }
 
     {
-        lc::InMemoryMetricRecorder limited(lc::MetricOptions {
-            .limits_ = lc::MetricLimits {
+        lgc::InMemoryMetricRecorder limited(lgc::MetricOptions {
+            .limits_ = lgc::MetricLimits {
                 .maxMetrics_ = 1,
                 .maxNameLength_ = 8,
                 .maxTags_ = 1,
@@ -146,20 +146,20 @@ int main()
                 .maxTagValueLength_ = 4,
             },
         });
-        assert(limited.incrementCounter("too.long.name").code() == lc::StatusCode::InvalidArgument);
-        assert(limited.incrementCounter("ok", 1, { { "abcd", "12345" } }).code() == lc::StatusCode::InvalidArgument);
-        assert(limited.incrementCounter("ok", 1, { { "a", "1" }, { "b", "2" } }).code() == lc::StatusCode::InvalidArgument);
-        assert(limited.incrementCounter("ok", 1, { { "run_id", "r1" } }).code() == lc::StatusCode::InvalidArgument);
+        assert(limited.incrementCounter("too.long.name").code() == lgc::StatusCode::InvalidArgument);
+        assert(limited.incrementCounter("ok", 1, { { "abcd", "12345" } }).code() == lgc::StatusCode::InvalidArgument);
+        assert(limited.incrementCounter("ok", 1, { { "a", "1" }, { "b", "2" } }).code() == lgc::StatusCode::InvalidArgument);
+        assert(limited.incrementCounter("ok", 1, { { "run_id", "r1" } }).code() == lgc::StatusCode::InvalidArgument);
         assert(limited.incrementCounter("one").isOk());
-        assert(limited.incrementCounter("two").code() == lc::StatusCode::ResourceExhausted);
+        assert(limited.incrementCounter("two").code() == lgc::StatusCode::ResourceExhausted);
         assert(limited.close().isOk());
         assert(limited.isClosed());
-        assert(limited.flush().code() == lc::StatusCode::Unavailable);
-        assert(limited.incrementCounter("one").code() == lc::StatusCode::Unavailable);
+        assert(limited.flush().code() == lgc::StatusCode::Unavailable);
+        assert(limited.incrementCounter("one").code() == lgc::StatusCode::Unavailable);
     }
 
     {
-        lc::InMemoryMetricRecorder concurrent;
+        lgc::InMemoryMetricRecorder concurrent;
         std::vector<std::thread> workers;
         for (int i = 0; i < 4; ++i) {
             workers.emplace_back([&] {
@@ -176,7 +176,7 @@ int main()
     }
 
     {
-        lc::InMemoryMetricRecorder bucketed(lc::MetricOptions {
+        lgc::InMemoryMetricRecorder bucketed(lgc::MetricOptions {
             .histogramBuckets_ = { 10.0, 20.0 },
         });
         assert(bucketed.recordHistogram("payload.bytes", 5).isOk());
@@ -192,21 +192,21 @@ int main()
     }
 
     {
-        lc::InMemoryMetricRecorder memoryLimited(lc::MetricOptions {
-            .limits_ = lc::MetricLimits {
+        lgc::InMemoryMetricRecorder memoryLimited(lgc::MetricOptions {
+            .limits_ = lgc::MetricLimits {
                 .maxMetrics_ = 0,
                 .maxApproxBytes_ = 260,
             },
         });
         assert(memoryLimited.incrementCounter("first").isOk());
-        assert(memoryLimited.incrementCounter("second").code() == lc::StatusCode::ResourceExhausted);
+        assert(memoryLimited.incrementCounter("second").code() == lgc::StatusCode::ResourceExhausted);
     }
 
-    auto sink = std::make_shared<lc::InMemoryTraceSink>();
-    lc::ManualClock traceClock;
-    lc::Tracer tracer(
+    auto sink = std::make_shared<lgc::InMemoryTraceSink>();
+    lgc::ManualClock traceClock;
+    lgc::Tracer tracer(
         sink,
-        lc::TraceOptions {
+        lgc::TraceOptions {
             .clock_ = &traceClock,
         });
 
@@ -216,18 +216,18 @@ int main()
     const auto rootContext = root->context();
     assert(rootContext.isValid());
     assert(rootContext.sampled());
-    auto traceparent = lc::formatTraceParent(rootContext);
+    auto traceparent = lgc::formatTraceParent(rootContext);
     assert(traceparent.isOk());
-    auto parsed = lc::parseTraceParent(*traceparent, "vendor=value");
+    auto parsed = lgc::parseTraceParent(*traceparent, "vendor=value");
     assert(parsed.isOk());
     assert(parsed->traceId_ == rootContext.traceId_);
     assert(parsed->spanId_ == rootContext.spanId_);
     assert(parsed->traceState_ == "vendor=value");
     assert(parsed->remoteParent_);
-    auto parsedWithBaggage = lc::parseTraceParent(*traceparent, "vendor=value", "tenant=alpha");
+    auto parsedWithBaggage = lgc::parseTraceParent(*traceparent, "vendor=value", "tenant=alpha");
     assert(parsedWithBaggage.isOk());
     assert(parsedWithBaggage->baggage_ == "tenant=alpha");
-    auto formattedBaggage = lc::formatBaggage(*parsedWithBaggage);
+    auto formattedBaggage = lgc::formatBaggage(*parsedWithBaggage);
     assert(formattedBaggage.isOk());
     assert(*formattedBaggage == "tenant=alpha");
     assert(root->setAttribute("run_id", "r1").isOk());
@@ -241,10 +241,10 @@ int main()
         assert(childContext.traceId_ == rootContext.traceId_);
         assert(childContext.parentSpanId_ == rootContext.spanId_);
         assert(child->addEvent("tool.call").isOk());
-        assert(child->setStatus(lc::SpanStatus::Ok).isOk());
+        assert(child->setStatus(lgc::SpanStatus::Ok).isOk());
     }
 
-    assert(root->setStatus(lc::SpanStatus::Error, "node failed").isOk());
+    assert(root->setStatus(lgc::SpanStatus::Error, "node failed").isOk());
     traceClock.advance(2ms);
     assert(root->end().isOk());
     assert(root->end().isOk());
@@ -258,7 +258,7 @@ int main()
         assert(span.endedAt_.has_value());
         if (span.name_ == "graph.run") {
             sawRoot = true;
-            assert(span.status_ == lc::SpanStatus::Error);
+            assert(span.status_ == lgc::SpanStatus::Error);
             assert(span.statusMessage_ == "node failed");
             assert(span.events_.size() == 1);
             assert(span.attributes_.at("run_id") == "r1");
@@ -266,21 +266,21 @@ int main()
         if (span.name_ == "node.execute") {
             sawChild = true;
             assert(span.context_.parentSpanId_ == rootContext.spanId_);
-            assert(span.status_ == lc::SpanStatus::Ok);
+            assert(span.status_ == lgc::SpanStatus::Ok);
             assert(span.events_.size() == 1);
         }
     }
     assert(sawRoot);
     assert(sawChild);
-    assert(lc::spanStatusName(lc::SpanStatus::Cancelled) == "cancelled");
-    assert(lc::traceOverflowPolicyName(lc::TraceOverflowPolicy::DropOldest) == "drop_oldest");
+    assert(lgc::spanStatusName(lgc::SpanStatus::Cancelled) == "cancelled");
+    assert(lgc::traceOverflowPolicyName(lgc::TraceOverflowPolicy::DropOldest) == "drop_oldest");
 
-    lc::InMemoryTraceSink bounded(lc::TraceOptions {
-        .limits_ = lc::TraceLimits {
+    lgc::InMemoryTraceSink bounded(lgc::TraceOptions {
+        .limits_ = lgc::TraceLimits {
             .maxSpans_ = 1,
         },
     });
-    auto spanData = lc::SpanRecord {
+    auto spanData = lgc::SpanRecord {
         .context_ = requireRootContext(),
         .name_ = "one",
         .startedAt_ = traceClock.now(),
@@ -289,21 +289,21 @@ int main()
     spanData.context_ = requireRootContext();
     auto full = bounded.recordSpan(spanData);
     assert(!full.isOk());
-    assert(full.code() == lc::StatusCode::ResourceExhausted);
+    assert(full.code() == lgc::StatusCode::ResourceExhausted);
 
     {
-        lc::InMemoryTraceSink dropping(lc::TraceOptions {
-            .limits_ = lc::TraceLimits {
+        lgc::InMemoryTraceSink dropping(lgc::TraceOptions {
+            .limits_ = lgc::TraceLimits {
                 .maxSpans_ = 1,
             },
-            .overflowPolicy_ = lc::TraceOverflowPolicy::DropOldest,
+            .overflowPolicy_ = lgc::TraceOverflowPolicy::DropOldest,
         });
-        assert(dropping.recordSpan(lc::SpanRecord {
+        assert(dropping.recordSpan(lgc::SpanRecord {
                    .context_ = requireRootContext(),
                    .name_ = "old",
                })
                    .isOk());
-        assert(dropping.recordSpan(lc::SpanRecord {
+        assert(dropping.recordSpan(lgc::SpanRecord {
                    .context_ = requireRootContext(),
                    .name_ = "new",
                })
@@ -314,13 +314,13 @@ int main()
     }
 
     {
-        auto redactor = std::make_shared<lc::Redactor>();
-        auto redactedSink = std::make_shared<lc::InMemoryTraceSink>(lc::TraceOptions {
+        auto redactor = std::make_shared<lgc::Redactor>();
+        auto redactedSink = std::make_shared<lgc::InMemoryTraceSink>(lgc::TraceOptions {
             .redactor_ = redactor,
         });
-        lc::Tracer redactedTracer(
+        lgc::Tracer redactedTracer(
             redactedSink,
-            lc::TraceOptions {
+            lgc::TraceOptions {
                 .redactor_ = redactor,
             });
         auto span = redactedTracer.startSpan("redacted", std::nullopt, nlohmann::json {
@@ -328,7 +328,7 @@ int main()
             { "email", "user@example.com" },
         });
         assert(span.isOk());
-        assert(span->setStatus(lc::SpanStatus::Error, "token=sk-1234567890abcdef").isOk());
+        assert(span->setStatus(lgc::SpanStatus::Error, "token=sk-1234567890abcdef").isOk());
         assert(span->end().isOk());
         auto redactedSpans = redactedSink->spans();
         assert(redactedSpans.size() == 1);
@@ -338,8 +338,8 @@ int main()
     }
 
     {
-        lc::InMemoryTraceSink limited(lc::TraceOptions {
-            .limits_ = lc::TraceLimits {
+        lgc::InMemoryTraceSink limited(lgc::TraceOptions {
+            .limits_ = lgc::TraceLimits {
                 .maxNameLength_ = 4,
                 .maxAttributes_ = 1,
                 .maxAttributeKeyLength_ = 4,
@@ -347,33 +347,33 @@ int main()
                 .maxEvents_ = 1,
             },
         });
-        auto badName = limited.recordSpan(lc::SpanRecord {
+        auto badName = limited.recordSpan(lgc::SpanRecord {
             .context_ = requireRootContext(),
             .name_ = "toolong",
         });
-        assert(badName.code() == lc::StatusCode::InvalidArgument);
-        auto tooLongAttribute = limited.recordSpan(lc::SpanRecord {
+        assert(badName.code() == lgc::StatusCode::InvalidArgument);
+        auto tooLongAttribute = limited.recordSpan(lgc::SpanRecord {
             .context_ = requireRootContext(),
             .name_ = "ok",
             .attributes_ = nlohmann::json { { "key", "value-too-long" } },
         });
-        assert(tooLongAttribute.code() == lc::StatusCode::ResourceExhausted);
+        assert(tooLongAttribute.code() == lgc::StatusCode::ResourceExhausted);
     }
 
     {
-        lc::Tracer failingTracer(
-            std::make_shared<lc::InMemoryTraceSink>(),
-            lc::TraceOptions {
+        lgc::Tracer failingTracer(
+            std::make_shared<lgc::InMemoryTraceSink>(),
+            lgc::TraceOptions {
                 .randomSource_ = std::make_shared<FailingRandomSource>(),
             });
         auto failed = failingTracer.startSpan("span");
         assert(!failed.isOk());
-        assert(failed.status().code() == lc::StatusCode::Unavailable);
+        assert(failed.status().code() == lgc::StatusCode::Unavailable);
     }
 
     {
-        auto concurrentSink = std::make_shared<lc::InMemoryTraceSink>();
-        lc::Tracer concurrentTracer(concurrentSink);
+        auto concurrentSink = std::make_shared<lgc::InMemoryTraceSink>();
+        lgc::Tracer concurrentTracer(concurrentSink);
         std::vector<std::thread> workers;
         for (int i = 0; i < 4; ++i) {
             workers.emplace_back([&] {
@@ -391,12 +391,12 @@ int main()
 
     assert(sink->close().isOk());
     assert(sink->isClosed());
-    assert(sink->flush().code() == lc::StatusCode::Unavailable);
-    auto closedRecord = sink->recordSpan(lc::SpanRecord {
+    assert(sink->flush().code() == lgc::StatusCode::Unavailable);
+    auto closedRecord = sink->recordSpan(lgc::SpanRecord {
         .context_ = requireRootContext(),
         .name_ = "closed",
     });
-    assert(closedRecord.code() == lc::StatusCode::Unavailable);
+    assert(closedRecord.code() == lgc::StatusCode::Unavailable);
 
     return 0;
 }

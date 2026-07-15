@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 ThreadRegistry::ThreadRegistry(std::shared_ptr<ILogger> logger)
     : logger_(std::move(logger))
@@ -83,4 +83,4 @@ void ThreadRegistry::shutdownAll()
     }
 }
 
-} // namespace lc
+} // namespace lgc

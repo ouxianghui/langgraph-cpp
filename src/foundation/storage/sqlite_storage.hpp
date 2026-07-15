@@ -10,7 +10,7 @@
 
 struct sqlite3;
 
-namespace lc {
+namespace lgc {
 
 enum class SQLiteJournalMode : std::uint8_t {
     Wal,
@@ -88,4 +88,4 @@ private:
     bool closed_ { false };
 };
 
-} // namespace lc
+} // namespace lgc

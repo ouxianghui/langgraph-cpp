@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 RedactionStateCodec::RedactionStateCodec(std::shared_ptr<IStateCodec> inner, Redactor redactor)
     : inner_(std::move(inner))
@@ -60,4 +60,4 @@ Result<CheckpointWrite> RedactionCheckpointCodec::decodeWrite(const Payload& pay
     return inner_->decodeWrite(payload);
 }
 
-} // namespace lc
+} // namespace lgc

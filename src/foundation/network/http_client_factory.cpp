@@ -5,7 +5,7 @@
 
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 DefaultHttpClientFactory::DefaultHttpClientFactory(HttpClientFactoryOptions options)
     : options_(std::move(options))
@@ -45,4 +45,4 @@ std::shared_ptr<IHttpClientFactory> defaultHttpClientFactory(HttpClientFactoryOp
     return std::make_shared<DefaultHttpClientFactory>(std::move(options));
 }
 
-} // namespace lc
+} // namespace lgc

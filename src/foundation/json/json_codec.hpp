@@ -5,7 +5,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 /// Small helper for converting between `json` and model types that expose
 /// nlohmann ADL hooks via `DECLARE_JSON_ADL`.
@@ -37,4 +37,4 @@ public:
     }
 };
 
-} // namespace lc
+} // namespace lgc

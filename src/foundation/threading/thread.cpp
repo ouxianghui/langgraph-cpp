@@ -12,7 +12,7 @@
 #include <thread>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 thread_local const void* tlsThreadSelf = nullptr;
@@ -461,4 +461,4 @@ ThreadStats Thread::stats() const noexcept
     return impl_->stats();
 }
 
-} // namespace lc
+} // namespace lgc

@@ -11,7 +11,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc::json_schema_detail {
+namespace lgc::json_schema_detail {
 
 using nlohmann::json;
 
@@ -336,4 +336,4 @@ inline constexpr std::string_view kKeywordComment = "$comment";
 
 [[nodiscard]] Status compileSchema(const json& schema, const JsonSchemaOptions& options);
 
-} // namespace lc::json_schema_detail
+} // namespace lgc::json_schema_detail

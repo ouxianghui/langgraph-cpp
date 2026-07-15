@@ -9,9 +9,9 @@
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size)
 {
     try {
-        const auto input = lc::fuzz::inputToString(data, size);
-        const auto parts = lc::fuzz::splitInput(input, 2);
-        const lc::JsonDecodeLimits limits {
+        const auto input = lgc::fuzz::inputToString(data, size);
+        const auto parts = lgc::fuzz::splitInput(input, 2);
+        const lgc::JsonDecodeLimits limits {
             .maxBytes_ = 64 * 1024,
             .maxDepth_ = 32,
             .maxStringBytes_ = 16 * 1024,
@@ -20,17 +20,17 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
             .maxNodes_ = 16 * 1024,
         };
 
-        auto state = lc::State::fromJson(parts[0], limits);
-        auto update = lc::StateUpdate::fromJson(parts[1], limits);
+        auto state = lgc::State::fromJson(parts[0], limits);
+        auto update = lgc::StateUpdate::fromJson(parts[1], limits);
         if (!state.isOk() || !update.isOk())
             return 0;
 
-        lc::ReducerRegistry reducers;
-        reducers.set("messages", lc::ReducerKind::AddMessages);
-        reducers.set("items", lc::ReducerKind::Append);
-        reducers.set("facts", lc::ReducerKind::MergeObject);
-        reducers.set("overwrite", lc::ReducerKind::Overwrite);
-        (void)lc::applyStateUpdate(*state, *update, reducers);
+        lgc::ReducerRegistry reducers;
+        reducers.set("messages", lgc::ReducerKind::AddMessages);
+        reducers.set("items", lgc::ReducerKind::Append);
+        reducers.set("facts", lgc::ReducerKind::MergeObject);
+        reducers.set("overwrite", lgc::ReducerKind::Overwrite);
+        (void)lgc::applyStateUpdate(*state, *update, reducers);
         (void)update->toState();
     } catch (...) {
     }

@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 nlohmann::json overwriteToJson(Overwrite overwrite)
 {
@@ -87,4 +87,4 @@ Result<State> StateUpdate::toState() const
     return State::fromJsonValue(value_);
 }
 
-} // namespace lc
+} // namespace lgc

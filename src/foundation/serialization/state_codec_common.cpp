@@ -5,7 +5,7 @@
 #include <string>
 #include <utility>
 
-namespace lc::state_codec_detail {
+namespace lgc::state_codec_detail {
 
 [[nodiscard]] std::int64_t toUnixMs(std::chrono::system_clock::time_point value)
 {
@@ -363,4 +363,4 @@ namespace lc::state_codec_detail {
     return static_cast<Version>(value);
 }
 
-} // namespace lc::state_codec_detail
+} // namespace lgc::state_codec_detail

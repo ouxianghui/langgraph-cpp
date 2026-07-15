@@ -10,7 +10,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 /// LangChain-style message type used by model and tool nodes.
 enum class MessageType : std::uint8_t {
@@ -81,4 +81,4 @@ struct BaseMessage {
     const nlohmann::json& state,
     std::string_view field = "messages");
 
-} // namespace lc
+} // namespace lgc

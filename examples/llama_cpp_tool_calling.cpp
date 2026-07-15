@@ -7,7 +7,7 @@
 
 namespace {
 
-void require(lc::Result<void> result)
+void require(lgc::Result<void> result)
 {
     if (!result.isOk()) {
         std::cerr << result.status() << '\n';
@@ -24,20 +24,20 @@ std::string modelPathFromArgsOrEnv(int argc, char** argv)
     return {};
 }
 
-std::shared_ptr<lc::ToolRegistry> makeRegistry()
+std::shared_ptr<lgc::ToolRegistry> makeRegistry()
 {
-    auto registry = std::make_shared<lc::ToolRegistry>();
-    require(registry->add(lc::Tool {
+    auto registry = std::make_shared<lgc::ToolRegistry>();
+    require(registry->add(lgc::Tool {
         .name_ = "add",
         .description_ = "Add two integers.",
-        .inputSchema_ = lc::JsonSchema::object()
-                            .property("a", lc::JsonSchema::integer(), true)
-                            .property("b", lc::JsonSchema::integer(), true)
+        .inputSchema_ = lgc::JsonSchema::object()
+                            .property("a", lgc::JsonSchema::integer(), true)
+                            .property("b", lgc::JsonSchema::integer(), true)
                             .additionalProperties(false),
-        .outputSchema_ = lc::JsonSchema::object()
-                             .property("value", lc::JsonSchema::integer(), true)
+        .outputSchema_ = lgc::JsonSchema::object()
+                             .property("value", lgc::JsonSchema::integer(), true)
                              .additionalProperties(false),
-        .callable_ = [](const nlohmann::json& input) -> lc::Result<nlohmann::json> {
+        .callable_ = [](const nlohmann::json& input) -> lgc::Result<nlohmann::json> {
             return nlohmann::json {
                 { "value", input.at("a").get<int>() + input.at("b").get<int>() },
             };
@@ -61,13 +61,13 @@ int main(int argc, char** argv)
     }
 
     auto registry = makeRegistry();
-    auto grammar = lc::toolCallJsonGrammar(*registry);
+    auto grammar = lgc::toolCallJsonGrammar(*registry);
     if (!grammar.isOk()) {
         std::cerr << grammar.status() << '\n';
         return 1;
     }
 
-    auto model = std::make_shared<lc::LlamaCppChatModel>(lc::LlamaCppChatModelOptions {
+    auto model = std::make_shared<lgc::LlamaCppChatModel>(lgc::LlamaCppChatModelOptions {
         .modelPath_ = modelPath,
         .contextSize_ = 2048,
         .temperature_ = 0.0F,
@@ -76,14 +76,14 @@ int main(int argc, char** argv)
         .parseToolCallJson_ = true,
     });
 
-    lc::StateGraph graph;
-    require(graph.addNode("model", lc::makeModelNode(model)));
-    require(graph.addNode("tools", lc::ToolNode(
+    lgc::StateGraph graph;
+    require(graph.addNode("model", lgc::makeModelNode(model)));
+    require(graph.addNode("tools", lgc::ToolNode(
         registry,
-        lc::ToolNodeOptions { .validateOutput_ = true })));
-    require(graph.addEdge(std::string(lc::START), "model"));
+        lgc::ToolNodeOptions { .validateOutput_ = true })));
+    require(graph.addEdge(std::string(lgc::START), "model"));
     require(graph.addEdge("model", "tools"));
-    require(graph.addEdge("tools", std::string(lc::END)));
+    require(graph.addEdge("tools", std::string(lgc::END)));
 
     auto compiled = graph.compile();
     if (!compiled.isOk()) {
@@ -91,13 +91,13 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    auto input = lc::State::fromJsonValue({
-        { "messages", lc::messagesToJson({
-            lc::BaseMessage::system(
+    auto input = lgc::State::fromJsonValue({
+        { "messages", lgc::messagesToJson({
+            lgc::BaseMessage::system(
                 "Return only JSON matching this exact shape: "
                 "{\"tool_calls\":[{\"id\":\"call-1\",\"name\":\"add\",\"arguments\":{\"a\":2,\"b\":3}}]}. "
                 "Use tool name add and integer arguments."),
-            lc::BaseMessage::human("Use the add tool to calculate 2 + 3."),
+            lgc::BaseMessage::human("Use the add tool to calculate 2 + 3."),
         }) },
     });
     if (!input.isOk()) {
@@ -105,8 +105,8 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    lc::RunOptions options;
-    options.reducers_.set("messages", lc::ReducerKind::AddMessages);
+    lgc::RunOptions options;
+    options.reducers_.set("messages", lgc::ReducerKind::AddMessages);
 
     auto result = compiled->invoke(*input, options);
     if (!result.isOk()) {

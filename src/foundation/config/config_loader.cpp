@@ -15,7 +15,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 using nlohmann::json;
@@ -533,4 +533,4 @@ Result<void> ConfigLoader::mergeEnvironment(
     return config.merge(loaded, overwrite);
 }
 
-} // namespace lc
+} // namespace lgc

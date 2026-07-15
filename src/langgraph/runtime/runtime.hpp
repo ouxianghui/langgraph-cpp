@@ -19,7 +19,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 using RuntimeEventPublisher = std::function<Status(RuntimeEvent)>;
 
@@ -151,4 +151,4 @@ private:
     std::optional<std::chrono::steady_clock::time_point> deadline_;
 };
 
-} // namespace lc
+} // namespace lgc

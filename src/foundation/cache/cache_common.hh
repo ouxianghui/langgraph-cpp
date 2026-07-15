@@ -18,7 +18,7 @@
 #include <windows.h>
 #endif
 
-namespace lc::cache_detail {
+namespace lgc::cache_detail {
 
 namespace fs = std::filesystem;
 
@@ -77,4 +77,4 @@ struct CachePayload {
     const fs::path& directory,
     std::size_t maxScanEntries);
 
-} // namespace lc::cache_detail
+} // namespace lgc::cache_detail

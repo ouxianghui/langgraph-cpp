@@ -10,7 +10,7 @@
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 constexpr char kHexAlphabet[] = "0123456789abcdef";
@@ -302,4 +302,4 @@ bool secureEquals(std::span<const std::uint8_t> lhs, std::span<const std::uint8_
     return CRYPTO_memcmp(lhs.data(), rhs.data(), lhs.size()) == 0;
 }
 
-} // namespace lc
+} // namespace lgc

@@ -16,7 +16,7 @@
 
 extern char** environ;
 
-namespace lc::process_runner_detail {
+namespace lgc::process_runner_detail {
 namespace {
 
 using namespace std::chrono_literals;
@@ -383,6 +383,6 @@ Result<ProcessResult> runPlatformProcess(
     return okResult(std::move(result));
 }
 
-} // namespace lc::process_runner_detail
+} // namespace lgc::process_runner_detail
 
 #endif

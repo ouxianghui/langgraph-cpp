@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace lc::detail {
+namespace lgc::detail {
 
 nlohmann::json namespacePathFromString(std::string_view nameSpace)
 {
@@ -22,4 +22,4 @@ nlohmann::json namespacePathFromString(std::string_view nameSpace)
     return path;
 }
 
-} // namespace lc::detail
+} // namespace lgc::detail

@@ -12,7 +12,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc {
+namespace lgc {
 
 /// Thrown when `dispatchSync` is called while this dispatcher is not accepting work (`shutdown(timeout)`
 /// completed or shutdown in progress). Async APIs (`dispatchAsync`, `dispatch`, `dispatchAfter`)
@@ -125,4 +125,4 @@ private:
     std::shared_ptr<Impl> impl_;
 };
 
-} // namespace lc
+} // namespace lgc

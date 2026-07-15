@@ -13,7 +13,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 struct StorageKey {
     std::string scope_;
@@ -203,4 +203,4 @@ public:
     return std::optional<StorageKey>(std::move(key));
 }
 
-} // namespace lc
+} // namespace lgc

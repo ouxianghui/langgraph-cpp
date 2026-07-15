@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] ToolSpec specFromTool(const Tool& tool)
@@ -615,4 +615,4 @@ bool toolsCondition(
     return !assistant->toolCalls_.empty();
 }
 
-} // namespace lc
+} // namespace lgc

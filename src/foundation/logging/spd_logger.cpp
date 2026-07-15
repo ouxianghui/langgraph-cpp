@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 class ThreadNameFormatter final : public spdlog::custom_flag_formatter {
@@ -434,6 +434,6 @@ std::shared_ptr<spdlog::logger> SpdLogger::handle() const noexcept
     return logger_;
 }
 
-} // namespace lc
+} // namespace lgc
 
 #endif

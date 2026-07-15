@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 ThreadPoolRegistry::ThreadPoolRegistry(std::shared_ptr<ILogger> logger)
     : logger_(std::move(logger))
@@ -91,4 +91,4 @@ std::shared_ptr<IThreadPool> ThreadPoolRegistry::defaultPool(std::size_t threadC
     return registerNamedPool(std::string(defaultPoolName()), threadCount, maxPendingSubmit);
 }
 
-} // namespace lc
+} // namespace lgc

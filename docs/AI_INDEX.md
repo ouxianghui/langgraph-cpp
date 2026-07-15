@@ -52,7 +52,8 @@
 | 默认安全边界保守 | [SECURITY_MODEL.md](SECURITY_MODEL.md) | 不默认内置 shell/file/network/hardware 特权工具；auth 和 redaction 边界清楚。 |
 | 需求到测试可追踪 | [TRACEABILITY_MATRIX.md](TRACEABILITY_MATRIX.md)、[TEST_CATALOG.md](TEST_CATALOG.md) | PRD、源码区域、测试、示例和 release gate 有映射。 |
 | 性能承诺克制 | [PERFORMANCE_MODEL.md](PERFORMANCE_MODEL.md) | 未发布 benchmark 前不做吞吐/延迟承诺。 |
-| 架构规则可检查 | [DEPENDENCY_POLICY.md](DEPENDENCY_POLICY.md) | `scripts/check-dependency-policy.sh` 保护 foundation/langgraph 分层和 optional dependency gate。 |
+| 架构规则可检查 | [DEPENDENCY_POLICY.md](DEPENDENCY_POLICY.md) | `scripts/check-dependency-policy.sh` 保护 foundation/core/langgraph 分层和 optional dependency gate。 |
+| Context skills 可检查 | [../context/SKILL_INVENTORY.md](../context/SKILL_INVENTORY.md)、[../context/AUTHORITY.md](../context/AUTHORITY.md) | `scripts/check-context-skills.sh` 保护必选文件、入口接线和权威版本钉扎。 |
 | 质量证据可生成 | [reports/latest-quality-report.md](reports/latest-quality-report.md) | `scripts/generate-quality-report.sh` 输出最近一次本地质量检查结果。 |
 | 示例可批量验收 | [reports/example-smoke-report.md](reports/example-smoke-report.md) | `scripts/run-examples.sh` 运行默认示例并生成 smoke 报告。 |
 | 协议形状有 fixture | [../testdata/langgraph/README.md](../testdata/langgraph/README.md) | stream、checkpoint、config、interrupt、message/tool-call 的 golden JSON 有独立入口。 |
@@ -67,6 +68,7 @@
 | checkpoint | [src/langgraph/checkpoint/README.md](../src/langgraph/checkpoint/README.md) | saver contract、pending writes、namespace、maintenance。 |
 | store | [src/langgraph/store/README.md](../src/langgraph/store/README.md) | long-term memory 与 checkpoint 的区别。 |
 | foundation | [src/foundation/README.md](../src/foundation/README.md) | 可复用基础设施和 `src/langgraph` 的依赖方向。 |
+| agent context skills | [context/README.md](../context/README.md) | 面向 agent 的项目约定与 foundation / core / langgraph 库技能入口。 |
 | tests | [../tests/README.md](../tests/README.md) | 测试目录策略、默认门禁和新增测试规则。 |
 | examples | [../examples/README.md](../examples/README.md) | 示例学习路径和示例添加规则。 |
 
@@ -104,6 +106,7 @@ ctest --preset unix-debug-conformance -L langgraph_conformance
 
 ```sh
 scripts/check-dependency-policy.sh
+scripts/check-context-skills.sh
 scripts/run-examples.sh
 scripts/generate-quality-report.sh
 scripts/coverage.sh

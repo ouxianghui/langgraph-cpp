@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | 生效中 |
-| 最后更新 | 2026-07-13 |
+| 最后更新 | 2026-07-15 |
 | 范围 | Runtime 架构、模块边界、扩展端口和关键执行流程 |
 | 关联文档 | [AI_INDEX.md](AI_INDEX.md)、[PRD.md](PRD.md)、[ROADMAP.md](ROADMAP.md)、[API_CONTRACT.md](API_CONTRACT.md)、[QUALITY_MODEL.md](QUALITY_MODEL.md)、[TRACEABILITY_MATRIX.md](TRACEABILITY_MATRIX.md)、[CONCURRENCY_MODEL.md](CONCURRENCY_MODEL.md)、[PERSISTENCE_MODEL.md](PERSISTENCE_MODEL.md)、[SECURITY_MODEL.md](SECURITY_MODEL.md)、[PERFORMANCE_MODEL.md](PERFORMANCE_MODEL.md)、[LIMITATIONS.md](LIMITATIONS.md) |
 
@@ -43,26 +43,32 @@
 | Runtime | `src/langgraph/runtime` | 提供 per-node runtime context、stream writer、interrupt access、store/checkpointer/model/tool 端口和 run-local service。 |
 | Message/model/tool | `src/langgraph/message`、`src/langgraph/model`、`src/langgraph/tool` | 表达 messages、content blocks、tool calls、model adapters、tool registry/executor/node 行为、schemas、grammar helpers 和 structured tool errors。 |
 | Edge adapters | `src/langgraph/edge` | 定义 hardware adapter interfaces、registry、mock-friendly edge surfaces 和可选 sysfs GPIO adapter shape。 |
+| Core assembly | `src/core` (`lgc::core`) | 可选应用组装层：`RuntimeServices` / `RuntimeContainer` 与 typed lifecycle component factories。把多个 foundation 子系统 bundling 成可 start/close 的服务袋；保持 foundation 本身不耦合这些组装细节。 |
 | Foundation | `src/foundation` | 复用基础设施：status/result、serialization、storage、HTTP/SSE、logging、metrics/tracing、events、concurrency primitives、executors、scheduler、cache、blob、filesystem、crypto、redaction、compression 和 resource limits。 |
+
+注意：`src/langgraph/core/ids.hpp` 仅提供图 id 别名与 `START` / `END`，属于 langgraph 库；不是 `lgc::core` 组装目标。
 
 ## 依赖方向
 
-期望的依赖方向是自上而下：
+期望的依赖方向是自上而下。应用可以同时依赖 facade/runtime 与可选的 `lgc::core` 组装层；graph runtime **不**依赖 `lgc::core`。
 
 ```text
 Application
   -> include/langgraph_cpp facade
-  -> src/langgraph runtime modules
+  -> src/langgraph runtime modules     (links lgc::foundation)
+  -> src/core (optional lgc::core)      (links lgc::foundation only)
   -> src/foundation infrastructure
   -> third_party dependencies
 ```
 
 规则：
 
-- `src/foundation` 不能依赖 `src/langgraph`。
+- `src/foundation` 不能依赖 `src/langgraph` 或 `src/core`。
+- `src/core` (`lgc::core`) 只能依赖 `src/foundation`，不能依赖 `src/langgraph`。
+- `src/langgraph` 依赖 `src/foundation`，不能依赖 `src/core`。
 - graph execution 应依赖 checkpoint、store、model、tool、event、executor 和 edge capabilities 的抽象端口，而不是具体部署服务。
 - 可选 provider、llama.cpp、SQLite 或 hardware 路径必须放在 CMake option 或注入接口后面。
-- examples 可以组合具体实现，但 core runtime code 应保持 provider-neutral 和 hardware-neutral。
+- examples 可以组合具体实现（包括可选 `lgc::core`），但 graph runtime code 应保持 provider-neutral 和 hardware-neutral。
 
 ## Runtime 执行模型
 

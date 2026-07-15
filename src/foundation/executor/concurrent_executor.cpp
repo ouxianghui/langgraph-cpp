@@ -8,7 +8,7 @@
 #include <string>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] Status runExecutorTask(IExecutor::Task task)
@@ -170,4 +170,4 @@ std::shared_ptr<IExecutor> makeConcurrentExecutor(std::shared_ptr<IThreadPool> p
     return std::make_shared<ConcurrentExecutor>(std::move(pool));
 }
 
-} // namespace lc
+} // namespace lgc

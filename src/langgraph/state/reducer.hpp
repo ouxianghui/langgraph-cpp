@@ -11,7 +11,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 
 /// Field-level state merge behavior.
 enum class ReducerKind {
@@ -50,4 +50,4 @@ private:
     const StateUpdate& update,
     const ReducerRegistry& reducers = {});
 
-} // namespace lc
+} // namespace lgc

@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 namespace detail {
 
@@ -142,4 +142,4 @@ void dispatchRetry(
 
 } // namespace scheduler_detail
 
-} // namespace lc
+} // namespace lgc

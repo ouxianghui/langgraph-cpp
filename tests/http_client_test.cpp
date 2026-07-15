@@ -36,16 +36,16 @@
 
 namespace {
 
-class MemoryLogger final : public lc::ILogger {
+class MemoryLogger final : public lgc::ILogger {
 public:
-    void log(const lc::LogRecord& record) noexcept override
+    void log(const lgc::LogRecord& record) noexcept override
     {
         std::lock_guard lock(mutex_);
         records_.push_back(record);
     }
 
-    lc::Status flush() override { return lc::Status::ok(); }
-    lc::Status close() override { return lc::Status::ok(); }
+    lgc::Status flush() override { return lgc::Status::ok(); }
+    lgc::Status close() override { return lgc::Status::ok(); }
     bool isClosed() const noexcept override { return false; }
 
     std::string text() const
@@ -61,7 +61,7 @@ public:
 
 private:
     mutable std::mutex mutex_;
-    std::vector<lc::LogRecord> records_;
+    std::vector<lgc::LogRecord> records_;
 };
 
 class LocalHttpServer final {
@@ -253,41 +253,41 @@ private:
 
 int main()
 {
-    auto https = lc::HttpClientConfig::fromOrigin("https://api.example.com/v1/chat");
+    auto https = lgc::HttpClientConfig::fromOrigin("https://api.example.com/v1/chat");
     assert(https.isOk());
     assert(https->host_ == "api.example.com");
     assert(https->port_ == 443);
     assert(https->useTls_);
 
-    auto http = lc::HttpClientConfig::fromOrigin("http://localhost:8080");
+    auto http = lgc::HttpClientConfig::fromOrigin("http://localhost:8080");
     assert(http.isOk());
     assert(http->host_ == "localhost");
     assert(http->port_ == 8080);
     assert(!http->useTls_);
 
-    auto ipv6 = lc::HttpClientConfig::fromOrigin("https://[::1]:8443/path");
+    auto ipv6 = lgc::HttpClientConfig::fromOrigin("https://[::1]:8443/path");
     assert(ipv6.isOk());
     assert(ipv6->host_ == "::1");
     assert(ipv6->port_ == 8443);
     assert(ipv6->useTls_);
 
-    auto invalid = lc::HttpClientConfig::fromOrigin("https://host:999999");
+    auto invalid = lgc::HttpClientConfig::fromOrigin("https://host:999999");
     assert(!invalid.isOk());
-    assert(invalid.status().code() == lc::StatusCode::InvalidArgument);
+    assert(invalid.status().code() == lgc::StatusCode::InvalidArgument);
 
-    auto request = lc::HttpRequest::post("/v1/messages", R"({"hello":"world"})");
-    assert(request.method_ == lc::HttpMethod::Post);
+    auto request = lgc::HttpRequest::post("/v1/messages", R"({"hello":"world"})");
+    assert(request.method_ == lgc::HttpMethod::Post);
     assert(request.contentType_ == "application/json");
     request.setHeader("Authorization", "Bearer one");
     request.setHeader("authorization", "Bearer two");
     auto header = request.header("AUTHORIZATION");
     assert(header.has_value());
     assert(*header == "Bearer two");
-    assert(lc::httpMethodName(lc::HttpMethod::Patch) == "PATCH");
-    assert(lc::httpMethodAllowsBody(lc::HttpMethod::Post));
-    assert(!lc::httpMethodAllowsBody(lc::HttpMethod::Get));
+    assert(lgc::httpMethodName(lgc::HttpMethod::Patch) == "PATCH");
+    assert(lgc::httpMethodAllowsBody(lgc::HttpMethod::Post));
+    assert(!lgc::httpMethodAllowsBody(lgc::HttpMethod::Get));
 
-    lc::HttpResponse response {
+    lgc::HttpResponse response {
         .statusCode_ = 200,
         .reason_ = "OK",
         .headers_ = { { "Content-Type", "application/json" } },
@@ -297,7 +297,7 @@ int main()
     assert(!response.isClientError());
     assert(response.header("content-type") == "application/json");
 
-    lc::HttpClientConfig config;
+    lgc::HttpClientConfig config;
     config.host_ = "127.0.0.1";
     config.port_ = 9;
     config.connectTimeout_ = std::chrono::milliseconds(1);
@@ -307,129 +307,129 @@ int main()
 
     auto invalidConfig = config;
     invalidConfig.host_.clear();
-    assert(invalidConfig.validate().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidConfig.validate().code() == lgc::StatusCode::InvalidArgument);
 
     invalidConfig = config;
     invalidConfig.closeTimeout_ = std::chrono::milliseconds(0);
-    assert(invalidConfig.validate().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidConfig.validate().code() == lgc::StatusCode::InvalidArgument);
 
     invalidConfig = config;
     invalidConfig.userAgent_ = "bad\r\nagent";
-    assert(invalidConfig.validate().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidConfig.validate().code() == lgc::StatusCode::InvalidArgument);
 
     invalidConfig = config;
     invalidConfig.proxy_.host_ = "proxy.local";
-    assert(invalidConfig.validate().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidConfig.validate().code() == lgc::StatusCode::InvalidArgument);
 
     invalidConfig = config;
     invalidConfig.proxy_.host_ = "proxy.local";
     invalidConfig.proxy_.port_ = 8080;
     invalidConfig.proxy_.username_ = "user";
-    assert(invalidConfig.validate().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidConfig.validate().code() == lgc::StatusCode::InvalidArgument);
 
     invalidConfig = config;
     invalidConfig.keepAlive_ = true;
     invalidConfig.connectionPoolSize_ = 0;
-    assert(invalidConfig.validate().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidConfig.validate().code() == lgc::StatusCode::InvalidArgument);
 
     invalidConfig = config;
     invalidConfig.connectionPoolSize_ = 257;
-    assert(invalidConfig.validate().code() == lc::StatusCode::OutOfRange);
+    assert(invalidConfig.validate().code() == lgc::StatusCode::OutOfRange);
 
-    lc::HttpRequestOptions invalidOptions;
+    lgc::HttpRequestOptions invalidOptions;
     invalidOptions.timeout_ = -std::chrono::milliseconds(1);
-    assert(invalidOptions.validate().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidOptions.validate().code() == lgc::StatusCode::InvalidArgument);
     invalidOptions.timeout_.reset();
-    invalidOptions.retryPolicy_ = lc::HttpRetryPolicy {
+    invalidOptions.retryPolicy_ = lgc::HttpRetryPolicy {
         .statusCodes_ = { 99 },
     };
-    assert(invalidOptions.validate().code() == lc::StatusCode::InvalidArgument);
+    assert(invalidOptions.validate().code() == lgc::StatusCode::InvalidArgument);
 
     auto proxyConfig = config;
     proxyConfig.proxy_.host_ = "proxy.local";
     proxyConfig.proxy_.port_ = 8080;
-    proxyConfig.proxy_.auth_ = lc::HttpProxyAuth::Basic;
+    proxyConfig.proxy_.auth_ = lgc::HttpProxyAuth::Basic;
     proxyConfig.proxy_.username_ = "user";
     proxyConfig.proxy_.password_ = "pass";
     assert(proxyConfig.validate().isOk());
 
-    lc::HttpClient client(config);
+    lgc::HttpClient client(config);
     assert(!client.isClosed());
     assert(client.close().isOk());
     assert(client.isClosed());
-    auto stopped = client.send(lc::HttpRequest::get("/"), lc::HttpRequestOptions {});
+    auto stopped = client.send(lgc::HttpRequest::get("/"), lgc::HttpRequestOptions {});
     assert(!stopped.isOk());
-    assert(stopped.status().code() == lc::StatusCode::FailedPrecondition);
+    assert(stopped.status().code() == lgc::StatusCode::FailedPrecondition);
 
     bool callbackCalled = false;
-    auto asyncStopped = client.sendAsync(lc::HttpRequest::get("/"), lc::HttpRequestOptions {}, [&](lc::HttpResult) {
+    auto asyncStopped = client.sendAsync(lgc::HttpRequest::get("/"), lgc::HttpRequestOptions {}, [&](lgc::HttpResult) {
         callbackCalled = true;
     });
     assert(!asyncStopped.isOk());
-    assert(asyncStopped.code() == lc::StatusCode::FailedPrecondition);
+    assert(asyncStopped.code() == lgc::StatusCode::FailedPrecondition);
     assert(!callbackCalled);
 
     {
-        lc::HttpClient open(config);
-        auto invalidBody = lc::HttpRequest::get("/");
+        lgc::HttpClient open(config);
+        auto invalidBody = lgc::HttpRequest::get("/");
         invalidBody.body_ = "not allowed";
-        auto result = open.send(std::move(invalidBody), lc::HttpRequestOptions {});
+        auto result = open.send(std::move(invalidBody), lgc::HttpRequestOptions {});
         assert(!result.isOk());
-        assert(result.status().code() == lc::StatusCode::InvalidArgument);
+        assert(result.status().code() == lgc::StatusCode::InvalidArgument);
     }
 
     {
-        lc::HttpClient open(config);
-        auto invalidHeader = lc::HttpRequest::get("/");
+        lgc::HttpClient open(config);
+        auto invalidHeader = lgc::HttpRequest::get("/");
         invalidHeader.setHeader("bad header", "x");
-        auto result = open.send(std::move(invalidHeader), lc::HttpRequestOptions {});
+        auto result = open.send(std::move(invalidHeader), lgc::HttpRequestOptions {});
         assert(!result.isOk());
-        assert(result.status().code() == lc::StatusCode::InvalidArgument);
+        assert(result.status().code() == lgc::StatusCode::InvalidArgument);
     }
 
     {
         auto limitedConfig = config;
         limitedConfig.requestLimits_.maxRequestBodyBytes_ = 4;
-        lc::HttpClient open(limitedConfig);
-        auto result = open.send(lc::HttpRequest::post("/", "12345", "text/plain"), lc::HttpRequestOptions {});
+        lgc::HttpClient open(limitedConfig);
+        auto result = open.send(lgc::HttpRequest::post("/", "12345", "text/plain"), lgc::HttpRequestOptions {});
         assert(!result.isOk());
-        assert(result.status().code() == lc::StatusCode::ResourceExhausted);
+        assert(result.status().code() == lgc::StatusCode::ResourceExhausted);
     }
 
     {
         auto limitedConfig = config;
         limitedConfig.requestLimits_.maxHeaderCount_ = 1;
-        lc::HttpClient open(limitedConfig);
-        auto tooManyHeaders = lc::HttpRequest::get("/");
+        lgc::HttpClient open(limitedConfig);
+        auto tooManyHeaders = lgc::HttpRequest::get("/");
         tooManyHeaders.setHeader("X-One", "1");
         tooManyHeaders.setHeader("X-Two", "2");
-        auto result = open.send(std::move(tooManyHeaders), lc::HttpRequestOptions {});
+        auto result = open.send(std::move(tooManyHeaders), lgc::HttpRequestOptions {});
         assert(!result.isOk());
-        assert(result.status().code() == lc::StatusCode::ResourceExhausted);
+        assert(result.status().code() == lgc::StatusCode::ResourceExhausted);
     }
 
     {
-        auto auth = std::make_shared<lc::OAuthAuthorizationProvider>(std::chrono::seconds(60));
+        auto auth = std::make_shared<lgc::OAuthAuthorizationProvider>(std::chrono::seconds(60));
         auto gatedConfig = config;
         gatedConfig.maxPendingRequests_ = 1;
-        lc::HttpClient gated(gatedConfig, auth);
-        assert(auth->apply(lc::OAuthCredentials {
+        lgc::HttpClient gated(gatedConfig, auth);
+        assert(auth->apply(lgc::OAuthCredentials {
             .accessToken_ = "expired",
             .accessTokenExpiresAt_ = std::chrono::system_clock::now() - std::chrono::seconds(1),
         }).isOk());
 
         std::atomic<bool> asyncDone { false };
-        auto queued = gated.sendAsync(lc::HttpRequest::get("/"), lc::HttpRequestOptions {}, [&](lc::HttpResult) {
+        auto queued = gated.sendAsync(lgc::HttpRequest::get("/"), lgc::HttpRequestOptions {}, [&](lgc::HttpResult) {
             asyncDone = true;
         });
         assert(queued.isOk());
-        auto rejected = gated.sendAsync(lc::HttpRequest::get("/"), lc::HttpRequestOptions {}, [&](lc::HttpResult) {});
+        auto rejected = gated.sendAsync(lgc::HttpRequest::get("/"), lgc::HttpRequestOptions {}, [&](lgc::HttpResult) {});
         assert(!rejected.isOk());
-        assert(rejected.code() == lc::StatusCode::ResourceExhausted);
+        assert(rejected.code() == lgc::StatusCode::ResourceExhausted);
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
         assert(!asyncDone.load());
 
-        assert(auth->apply(lc::OAuthCredentials {
+        assert(auth->apply(lgc::OAuthCredentials {
             .accessToken_ = "fresh",
             .accessTokenExpiresAt_ = std::chrono::system_clock::now() + std::chrono::hours(1),
         }).isOk());
@@ -439,50 +439,50 @@ int main()
     }
 
     {
-        auto auth = std::make_shared<lc::OAuthAuthorizationProvider>(std::chrono::seconds(60));
-        auth->onRenew([](lc::OAuthTokenRefreshReason) {
+        auto auth = std::make_shared<lgc::OAuthAuthorizationProvider>(std::chrono::seconds(60));
+        auth->onRenew([](lgc::OAuthTokenRefreshReason) {
             throw std::runtime_error("renew callback failed");
         });
-        assert(auth->apply(lc::OAuthCredentials {
+        assert(auth->apply(lgc::OAuthCredentials {
             .accessToken_ = "expired",
             .accessTokenExpiresAt_ = std::chrono::system_clock::now() - std::chrono::seconds(1),
         }).isOk());
-        lc::HttpClient gated(config, auth);
-        auto result = gated.send(lc::HttpRequest::get("/"), lc::HttpRequestOptions {});
+        lgc::HttpClient gated(config, auth);
+        auto result = gated.send(lgc::HttpRequest::get("/"), lgc::HttpRequestOptions {});
         assert(!result.isOk());
-        assert(result.status().code() == lc::StatusCode::Unauthenticated);
+        assert(result.status().code() == lgc::StatusCode::Unauthenticated);
     }
 
     {
-        lc::ManualWallClock wall(lc::WallClock::TimePoint(std::chrono::seconds(100)));
-        lc::OAuthAuthorizationProvider auth(wall, std::chrono::seconds(10));
+        lgc::ManualWallClock wall(lgc::WallClock::TimePoint(std::chrono::seconds(100)));
+        lgc::OAuthAuthorizationProvider auth(wall, std::chrono::seconds(10));
 
-        auto invalidLead = auth.apply(lc::OAuthCredentials {
+        auto invalidLead = auth.apply(lgc::OAuthCredentials {
             .accessToken_ = "token",
             .accessTokenExpiresAt_ = wall.now() + std::chrono::seconds(60),
             .tokenRenewLeadTime_ = std::chrono::seconds(-1),
         });
         assert(!invalidLead.isOk());
-        assert(invalidLead.code() == lc::StatusCode::InvalidArgument);
+        assert(invalidLead.code() == lgc::StatusCode::InvalidArgument);
 
-        auto missingToken = auth.apply(lc::OAuthCredentials {
+        auto missingToken = auth.apply(lgc::OAuthCredentials {
             .accessTokenExpiresAt_ = wall.now() + std::chrono::seconds(60),
         });
         assert(!missingToken.isOk());
-        assert(missingToken.code() == lc::StatusCode::InvalidArgument);
+        assert(missingToken.code() == lgc::StatusCode::InvalidArgument);
 
         auth.onReady([] {
             throw std::runtime_error("apply callback failed");
         });
-        auto callbackFailure = auth.apply(lc::OAuthCredentials {
+        auto callbackFailure = auth.apply(lgc::OAuthCredentials {
             .accessToken_ = "token",
             .accessTokenExpiresAt_ = wall.now() + std::chrono::seconds(60),
         });
         assert(!callbackFailure.isOk());
-        assert(callbackFailure.code() == lc::StatusCode::Unknown);
+        assert(callbackFailure.code() == lgc::StatusCode::Unknown);
 
         auth.onReady({});
-        assert(auth.apply(lc::OAuthCredentials {
+        assert(auth.apply(lgc::OAuthCredentials {
             .accessToken_ = "token",
             .refreshToken_ = "refresh",
             .accessTokenExpiresAt_ = wall.now() + std::chrono::seconds(60),
@@ -494,9 +494,9 @@ int main()
     }
 
     {
-        lc::HttpClient callbackClose(config);
+        lgc::HttpClient callbackClose(config);
         std::atomic<bool> called { false };
-        auto queued = callbackClose.sendAsync(lc::HttpRequest::get("/"), lc::HttpRequestOptions {}, [&](lc::HttpResult) {
+        auto queued = callbackClose.sendAsync(lgc::HttpRequest::get("/"), lgc::HttpRequestOptions {}, [&](lgc::HttpResult) {
             assert(callbackClose.close().isOk());
             called = true;
         });
@@ -508,9 +508,9 @@ int main()
     }
 
     {
-        lc::HttpClient throwingCallback(config);
+        lgc::HttpClient throwingCallback(config);
         std::atomic<bool> called { false };
-        auto queued = throwingCallback.sendAsync(lc::HttpRequest::get("/"), lc::HttpRequestOptions {}, [&](lc::HttpResult) {
+        auto queued = throwingCallback.sendAsync(lgc::HttpRequest::get("/"), lgc::HttpRequestOptions {}, [&](lgc::HttpResult) {
             called = true;
             throw std::runtime_error("callback failed");
         });
@@ -522,11 +522,11 @@ int main()
     }
 
     {
-        lc::HttpClient owned(config);
+        lgc::HttpClient owned(config);
         auto provider = owned.authorizationProvider();
         assert(provider);
         assert(owned.close().isOk());
-        auto request = lc::HttpRequest::get("/");
+        auto request = lgc::HttpRequest::get("/");
         assert(provider->authorize(request).isOk());
     }
 
@@ -534,18 +534,18 @@ int main()
     {
         auto tlsConfig = config;
         tlsConfig.useTls_ = true;
-        lc::HttpClient tlsClient(tlsConfig);
-        auto result = tlsClient.send(lc::HttpRequest::get("/"), lc::HttpRequestOptions {});
+        lgc::HttpClient tlsClient(tlsConfig);
+        auto result = tlsClient.send(lgc::HttpRequest::get("/"), lgc::HttpRequestOptions {});
         assert(!result.isOk());
-        assert(result.status().code() == lc::StatusCode::FailedPrecondition);
+        assert(result.status().code() == lgc::StatusCode::FailedPrecondition);
     }
 #endif
 
     {
         auto logger = std::make_shared<MemoryLogger>();
-        auto metrics = std::make_shared<lc::InMemoryMetricRecorder>();
-        auto traceSink = std::make_shared<lc::InMemoryTraceSink>();
-        lc::DefaultHttpClientFactory factory(lc::HttpClientFactoryOptions {
+        auto metrics = std::make_shared<lgc::InMemoryMetricRecorder>();
+        auto traceSink = std::make_shared<lgc::InMemoryTraceSink>();
+        lgc::DefaultHttpClientFactory factory(lgc::HttpClientFactoryOptions {
             .logger_ = logger,
             .metrics_ = metrics,
             .traceSink_ = traceSink,
@@ -555,11 +555,11 @@ int main()
         badConfig.host_.clear();
         auto badClient = factory.create(badConfig, nullptr);
         assert(!badClient.isOk());
-        assert(badClient.status().code() == lc::StatusCode::InvalidArgument);
+        assert(badClient.status().code() == lgc::StatusCode::InvalidArgument);
 
         auto created = factory.create(config, nullptr);
         assert(created.isOk());
-        auto failed = (*created)->send(lc::HttpRequest::get("/"), lc::HttpRequestOptions {});
+        auto failed = (*created)->send(lgc::HttpRequest::get("/"), lgc::HttpRequestOptions {});
         assert(!failed.isOk());
 
         auto snapshots = metrics->snapshots();
@@ -577,7 +577,7 @@ int main()
         const auto spans = traceSink->spans();
         assert(spans.size() == 1);
         assert(spans.front().name_ == "http.client.request");
-        assert(spans.front().status_ == lc::SpanStatus::Error);
+        assert(spans.front().status_ == lgc::SpanStatus::Error);
         assert(spans.front().attributes_["http.method"] == "GET");
         assert((*created)->close().isOk());
     }
@@ -679,7 +679,7 @@ int main()
     if (!local.available())
         return 0;
 
-    lc::HttpClientConfig localConfig;
+    lgc::HttpClientConfig localConfig;
     localConfig.host_ = "127.0.0.1";
     localConfig.port_ = static_cast<std::uint16_t>(local.port());
     localConfig.connectTimeout_ = std::chrono::milliseconds(500);
@@ -688,31 +688,31 @@ int main()
     localConfig.closeTimeout_ = std::chrono::milliseconds(250);
 
     {
-        lc::HttpClient real(localConfig);
-        auto result = real.send(lc::HttpRequest::get("/ok"), lc::HttpRequestOptions {});
+        lgc::HttpClient real(localConfig);
+        auto result = real.send(lgc::HttpRequest::get("/ok"), lgc::HttpRequestOptions {});
         assert(result.isOk());
         assert(result->statusCode_ == 200);
         assert(result->body_ == "ok");
     }
 
     {
-        lc::HttpClient real(localConfig);
-        auto result = real.send(lc::HttpRequest::post("/echo", "hello", "text/plain"), lc::HttpRequestOptions {});
+        lgc::HttpClient real(localConfig);
+        auto result = real.send(lgc::HttpRequest::post("/echo", "hello", "text/plain"), lgc::HttpRequestOptions {});
         assert(result.isOk());
         assert(result->statusCode_ == 200);
         assert(result->body_ == "hello");
     }
 
     {
-        lc::HttpClient real(localConfig);
-        auto result = real.send(lc::HttpRequest::get("/redirect"), lc::HttpRequestOptions {});
+        lgc::HttpClient real(localConfig);
+        auto result = real.send(lgc::HttpRequest::get("/redirect"), lgc::HttpRequestOptions {});
         assert(result.isOk());
         assert(result->statusCode_ == 302);
 
         auto followConfig = localConfig;
         followConfig.followRedirects_ = true;
-        lc::HttpClient following(followConfig);
-        auto followed = following.send(lc::HttpRequest::get("/redirect"), lc::HttpRequestOptions {});
+        lgc::HttpClient following(followConfig);
+        auto followed = following.send(lgc::HttpRequest::get("/redirect"), lgc::HttpRequestOptions {});
         assert(followed.isOk());
         assert(followed->statusCode_ == 200);
         assert(followed->body_ == "ok");
@@ -721,32 +721,32 @@ int main()
     {
         auto limitedConfig = localConfig;
         limitedConfig.requestLimits_.maxRequestBodyBytes_ = 4;
-        lc::HttpClient real(limitedConfig);
-        auto result = real.send(lc::HttpRequest::post("/echo", "12345", "text/plain"), lc::HttpRequestOptions {});
+        lgc::HttpClient real(limitedConfig);
+        auto result = real.send(lgc::HttpRequest::post("/echo", "12345", "text/plain"), lgc::HttpRequestOptions {});
         assert(!result.isOk());
-        assert(result.status().code() == lc::StatusCode::ResourceExhausted);
+        assert(result.status().code() == lgc::StatusCode::ResourceExhausted);
     }
 
     {
         auto limitedConfig = localConfig;
         limitedConfig.maxResponseBodyBytes_ = 8;
-        lc::HttpClient real(limitedConfig);
-        auto result = real.send(lc::HttpRequest::get("/large"), lc::HttpRequestOptions {});
+        lgc::HttpClient real(limitedConfig);
+        auto result = real.send(lgc::HttpRequest::get("/large"), lgc::HttpRequestOptions {});
         assert(!result.isOk());
-        assert(result.status().code() == lc::StatusCode::ResourceExhausted);
+        assert(result.status().code() == lgc::StatusCode::ResourceExhausted);
     }
 
     {
-        lc::HttpClient real(localConfig);
+        lgc::HttpClient real(localConfig);
         std::string streamed;
         auto result = real.sendStreaming(
-            lc::HttpRequest::get("/stream"),
-            lc::HttpRequestOptions {},
+            lgc::HttpRequest::get("/stream"),
+            lgc::HttpRequestOptions {},
             [&](std::string_view chunk) {
                 streamed.append(chunk);
-                return lc::Status::ok();
+                return lgc::Status::ok();
             },
-            lc::HttpStreamOptions { .chunkBytes_ = 3 });
+            lgc::HttpStreamOptions { .chunkBytes_ = 3 });
         assert(result.isOk());
         assert(result->statusCode_ == 200);
         assert(result->body_.empty());
@@ -756,29 +756,29 @@ int main()
     {
         auto limitedConfig = localConfig;
         limitedConfig.maxResponseBodyBytes_ = 6;
-        lc::HttpClient real(limitedConfig);
+        lgc::HttpClient real(limitedConfig);
         auto result = real.sendStreaming(
-            lc::HttpRequest::get("/stream"),
-            lc::HttpRequestOptions {},
+            lgc::HttpRequest::get("/stream"),
+            lgc::HttpRequestOptions {},
             [](std::string_view) {
-                return lc::Status::ok();
+                return lgc::Status::ok();
             },
-            lc::HttpStreamOptions { .chunkBytes_ = 3 });
+            lgc::HttpStreamOptions { .chunkBytes_ = 3 });
         assert(!result.isOk());
-        assert(result.status().code() == lc::StatusCode::ResourceExhausted);
+        assert(result.status().code() == lgc::StatusCode::ResourceExhausted);
     }
 
     {
-        lc::HttpClient real(localConfig);
-        std::vector<lc::ServerSentEvent> events;
+        lgc::HttpClient real(localConfig);
+        std::vector<lgc::ServerSentEvent> events;
         auto result = real.sendSse(
-            lc::HttpRequest::get("/sse"),
-            lc::HttpRequestOptions {},
-            [&](const lc::ServerSentEvent& event) {
+            lgc::HttpRequest::get("/sse"),
+            lgc::HttpRequestOptions {},
+            [&](const lgc::ServerSentEvent& event) {
                 events.push_back(event);
-                return lc::Status::ok();
+                return lgc::Status::ok();
             },
-            lc::HttpStreamOptions { .chunkBytes_ = 4 });
+            lgc::HttpStreamOptions { .chunkBytes_ = 4 });
         assert(result.isOk());
         assert(result->statusCode_ == 200);
         assert(events.size() == 2);
@@ -792,24 +792,24 @@ int main()
     }
 
     {
-        lc::HttpClient real(localConfig);
+        lgc::HttpClient real(localConfig);
         auto result = real.sendSse(
-            lc::HttpRequest::get("/sse"),
-            lc::HttpRequestOptions {},
-            [](const lc::ServerSentEvent&) {
-                return lc::Status::cancelled("stop streaming");
+            lgc::HttpRequest::get("/sse"),
+            lgc::HttpRequestOptions {},
+            [](const lgc::ServerSentEvent&) {
+                return lgc::Status::cancelled("stop streaming");
             });
         assert(!result.isOk());
-        assert(result.status().code() == lc::StatusCode::Cancelled);
+        assert(result.status().code() == lgc::StatusCode::Cancelled);
     }
 
     {
         auto retryConfig = localConfig;
         retryConfig.retryPolicy_.maxRetries_ = 1;
         retryConfig.retryPolicy_.delay_ = std::chrono::milliseconds(1);
-        lc::HttpClient real(retryConfig);
+        lgc::HttpClient real(retryConfig);
         retryHits.store(0);
-        auto result = real.send(lc::HttpRequest::get("/retry"), lc::HttpRequestOptions {});
+        auto result = real.send(lgc::HttpRequest::get("/retry"), lgc::HttpRequestOptions {});
         assert(result.isOk());
         assert(result->statusCode_ == 200);
         assert(result->body_ == "retried");
@@ -817,12 +817,12 @@ int main()
     }
 
     {
-        lc::HttpClient real(localConfig);
+        lgc::HttpClient real(localConfig);
         retryHits.store(0);
         auto result = real.send(
-            lc::HttpRequest::get("/retry"),
-            lc::HttpRequestOptions {
-                .retryPolicy_ = lc::HttpRetryPolicy {
+            lgc::HttpRequest::get("/retry"),
+            lgc::HttpRequestOptions {
+                .retryPolicy_ = lgc::HttpRetryPolicy {
                     .maxRetries_ = 1,
                     .delay_ = std::chrono::milliseconds(1),
                 },
@@ -837,12 +837,12 @@ int main()
         auto retryConfig = localConfig;
         retryConfig.retryPolicy_.maxRetries_ = 1;
         retryConfig.retryPolicy_.delay_ = std::chrono::milliseconds(1);
-        lc::HttpClient real(retryConfig);
+        lgc::HttpClient real(retryConfig);
         retryHits.store(0);
         auto result = real.send(
-            lc::HttpRequest::get("/retry"),
-            lc::HttpRequestOptions {
-                .retryPolicy_ = lc::HttpRetryPolicy {
+            lgc::HttpRequest::get("/retry"),
+            lgc::HttpRequestOptions {
+                .retryPolicy_ = lgc::HttpRetryPolicy {
                     .maxRetries_ = 0,
                 },
             });
@@ -852,14 +852,17 @@ int main()
     }
 
     {
-        lc::HttpClient real(localConfig);
+        // Per-request timeout: cpp-httplib often reports this as Error::Read
+        // ("Failed to read connection") after a successful write. The client must
+        // still surface DeadlineExceeded for deadline-bounded requests.
+        lgc::HttpClient real(localConfig);
         auto result = real.send(
-            lc::HttpRequest::get("/slow"),
-            lc::HttpRequestOptions {
+            lgc::HttpRequest::get("/slow"),
+            lgc::HttpRequestOptions {
                 .timeout_ = std::chrono::milliseconds(20),
             });
         assert(!result.isOk());
-        assert(result.status().code() == lc::StatusCode::DeadlineExceeded);
+        assert(result.status().code() == lgc::StatusCode::DeadlineExceeded);
     }
 
     {
@@ -870,9 +873,9 @@ int main()
         auto pooledConfig = localConfig;
         pooledConfig.keepAlive_ = true;
         pooledConfig.connectionPoolSize_ = 1;
-        lc::HttpClient real(pooledConfig);
+        lgc::HttpClient real(pooledConfig);
         for (int i = 0; i < 3; ++i) {
-            auto result = real.send(lc::HttpRequest::get("/conn"), lc::HttpRequestOptions {});
+            auto result = real.send(lgc::HttpRequest::get("/conn"), lgc::HttpRequestOptions {});
             assert(result.isOk());
             assert(result->body_ == "conn");
         }
@@ -885,50 +888,50 @@ int main()
     }
 
     {
-        auto auth = std::make_shared<lc::BearerTokenAuthorizationProvider>("request-token");
-        lc::HttpClient real(localConfig, auth);
-        auto result = real.send(lc::HttpRequest::get("/auth"), lc::HttpRequestOptions {});
+        auto auth = std::make_shared<lgc::BearerTokenAuthorizationProvider>("request-token");
+        lgc::HttpClient real(localConfig, auth);
+        auto result = real.send(lgc::HttpRequest::get("/auth"), lgc::HttpRequestOptions {});
         assert(result.isOk());
         assert(result->body_.find("authorization=Bearer request-token") != std::string::npos);
     }
 
     {
-        auto auth = std::make_shared<lc::ApiKeyAuthorizationProvider>("X-Api-Key", "api-key-value");
-        lc::HttpClient real(localConfig, auth);
-        auto result = real.send(lc::HttpRequest::get("/auth"), lc::HttpRequestOptions {});
+        auto auth = std::make_shared<lgc::ApiKeyAuthorizationProvider>("X-Api-Key", "api-key-value");
+        lgc::HttpClient real(localConfig, auth);
+        auto result = real.send(lgc::HttpRequest::get("/auth"), lgc::HttpRequestOptions {});
         assert(result.isOk());
         assert(result->body_.find("x-api-key=api-key-value") != std::string::npos);
     }
 
     {
-        auto auth = std::make_shared<lc::BasicAuthorizationProvider>("user", "pass");
-        lc::HttpClient real(localConfig, auth);
-        auto result = real.send(lc::HttpRequest::get("/auth"), lc::HttpRequestOptions {});
+        auto auth = std::make_shared<lgc::BasicAuthorizationProvider>("user", "pass");
+        lgc::HttpClient real(localConfig, auth);
+        auto result = real.send(lgc::HttpRequest::get("/auth"), lgc::HttpRequestOptions {});
         assert(result.isOk());
         assert(result->body_.find("authorization=Basic dXNlcjpwYXNz") != std::string::npos);
     }
 
     {
-        auto auth = std::make_shared<lc::FunctionAuthorizationProvider>([](lc::HttpRequest& request) {
+        auto auth = std::make_shared<lgc::FunctionAuthorizationProvider>([](lgc::HttpRequest& request) {
             request.setHeader("X-Custom-Auth", "signed");
-            return lc::Status::ok();
+            return lgc::Status::ok();
         });
-        lc::HttpClient real(localConfig, auth);
-        auto result = real.send(lc::HttpRequest::get("/auth"), lc::HttpRequestOptions {});
+        lgc::HttpClient real(localConfig, auth);
+        auto result = real.send(lgc::HttpRequest::get("/auth"), lgc::HttpRequestOptions {});
         assert(result.isOk());
         assert(result->body_.find("x-custom-auth=signed") != std::string::npos);
     }
 
     {
         auto logger = std::make_shared<MemoryLogger>();
-        auto auth = std::make_shared<lc::OAuthAuthorizationProvider>();
-        assert(auth->apply(lc::OAuthCredentials {
+        auto auth = std::make_shared<lgc::OAuthAuthorizationProvider>();
+        assert(auth->apply(lgc::OAuthCredentials {
             .accessToken_ = "secret-token-1234567890",
             .accessTokenExpiresAt_ = std::chrono::system_clock::now() + std::chrono::hours(1),
         }).isOk());
-        lc::HttpClient real(localConfig, auth, logger);
-        auto request = lc::HttpRequest::post("/ok", R"({"api_key":"sk-secret-1234567890"})");
-        auto result = real.send(std::move(request), lc::HttpRequestOptions {});
+        lgc::HttpClient real(localConfig, auth, logger);
+        auto request = lgc::HttpRequest::post("/ok", R"({"api_key":"sk-secret-1234567890"})");
+        auto result = real.send(std::move(request), lgc::HttpRequestOptions {});
         assert(result.isOk());
         const auto logText = logger->text();
         assert(logText.find("secret-token-1234567890") == std::string::npos);
@@ -938,19 +941,19 @@ int main()
 
     {
         auto logger = std::make_shared<MemoryLogger>();
-        lc::DefaultHttpClientFactory factory(lc::HttpClientFactoryOptions {
+        lgc::DefaultHttpClientFactory factory(lgc::HttpClientFactoryOptions {
             .logger_ = logger,
         });
-        auto auth = std::make_shared<lc::OAuthAuthorizationProvider>();
-        assert(auth->apply(lc::OAuthCredentials {
+        auto auth = std::make_shared<lgc::OAuthAuthorizationProvider>();
+        assert(auth->apply(lgc::OAuthCredentials {
             .accessToken_ = "factory-secret-token-1234567890",
             .accessTokenExpiresAt_ = std::chrono::system_clock::now() + std::chrono::hours(1),
         }).isOk());
 
         auto created = factory.create(localConfig, auth);
         assert(created.isOk());
-        auto request = lc::HttpRequest::post("/ok", R"({"api_key":"sk-factory-secret-1234567890"})");
-        auto result = (*created)->send(std::move(request), lc::HttpRequestOptions {});
+        auto request = lgc::HttpRequest::post("/ok", R"({"api_key":"sk-factory-secret-1234567890"})");
+        auto result = (*created)->send(std::move(request), lgc::HttpRequestOptions {});
         assert(result.isOk());
         const auto logText = logger->text();
         assert(logText.find("factory-secret-token-1234567890") == std::string::npos);
@@ -961,33 +964,33 @@ int main()
 
     {
         auto rateConfig = localConfig;
-        rateConfig.rateLimiter_ = std::make_shared<lc::TokenBucketRateLimiter>(lc::RateLimitPolicy {
+        rateConfig.rateLimiter_ = std::make_shared<lgc::TokenBucketRateLimiter>(lgc::RateLimitPolicy {
             .capacity_ = 1,
             .refill_ = 1,
             .interval_ = std::chrono::hours(1),
         });
-        lc::HttpClient real(rateConfig);
-        assert(real.send(lc::HttpRequest::get("/ok"), lc::HttpRequestOptions {}).isOk());
-        auto limited = real.send(lc::HttpRequest::get("/ok"), lc::HttpRequestOptions {});
+        lgc::HttpClient real(rateConfig);
+        assert(real.send(lgc::HttpRequest::get("/ok"), lgc::HttpRequestOptions {}).isOk());
+        auto limited = real.send(lgc::HttpRequest::get("/ok"), lgc::HttpRequestOptions {});
         assert(!limited.isOk());
-        assert(limited.status().code() == lc::StatusCode::ResourceExhausted);
+        assert(limited.status().code() == lgc::StatusCode::ResourceExhausted);
     }
 
     {
         auto circuitConfig = localConfig;
-        circuitConfig.circuitBreaker_ = std::make_shared<lc::CircuitBreaker>(lc::CircuitBreakerPolicy {
+        circuitConfig.circuitBreaker_ = std::make_shared<lgc::CircuitBreaker>(lgc::CircuitBreakerPolicy {
             .failureThreshold_ = 1,
             .successThreshold_ = 1,
             .halfOpenMaxCalls_ = 1,
             .openTimeout_ = std::chrono::hours(1),
         });
-        lc::HttpClient real(circuitConfig);
-        auto failed = real.send(lc::HttpRequest::get("/fail"), lc::HttpRequestOptions {});
+        lgc::HttpClient real(circuitConfig);
+        auto failed = real.send(lgc::HttpRequest::get("/fail"), lgc::HttpRequestOptions {});
         assert(failed.isOk());
         assert(failed->statusCode_ == 500);
-        auto blocked = real.send(lc::HttpRequest::get("/ok"), lc::HttpRequestOptions {});
+        auto blocked = real.send(lgc::HttpRequest::get("/ok"), lgc::HttpRequestOptions {});
         assert(!blocked.isOk());
-        assert(blocked.status().code() == lc::StatusCode::Unavailable);
+        assert(blocked.status().code() == lgc::StatusCode::Unavailable);
     }
 
     std::atomic<int> proxyHits { 0 };
@@ -1006,8 +1009,8 @@ int main()
         proxyClientConfig.port_ = 80;
         proxyClientConfig.proxy_.host_ = "127.0.0.1";
         proxyClientConfig.proxy_.port_ = static_cast<std::uint16_t>(proxy.port());
-        lc::HttpClient real(proxyClientConfig);
-        auto result = real.send(lc::HttpRequest::get("/proxy-ok"), lc::HttpRequestOptions {});
+        lgc::HttpClient real(proxyClientConfig);
+        auto result = real.send(lgc::HttpRequest::get("/proxy-ok"), lgc::HttpRequestOptions {});
         assert(result.isOk());
         assert(result->statusCode_ == 200);
         assert(result->body_.find("proxied:") == 0);
@@ -1030,29 +1033,29 @@ int main()
             tlsConfig.port_ = static_cast<std::uint16_t>(tlsLocal.port());
             tlsConfig.useTls_ = true;
             tlsConfig.tlsOptions_.verifyPeer_ = false;
-            lc::HttpClient tlsClient(tlsConfig);
-            auto result = tlsClient.send(lc::HttpRequest::get("/tls"), lc::HttpRequestOptions {});
+            lgc::HttpClient tlsClient(tlsConfig);
+            auto result = tlsClient.send(lgc::HttpRequest::get("/tls"), lgc::HttpRequestOptions {});
             assert(result.isOk());
             assert(result->statusCode_ == 200);
             assert(result->body_ == "secure");
 
             auto verifiedConfig = tlsConfig;
             verifiedConfig.tlsOptions_.verifyPeer_ = true;
-            lc::HttpClient verified(verifiedConfig);
-            auto rejected = verified.send(lc::HttpRequest::get("/tls"), lc::HttpRequestOptions {});
+            lgc::HttpClient verified(verifiedConfig);
+            auto rejected = verified.send(lgc::HttpRequest::get("/tls"), lgc::HttpRequestOptions {});
             assert(!rejected.isOk());
         }
     }
 #endif
 
     {
-        lc::HttpClient real(localConfig);
+        lgc::HttpClient real(localConfig);
         std::atomic<bool> callbackCalled { false };
         {
             std::lock_guard lock(slowMutex);
             slowStarted = false;
         }
-        assert(real.sendAsync(lc::HttpRequest::get("/slow"), lc::HttpRequestOptions {}, [&](lc::HttpResult result) {
+        assert(real.sendAsync(lgc::HttpRequest::get("/slow"), lgc::HttpRequestOptions {}, [&](lgc::HttpResult result) {
             callbackCalled = true;
             assert(!result.isOk() || result->statusCode_ == 200);
         }).isOk());

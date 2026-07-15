@@ -12,7 +12,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 inline constexpr std::size_t kDefaultMaxDecompressedBytes = 64 * 1024 * 1024;
 
@@ -102,4 +102,4 @@ public:
     const CompressedData& data,
     const DecompressionOptions& options = {});
 
-} // namespace lc
+} // namespace lgc

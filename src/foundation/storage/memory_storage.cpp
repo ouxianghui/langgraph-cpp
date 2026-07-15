@@ -5,7 +5,7 @@
 #include <optional>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 MemoryStorage::MemoryStorage(StorageLimits limits, const WallClock& clock)
     : limits_(limits)
@@ -181,4 +181,4 @@ bool MemoryStorage::isClosed() const noexcept
     return closed_;
 }
 
-} // namespace lc
+} // namespace lgc

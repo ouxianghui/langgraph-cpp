@@ -7,7 +7,7 @@
 
 namespace {
 
-void require(lc::Result<void> result)
+void require(lgc::Result<void> result)
 {
     if (!result.isOk()) {
         std::cerr << result.status() << '\n';
@@ -45,17 +45,17 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    auto model = std::make_shared<lc::LlamaCppChatModel>(lc::LlamaCppChatModelOptions {
+    auto model = std::make_shared<lgc::LlamaCppChatModel>(lgc::LlamaCppChatModelOptions {
         .modelPath_ = modelPath,
         .contextSize_ = 2048,
         .temperature_ = 0.7F,
         .maxTokens_ = 128,
     });
 
-    lc::StateGraph graph;
-    require(graph.addNode("model", lc::makeModelNode(model)));
-    require(graph.addEdge(std::string(lc::START), "model"));
-    require(graph.addEdge("model", std::string(lc::END)));
+    lgc::StateGraph graph;
+    require(graph.addNode("model", lgc::makeModelNode(model)));
+    require(graph.addEdge(std::string(lgc::START), "model"));
+    require(graph.addEdge("model", std::string(lgc::END)));
 
     auto compiled = graph.compile();
     if (!compiled.isOk()) {
@@ -63,9 +63,9 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    auto input = lc::State::fromJsonValue({
-        { "messages", lc::messagesToJson({
-            lc::BaseMessage::human(promptFromArgs(argc, argv)),
+    auto input = lgc::State::fromJsonValue({
+        { "messages", lgc::messagesToJson({
+            lgc::BaseMessage::human(promptFromArgs(argc, argv)),
         }) },
     });
     if (!input.isOk()) {
@@ -73,8 +73,8 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    lc::RunOptions options;
-    options.reducers_.set("messages", lc::ReducerKind::AddMessages);
+    lgc::RunOptions options;
+    options.reducers_.set("messages", lgc::ReducerKind::AddMessages);
 
     auto result = compiled->invoke(*input, options);
     if (!result.isOk()) {

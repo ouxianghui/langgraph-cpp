@@ -6,7 +6,7 @@
 #include <string>
 #include <string_view>
 
-namespace lc::filesystem_detail {
+namespace lgc::filesystem_detail {
 
 namespace fs = std::filesystem;
 
@@ -19,4 +19,4 @@ namespace fs = std::filesystem;
     const PathPolicy& policy);
 [[nodiscard]] Status validateRelativePathPolicy(const fs::path& relativePath, const PathPolicy& policy);
 
-} // namespace lc::filesystem_detail
+} // namespace lgc::filesystem_detail

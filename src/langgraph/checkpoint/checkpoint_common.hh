@@ -12,7 +12,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lc::detail {
+namespace lgc::detail {
 
 [[nodiscard]] Result<void> validateCheckpointForStore(const Checkpoint& checkpoint);
 [[nodiscard]] Result<void> validateCheckpointQuery(const CheckpointQuery& query);
@@ -46,4 +46,4 @@ namespace lc::detail {
     BaseCheckpointSaver& checkpointer,
     DeltaChannelHistoryQuery query);
 
-} // namespace lc::detail
+} // namespace lgc::detail

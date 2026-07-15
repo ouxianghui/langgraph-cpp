@@ -9,7 +9,7 @@
 #include <set>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace detail {
 
 constexpr std::uint32_t kStoreItemSchemaVersion = 1;
@@ -440,4 +440,4 @@ constexpr std::uint32_t kStoreItemSchemaVersion = 1;
 
 } // namespace detail
 
-} // namespace lc
+} // namespace lgc

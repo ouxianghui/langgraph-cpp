@@ -6,7 +6,7 @@
 
 #include <utility>
 
-namespace lc::detail {
+namespace lgc::detail {
 
 [[nodiscard]] inline const Redactor& defaultEventRedactor()
 {
@@ -35,4 +35,4 @@ namespace lc::detail {
     return event;
 }
 
-} // namespace lc::detail
+} // namespace lgc::detail

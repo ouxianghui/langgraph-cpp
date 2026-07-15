@@ -312,7 +312,7 @@ endif()
 langgraph_cpp_source_groups("${CMAKE_CURRENT_SOURCE_DIR}" ${LC_FOUNDATION_SOURCES})
 
 add_library(foundation STATIC ${LC_FOUNDATION_SOURCES})
-add_library(lc::foundation ALIAS foundation)
+add_library(lgc::foundation ALIAS foundation)
 set_target_properties(foundation PROPERTIES FOLDER "langgraph-cpp")
 langgraph_cpp_configure_xcode_scheme(foundation)
 
@@ -343,7 +343,7 @@ langgraph_cpp_collect_sources(LC_CORE_SOURCES
 langgraph_cpp_source_groups("${CMAKE_CURRENT_SOURCE_DIR}" ${LC_CORE_SOURCES})
 
 add_library(core STATIC ${LC_CORE_SOURCES})
-add_library(lc::core ALIAS core)
+add_library(lgc::core ALIAS core)
 set_target_properties(core PROPERTIES FOLDER "langgraph-cpp")
 langgraph_cpp_configure_xcode_scheme(core)
 
@@ -351,13 +351,13 @@ target_include_directories(core
     PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-target_link_libraries(core PUBLIC lc::foundation)
+target_link_libraries(core PUBLIC lgc::foundation)
 target_compile_features(core PUBLIC cxx_std_23)
 langgraph_cpp_apply_warnings(core)
 
 # ============================================================================
 #  langgraph_cpp — stateful agent graph runtime.
-#  Depends only on lc::foundation (which transitively carries the foundation
+#  Depends only on lgc::foundation (which transitively carries the foundation
 #  headers, defs and third-party deps) plus the optional llama.cpp adapter.
 # ============================================================================
 langgraph_cpp_collect_sources(LC_RUNTIME_SOURCES
@@ -370,7 +370,7 @@ endif()
 langgraph_cpp_source_groups("${CMAKE_CURRENT_SOURCE_DIR}" ${LC_RUNTIME_SOURCES})
 
 add_library(langgraph STATIC ${LC_RUNTIME_SOURCES})
-add_library(lc::langgraph ALIAS langgraph)
+add_library(lgc::langgraph ALIAS langgraph)
 set_target_properties(langgraph PROPERTIES FOLDER "langgraph-cpp")
 langgraph_cpp_configure_xcode_scheme(langgraph)
 
@@ -378,7 +378,7 @@ target_include_directories(langgraph
     PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-target_link_libraries(langgraph PUBLIC lc::foundation)
+target_link_libraries(langgraph PUBLIC lgc::foundation)
 if(LANGGRAPH_CPP_RUNTIME_LIBS)
     target_link_libraries(langgraph PUBLIC ${LANGGRAPH_CPP_RUNTIME_LIBS})
 endif()
@@ -390,7 +390,7 @@ endif()
 target_compile_features(langgraph PUBLIC cxx_std_23)
 langgraph_cpp_apply_warnings(langgraph)
 
-# ---- Install / export: lc::foundation is consumable on its own ----
+# ---- Install / export: lgc::foundation is consumable on its own ----
 install(TARGETS foundation core langgraph
     EXPORT langgraphCppTargets
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -408,7 +408,7 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/langgraph"
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 install(EXPORT langgraphCppTargets
-    NAMESPACE lc::
+    NAMESPACE lgc::
     FILE langgraphCppTargets.cmake
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/langgraph_cpp")
 

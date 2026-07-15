@@ -23,7 +23,7 @@
 #include <utility>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 namespace detail {
 
@@ -166,7 +166,7 @@ template <typename Handler, typename... Args>
             std::invoke(handler, std::forward<Args>(args)...);
             return Status::ok();
         } else {
-            static_assert(dependentFalse<Handler>, "select case handlers must return void or lc::Status");
+            static_assert(dependentFalse<Handler>, "select case handlers must return void or lgc::Status");
         }
     } catch (const std::exception& e) {
         return Status::internal(std::string("select case handler threw: ") + e.what());
@@ -189,7 +189,7 @@ template <typename Handler, typename T>
     } else {
         static_assert(
             dependentFalse<Handler>,
-            "recv handlers must accept lc::ChannelReceive<T>, std::optional<T>, or T");
+            "recv handlers must accept lgc::ChannelReceive<T>, std::optional<T>, or T");
     }
 }
 
@@ -205,10 +205,10 @@ template <typename Handler>
     } else {
         static_assert(
             dependentFalse<Handler>,
-            "cancelled handlers must accept no arguments, lc::CancellationToken, or std::string");
+            "cancelled handlers must accept no arguments, lgc::CancellationToken, or std::string");
     }
 }
 
 } // namespace detail
 
-} // namespace lc
+} // namespace lgc

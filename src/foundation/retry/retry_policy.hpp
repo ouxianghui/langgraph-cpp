@@ -9,7 +9,7 @@
 #include <memory>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 enum class BackoffType : std::uint8_t {
     Fixed,
@@ -118,4 +118,4 @@ private:
     bool retryOnAnyError_ { false };
 };
 
-} // namespace lc
+} // namespace lgc

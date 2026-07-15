@@ -12,7 +12,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 enum class ChatProviderKind : std::uint8_t {
     OpenAICompatible,
@@ -99,4 +99,4 @@ private:
     ProviderChatModelOptions options_;
 };
 
-} // namespace lc
+} // namespace lgc

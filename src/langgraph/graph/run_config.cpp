@@ -4,7 +4,7 @@
 #include <string_view>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] bool isRunnableConfigKey(std::string_view key) noexcept
@@ -482,4 +482,4 @@ Result<RunOptions> applyRunnableConfig(
     return options;
 }
 
-} // namespace lc
+} // namespace lgc

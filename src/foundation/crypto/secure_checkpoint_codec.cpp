@@ -8,7 +8,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace lc {
+namespace lgc {
 namespace {
 using nlohmann::json;
 using namespace encryption_detail;
@@ -140,4 +140,4 @@ Result<CheckpointWrite> SecureCheckpointCodec::decodeWrite(const Payload& payloa
     return inner_->decodeWrite(*decoded);
 }
 
-} // namespace lc
+} // namespace lgc

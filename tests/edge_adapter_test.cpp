@@ -10,44 +10,44 @@
 
 namespace {
 
-class MockGpioAdapter final : public lc::IGpioAdapter {
+class MockGpioAdapter final : public lgc::IGpioAdapter {
 public:
-    [[nodiscard]] lc::Result<void> configurePin(const lc::GpioPinConfig& config) override
+    [[nodiscard]] lgc::Result<void> configurePin(const lgc::GpioPinConfig& config) override
     {
         directions_[config.line_] = config.direction_;
         if (config.initialLevel_.has_value())
             levels_[config.line_] = *config.initialLevel_;
-        return lc::okResult();
+        return lgc::okResult();
     }
 
-    [[nodiscard]] lc::Result<lc::GpioLevel> readPin(std::string line) override
+    [[nodiscard]] lgc::Result<lgc::GpioLevel> readPin(std::string line) override
     {
         const auto found = levels_.find(line);
         if (found == levels_.end())
-            return lc::Status::notFound("gpio line not configured");
+            return lgc::Status::notFound("gpio line not configured");
         return found->second;
     }
 
-    [[nodiscard]] lc::Result<void> writePin(std::string line, lc::GpioLevel level) override
+    [[nodiscard]] lgc::Result<void> writePin(std::string line, lgc::GpioLevel level) override
     {
         const auto found = directions_.find(line);
         if (found == directions_.end())
-            return lc::Status::notFound("gpio line not configured");
-        if (found->second != lc::GpioDirection::Output)
-            return lc::Status::failedPrecondition("gpio line is not an output");
+            return lgc::Status::notFound("gpio line not configured");
+        if (found->second != lgc::GpioDirection::Output)
+            return lgc::Status::failedPrecondition("gpio line is not an output");
         levels_[line] = level;
-        return lc::okResult();
+        return lgc::okResult();
     }
 
 private:
-    std::map<std::string, lc::GpioDirection> directions_;
-    std::map<std::string, lc::GpioLevel> levels_;
+    std::map<std::string, lgc::GpioDirection> directions_;
+    std::map<std::string, lgc::GpioLevel> levels_;
 };
 
-lc::State stateFromMessages(std::vector<lc::BaseMessage> messages)
+lgc::State stateFromMessages(std::vector<lgc::BaseMessage> messages)
 {
-    auto state = lc::State::fromJsonValue({
-        { "messages", lc::messagesToJson(messages) },
+    auto state = lgc::State::fromJsonValue({
+        { "messages", lgc::messagesToJson(messages) },
     });
     assert(state.isOk());
     return *state;
@@ -76,25 +76,25 @@ std::string readFile(const std::filesystem::path& path)
     return value;
 }
 
-std::shared_ptr<lc::ToolRegistry> makeGpioRegistry(std::shared_ptr<lc::IGpioAdapter> adapter)
+std::shared_ptr<lgc::ToolRegistry> makeGpioRegistry(std::shared_ptr<lgc::IGpioAdapter> adapter)
 {
-    auto registry = std::make_shared<lc::ToolRegistry>();
+    auto registry = std::make_shared<lgc::ToolRegistry>();
 
-    auto registered = registry->add(lc::Tool {
+    auto registered = registry->add(lgc::Tool {
         .name_ = "edge.gpio_write",
         .description_ = "Write a GPIO line through an edge adapter.",
-        .inputSchema_ = lc::JsonSchema::object()
-                            .property("line", lc::JsonSchema::string(), true)
-                            .property("high", lc::JsonSchema::boolean(), true)
+        .inputSchema_ = lgc::JsonSchema::object()
+                            .property("line", lgc::JsonSchema::string(), true)
+                            .property("high", lgc::JsonSchema::boolean(), true)
                             .additionalProperties(false),
-        .outputSchema_ = lc::JsonSchema::object()
-                             .property("line", lc::JsonSchema::string(), true)
-                             .property("high", lc::JsonSchema::boolean(), true)
+        .outputSchema_ = lgc::JsonSchema::object()
+                             .property("line", lgc::JsonSchema::string(), true)
+                             .property("high", lgc::JsonSchema::boolean(), true)
                              .additionalProperties(false),
-        .callable_ = [adapter = std::move(adapter)](const nlohmann::json& input) -> lc::Result<nlohmann::json> {
+        .callable_ = [adapter = std::move(adapter)](const nlohmann::json& input) -> lgc::Result<nlohmann::json> {
             const auto line = input.at("line").get<std::string>();
             const auto high = input.at("high").get<bool>();
-            auto status = adapter->writePin(line, high ? lc::GpioLevel::High : lc::GpioLevel::Low);
+            auto status = adapter->writePin(line, high ? lgc::GpioLevel::High : lgc::GpioLevel::Low);
             if (!status.isOk())
                 return status.status();
             return nlohmann::json {
@@ -111,21 +111,21 @@ std::shared_ptr<lc::ToolRegistry> makeGpioRegistry(std::shared_ptr<lc::IGpioAdap
 void testMockGpioToolExecutesThroughRegistry()
 {
     auto gpio = std::make_shared<MockGpioAdapter>();
-    auto configured = gpio->configurePin(lc::GpioPinConfig {
+    auto configured = gpio->configurePin(lgc::GpioPinConfig {
         .line_ = "cooling-fan-enable",
-        .direction_ = lc::GpioDirection::Output,
-        .initialLevel_ = lc::GpioLevel::Low,
+        .direction_ = lgc::GpioDirection::Output,
+        .initialLevel_ = lgc::GpioLevel::Low,
     });
     assert(configured.isOk());
 
     auto registry = makeGpioRegistry(gpio);
-    auto node = lc::ToolNode(
+    auto node = lgc::ToolNode(
         registry,
-        lc::ToolNodeOptions {
+        lgc::ToolNodeOptions {
             .validateOutput_ = true,
         });
 
-    lc::Runtime context(lc::Runtime::Options {
+    lgc::Runtime context(lgc::Runtime::Options {
         .runId_ = "run",
         .threadId_ = "thread",
         .step_ = 1,
@@ -133,10 +133,10 @@ void testMockGpioToolExecutesThroughRegistry()
     });
     auto output = node(
         stateFromMessages({
-            lc::BaseMessage::ai(
+            lgc::BaseMessage::ai(
                 "",
                 {
-                    lc::ToolCall {
+                    lgc::ToolCall {
                         .id_ = "call-gpio",
                         .name_ = "edge.gpio_write",
                         .args_ = {
@@ -152,12 +152,12 @@ void testMockGpioToolExecutesThroughRegistry()
 
     auto level = gpio->readPin("cooling-fan-enable");
     assert(level.isOk());
-    assert(*level == lc::GpioLevel::High);
+    assert(*level == lgc::GpioLevel::High);
 
-    auto messages = lc::messagesFromJson(output->update_.values().at("messages"));
+    auto messages = lgc::messagesFromJson(output->update_.values().at("messages"));
     assert(messages.isOk());
     assert(messages->size() == 1);
-    auto result = lc::toolResultFromJson(nlohmann::json::parse(messages->front().content_));
+    auto result = lgc::toolResultFromJson(nlohmann::json::parse(messages->front().content_));
     assert(result.isOk());
     assert(result->ok_);
     assert(result->result_.at("line") == "cooling-fan-enable");
@@ -172,13 +172,13 @@ void testSysfsGpioAdapterUsesFilesystemProtocol()
     writeFile(lineDir / "direction", "in");
     writeFile(lineDir / "value", "0");
 
-    lc::SysfsGpioAdapter adapter(lc::SysfsGpioAdapterOptions {
+    lgc::SysfsGpioAdapter adapter(lgc::SysfsGpioAdapterOptions {
         .root_ = root,
     });
-    auto configured = adapter.configurePin(lc::GpioPinConfig {
+    auto configured = adapter.configurePin(lgc::GpioPinConfig {
         .line_ = "gpio17",
-        .direction_ = lc::GpioDirection::Output,
-        .initialLevel_ = lc::GpioLevel::High,
+        .direction_ = lgc::GpioDirection::Output,
+        .initialLevel_ = lgc::GpioLevel::High,
     });
     assert(configured.isOk());
     assert(readFile(lineDir / "direction") == "out");
@@ -186,28 +186,28 @@ void testSysfsGpioAdapterUsesFilesystemProtocol()
 
     auto high = adapter.readPin("gpio17");
     assert(high.isOk());
-    assert(*high == lc::GpioLevel::High);
+    assert(*high == lgc::GpioLevel::High);
 
-    assert(adapter.writePin("gpio17", lc::GpioLevel::Low).isOk());
+    assert(adapter.writePin("gpio17", lgc::GpioLevel::Low).isOk());
     assert(readFile(lineDir / "value") == "0");
     auto low = adapter.readPin("gpio17");
     assert(low.isOk());
-    assert(*low == lc::GpioLevel::Low);
+    assert(*low == lgc::GpioLevel::Low);
 
     auto invalid = adapter.readPin("../gpio17");
     assert(!invalid.isOk());
-    assert(invalid.status().code() == lc::StatusCode::InvalidArgument);
+    assert(invalid.status().code() == lgc::StatusCode::InvalidArgument);
 
     std::filesystem::remove_all(root);
 }
 
 void testEdgeAdapterRegistryReportsCapabilities()
 {
-    lc::EdgeAdapterRegistry adapters;
+    lgc::EdgeAdapterRegistry adapters;
     assert(!adapters.capabilities().any());
-    auto missing = adapters.require<lc::IGpioAdapter>();
+    auto missing = adapters.require<lgc::IGpioAdapter>();
     assert(!missing.isOk());
-    assert(missing.status().code() == lc::StatusCode::NotFound);
+    assert(missing.status().code() == lgc::StatusCode::NotFound);
 
     auto gpio = std::make_shared<MockGpioAdapter>();
     adapters.set(gpio);
@@ -216,12 +216,12 @@ void testEdgeAdapterRegistryReportsCapabilities()
     assert(capabilities.gpio_);
     assert(!capabilities.uart_);
 
-    auto registered = adapters.require<lc::IGpioAdapter>();
+    auto registered = adapters.require<lgc::IGpioAdapter>();
     assert(registered.isOk());
     assert(*registered == gpio);
-    assert(adapters.find<lc::IGpioAdapter>() == gpio);
+    assert(adapters.find<lgc::IGpioAdapter>() == gpio);
 
-    adapters.set(std::shared_ptr<lc::IGpioAdapter> {});
+    adapters.set(std::shared_ptr<lgc::IGpioAdapter> {});
     assert(!adapters.capabilities().gpio_);
 }
 

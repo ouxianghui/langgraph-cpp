@@ -2,7 +2,7 @@
 
 #include <cstdlib>
 
-namespace lc {
+namespace lgc {
 
 std::optional<std::string> Env::get(std::string_view name)
 {
@@ -47,4 +47,4 @@ Status validateEnvName(std::string_view name)
     return Status::ok();
 }
 
-} // namespace lc
+} // namespace lgc

@@ -14,7 +14,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 struct ToolCallChunk {
     std::optional<std::size_t> index_;
@@ -105,4 +105,4 @@ struct ModelNodeOptions {
     std::shared_ptr<BaseChatModel> model,
     ModelNodeOptions options = {});
 
-} // namespace lc
+} // namespace lgc

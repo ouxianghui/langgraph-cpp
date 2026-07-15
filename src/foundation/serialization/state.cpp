@@ -4,7 +4,7 @@
 
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 using state_codec_detail::parseJsonObject;
 }
@@ -66,4 +66,4 @@ Result<nlohmann::json> State::toJson(const JsonDecodeLimits& limits) const
     return value_;
 }
 
-} // namespace lc
+} // namespace lgc

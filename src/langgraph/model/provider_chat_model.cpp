@@ -9,7 +9,7 @@
 #include <string>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 [[nodiscard]] Result<void> validateOptions(const ProviderChatModelOptions& options)
@@ -1068,4 +1068,4 @@ Result<std::shared_ptr<BaseChatModel>> ProviderChatModel::bindTools(
     return model;
 }
 
-} // namespace lc
+} // namespace lgc

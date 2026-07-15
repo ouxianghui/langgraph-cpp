@@ -10,7 +10,7 @@
 #include <sstream>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 constexpr std::string_view kInterruptStateKey = "__interrupt__";
@@ -645,4 +645,4 @@ std::vector<StreamPart> projectEvent(
 }
 
 } // namespace detail
-} // namespace lc
+} // namespace lgc

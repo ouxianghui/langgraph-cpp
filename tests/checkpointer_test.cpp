@@ -9,30 +9,30 @@
 
 namespace {
 
-lc::State stateFromJson(const char* text)
+lgc::State stateFromJson(const char* text)
 {
-    auto state = lc::State::fromJson(text);
+    auto state = lgc::State::fromJson(text);
     assert(state.isOk());
     return *state;
 }
 
-lc::CheckpointWrite writeFor(std::string node, const char* updateJson, std::uint64_t order)
+lgc::CheckpointWrite writeFor(std::string node, const char* updateJson, std::uint64_t order)
 {
-    return lc::CheckpointWrite {
+    return lgc::CheckpointWrite {
         .nodeId_ = std::move(node),
         .update_ = stateFromJson(updateJson),
         .order_ = order,
     };
 }
 
-lc::Checkpoint checkpoint(
+lgc::Checkpoint checkpoint(
     std::string checkpointId,
     std::string checkpointNamespace,
     std::uint64_t step,
     nlohmann::json metadata,
     std::optional<std::string> parentCheckpointId = std::nullopt)
 {
-    return lc::Checkpoint {
+    return lgc::Checkpoint {
         .threadId_ = "thread-contract",
         .checkpointId_ = std::move(checkpointId),
         .checkpointNamespace_ = std::move(checkpointNamespace),
@@ -54,13 +54,13 @@ lc::Checkpoint checkpoint(
     };
 }
 
-void exerciseCheckpointer(lc::BaseCheckpointSaver& checkpointer)
+void exerciseCheckpointer(lgc::BaseCheckpointSaver& checkpointer)
 {
     assert(checkpointer.put(checkpoint("cp-1", "root", 1, { { "source", "input" } })).isOk());
     assert(checkpointer.put(checkpoint("cp-2", "root", 2, { { "source", "loop" }, { "step", 2 } }, "cp-1")).isOk());
     assert(checkpointer.put(checkpoint("child-1", "root|child", 3, { { "source", "loop" } })).isOk());
 
-    assert(checkpointer.putWrites(lc::CheckpointWriteSet {
+    assert(checkpointer.putWrites(lgc::CheckpointWriteSet {
         .threadId_ = "thread-contract",
         .checkpointNamespace_ = "root",
         .checkpointId_ = "cp-2",
@@ -71,7 +71,7 @@ void exerciseCheckpointer(lc::BaseCheckpointSaver& checkpointer)
             writeFor("b", R"({"b":2})", 1),
         },
     }).isOk());
-    assert(checkpointer.putWrites(lc::CheckpointWriteSet {
+    assert(checkpointer.putWrites(lgc::CheckpointWriteSet {
         .threadId_ = "thread-contract",
         .checkpointNamespace_ = "root",
         .checkpointId_ = "cp-2",
@@ -82,14 +82,14 @@ void exerciseCheckpointer(lc::BaseCheckpointSaver& checkpointer)
         },
     }).isOk());
 
-    auto direct = checkpointer.get(lc::CheckpointQuery::at("thread-contract", "cp-2", "root"));
+    auto direct = checkpointer.get(lgc::CheckpointQuery::at("thread-contract", "cp-2", "root"));
     assert(direct.isOk());
     assert(direct->has_value());
     assert((*direct)->checkpointId_ == "cp-2");
     assert((*direct)->pendingWrites_.size() == 2);
     assert((*direct)->pendingWrites_[0].update_.view().at("a") == 10);
 
-    auto record = checkpointer.getTuple(lc::CheckpointQuery::at("thread-contract", "cp-2", "root"));
+    auto record = checkpointer.getTuple(lgc::CheckpointQuery::at("thread-contract", "cp-2", "root"));
     assert(record.isOk());
     assert(record->has_value());
     assert((*record)->checkpoint_.checkpointId_ == "cp-2");
@@ -101,20 +101,20 @@ void exerciseCheckpointer(lc::BaseCheckpointSaver& checkpointer)
     assert((*record)->pendingWrites_[1].nodeId_ == "b");
     assert((*record)->checkpoint_.pendingWrites_.size() == 2);
 
-    auto latest = checkpointer.getTuple(lc::CheckpointQuery::latest("thread-contract", "root"));
+    auto latest = checkpointer.getTuple(lgc::CheckpointQuery::latest("thread-contract", "root"));
     assert(latest.isOk());
     assert(latest->has_value());
     assert((*latest)->checkpoint_.checkpointId_ == "cp-2");
     assert((*latest)->pendingWrites_.size() == 2);
 
-    auto allNamespaces = checkpointer.list(lc::CheckpointListOptions {
+    auto allNamespaces = checkpointer.list(lgc::CheckpointListOptions {
         .threadId_ = "thread-contract",
     });
     assert(allNamespaces.isOk());
     assert(allNamespaces->size() == 3);
     assert(allNamespaces->front().checkpoint_.checkpointId_ == "child-1");
 
-    auto rootLimited = checkpointer.list(lc::CheckpointListOptions {
+    auto rootLimited = checkpointer.list(lgc::CheckpointListOptions {
         .threadId_ = "thread-contract",
         .checkpointNamespace_ = std::string("root"),
         .limit_ = 1,
@@ -123,17 +123,17 @@ void exerciseCheckpointer(lc::BaseCheckpointSaver& checkpointer)
     assert(rootLimited->size() == 1);
     assert(rootLimited->front().checkpoint_.checkpointId_ == "cp-2");
 
-    auto olderThanCp2 = checkpointer.list(lc::CheckpointListOptions {
+    auto olderThanCp2 = checkpointer.list(lgc::CheckpointListOptions {
         .threadId_ = "thread-contract",
         .checkpointNamespace_ = std::string("root"),
         .beforeCheckpointId_ = std::string("cp-2"),
-        .order_ = lc::CheckpointListOrder::OldestFirst,
+        .order_ = lgc::CheckpointListOrder::OldestFirst,
     });
     assert(olderThanCp2.isOk());
     assert(olderThanCp2->size() == 1);
     assert(olderThanCp2->front().checkpoint_.checkpointId_ == "cp-1");
 
-    auto filtered = checkpointer.list(lc::CheckpointListOptions {
+    auto filtered = checkpointer.list(lgc::CheckpointListOptions {
         .threadId_ = "thread-contract",
         .checkpointNamespace_ = std::string("root"),
         .metadataFilter_ = { { "source", "loop" } },
@@ -142,7 +142,7 @@ void exerciseCheckpointer(lc::BaseCheckpointSaver& checkpointer)
     assert(filtered->size() == 1);
     assert(filtered->front().checkpoint_.checkpointId_ == "cp-2");
 
-    auto delta = checkpointer.getDeltaChannelHistory(lc::DeltaChannelHistoryQuery {
+    auto delta = checkpointer.getDeltaChannelHistory(lgc::DeltaChannelHistoryQuery {
         .threadId_ = "thread-contract",
         .checkpointNamespace_ = "root",
         .checkpointId_ = "cp-2",
@@ -155,7 +155,7 @@ void exerciseCheckpointer(lc::BaseCheckpointSaver& checkpointer)
     assert(delta->at("value").writes_.size() == 1);
     assert(delta->at("value").writes_.front().nodeId_ == "seed");
 
-    auto copied = checkpointer.copyThread(lc::CheckpointCopyThreadOptions {
+    auto copied = checkpointer.copyThread(lgc::CheckpointCopyThreadOptions {
         .sourceThreadId_ = "thread-contract",
         .targetThreadId_ = "thread-copy",
         .checkpointNamespace_ = std::string("root"),
@@ -165,7 +165,7 @@ void exerciseCheckpointer(lc::BaseCheckpointSaver& checkpointer)
     assert(copied.isOk());
     assert(copied->remaining_ == 2);
     assert(copied->latestCheckpointId_ == "cp-2");
-    auto copiedLatest = checkpointer.getTuple(lc::CheckpointQuery::latest("thread-copy", "copy"));
+    auto copiedLatest = checkpointer.getTuple(lgc::CheckpointQuery::latest("thread-copy", "copy"));
     assert(copiedLatest.isOk());
     assert(copiedLatest->has_value());
     assert((*copiedLatest)->checkpoint_.threadId_ == "thread-copy");
@@ -174,7 +174,7 @@ void exerciseCheckpointer(lc::BaseCheckpointSaver& checkpointer)
 
     auto prunedCopy = checkpointer.prune(
         "thread-copy",
-        lc::CheckpointPruneOptions {
+        lgc::CheckpointPruneOptions {
             .checkpointNamespace_ = "copy",
             .keepLatest_ = 1,
         });
@@ -183,25 +183,25 @@ void exerciseCheckpointer(lc::BaseCheckpointSaver& checkpointer)
     assert(prunedCopy->remaining_ == 1);
     assert(prunedCopy->latestCheckpointId_ == "cp-2");
     assert(checkpointer.put(checkpoint("run-z-step-1", "root", 4, { { "source", "loop" } }, "cp-2")).isOk());
-    auto erasedRuns = checkpointer.deleteForRuns(lc::CheckpointDeleteForRunsOptions {
+    auto erasedRuns = checkpointer.deleteForRuns(lgc::CheckpointDeleteForRunsOptions {
         .threadId_ = "thread-contract",
         .checkpointNamespace_ = std::string("root"),
         .runIds_ = { "run-z" },
     });
     assert(erasedRuns.isOk());
     assert(erasedRuns->removed_ == 1);
-    auto erasedRunCheckpoint = checkpointer.getTuple(lc::CheckpointQuery::at("thread-contract", "run-z-step-1", "root"));
+    auto erasedRunCheckpoint = checkpointer.getTuple(lgc::CheckpointQuery::at("thread-contract", "run-z-step-1", "root"));
     assert(erasedRunCheckpoint.isOk());
     assert(!erasedRunCheckpoint->has_value());
 
     assert(checkpointer.deleteThread("thread-contract").isOk());
-    auto deleted = checkpointer.getTuple(lc::CheckpointQuery::latest("thread-contract", "root"));
+    auto deleted = checkpointer.getTuple(lgc::CheckpointQuery::latest("thread-contract", "root"));
     assert(deleted.isOk());
     assert(!deleted->has_value());
-    auto deletedChild = checkpointer.getTuple(lc::CheckpointQuery::latest("thread-contract", "root|child"));
+    auto deletedChild = checkpointer.getTuple(lgc::CheckpointQuery::latest("thread-contract", "root|child"));
     assert(deletedChild.isOk());
     assert(!deletedChild->has_value());
-    auto emptyHistory = checkpointer.list(lc::CheckpointListOptions {
+    auto emptyHistory = checkpointer.list(lgc::CheckpointListOptions {
         .threadId_ = "thread-contract",
     });
     assert(emptyHistory.isOk());
@@ -211,14 +211,14 @@ void exerciseCheckpointer(lc::BaseCheckpointSaver& checkpointer)
 
 void testAsyncCheckpointer()
 {
-    auto memory = std::make_shared<lc::InMemorySaver>();
-    lc::AsyncCheckpointSaver async(memory);
+    auto memory = std::make_shared<lgc::InMemorySaver>();
+    lgc::AsyncCheckpointSaver async(memory);
 
     auto stored = async.put(checkpoint("async-step-1", "root", 1, { { "source", "input" } }));
     assert(stored.ready());
     assert(stored.get().isOk());
 
-    auto writes = async.putWrites(lc::CheckpointWriteSet {
+    auto writes = async.putWrites(lgc::CheckpointWriteSet {
         .threadId_ = "thread-contract",
         .checkpointNamespace_ = "root",
         .checkpointId_ = "async-step-1",
@@ -231,7 +231,7 @@ void testAsyncCheckpointer()
     assert(writes.ready());
     assert(writes.get().isOk());
 
-    auto latest = async.getTuple(lc::CheckpointQuery::latest("thread-contract", "root"));
+    auto latest = async.getTuple(lgc::CheckpointQuery::latest("thread-contract", "root"));
     assert(latest.ready());
     auto latestResult = latest.get();
     assert(latestResult.isOk());
@@ -239,13 +239,13 @@ void testAsyncCheckpointer()
     assert((*latestResult)->checkpoint_.checkpointId_ == "async-step-1");
     assert((*latestResult)->pendingWrites_.size() == 1);
 
-    auto listed = async.list(lc::CheckpointListOptions {
+    auto listed = async.list(lgc::CheckpointListOptions {
         .threadId_ = "thread-contract",
         .checkpointNamespace_ = std::string("root"),
     });
     assert(listed.get().isOk());
 
-    auto delta = async.getDeltaChannelHistory(lc::DeltaChannelHistoryQuery {
+    auto delta = async.getDeltaChannelHistory(lgc::DeltaChannelHistoryQuery {
         .threadId_ = "thread-contract",
         .checkpointNamespace_ = "root",
         .checkpointId_ = "async-step-1",
@@ -256,7 +256,7 @@ void testAsyncCheckpointer()
     assert(deltaResult->contains("value"));
 
     assert(async.put(checkpoint("async-run-step-1", "root", 2, { { "source", "loop" } }, "async-step-1")).get().isOk());
-    auto deletedRuns = async.deleteForRuns(lc::CheckpointDeleteForRunsOptions {
+    auto deletedRuns = async.deleteForRuns(lgc::CheckpointDeleteForRunsOptions {
         .threadId_ = "thread-contract",
         .checkpointNamespace_ = std::string("root"),
         .runIds_ = { "async-run" },
@@ -265,7 +265,7 @@ void testAsyncCheckpointer()
     assert(deletedRunsResult.isOk());
     assert(deletedRunsResult->removed_ == 1);
 
-    assert(async.copyThread(lc::CheckpointCopyThreadOptions {
+    assert(async.copyThread(lgc::CheckpointCopyThreadOptions {
         .sourceThreadId_ = "thread-contract",
         .targetThreadId_ = "thread-async-copy",
         .checkpointNamespace_ = std::string("root"),
@@ -273,7 +273,7 @@ void testAsyncCheckpointer()
     }).get().isOk());
     auto prunedCopy = async.prune(
         "thread-async-copy",
-        lc::CheckpointPruneOptions {
+        lgc::CheckpointPruneOptions {
             .checkpointNamespace_ = "root",
             .keepLatest_ = 1,
         });
@@ -288,21 +288,21 @@ void testAsyncCheckpointer()
 
 int main()
 {
-    lc::InMemorySaver memory;
+    lgc::InMemorySaver memory;
     exerciseCheckpointer(memory);
 
-    auto storage = std::make_shared<lc::MemoryStorage>();
-    lc::StorageSaver storageSaver(storage);
+    auto storage = std::make_shared<lgc::MemoryStorage>();
+    lgc::StorageSaver storageSaver(storage);
     exerciseCheckpointer(storageSaver);
     testAsyncCheckpointer();
 
-    lc::InMemorySaver invalid;
-    auto badFilter = invalid.list(lc::CheckpointListOptions {
+    lgc::InMemorySaver invalid;
+    auto badFilter = invalid.list(lgc::CheckpointListOptions {
         .threadId_ = "thread-contract",
         .metadataFilter_ = nlohmann::json::array(),
     });
     assert(!badFilter.isOk());
-    assert(badFilter.status().code() == lc::StatusCode::InvalidArgument);
+    assert(badFilter.status().code() == lgc::StatusCode::InvalidArgument);
 
     return 0;
 }

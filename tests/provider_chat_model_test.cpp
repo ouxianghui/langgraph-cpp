@@ -13,22 +13,22 @@ namespace {
 
 using namespace std::chrono_literals;
 
-class FakeHttpClient final : public lc::IHttpClient {
+class FakeHttpClient final : public lgc::IHttpClient {
 public:
-    lc::HttpResponse response_ {
+    lgc::HttpResponse response_ {
         .statusCode_ = 200,
         .body_ = R"({"choices":[{"message":{"role":"assistant","content":"ok"}}]})",
     };
-    std::vector<lc::ServerSentEvent> events_;
-    lc::HttpRequest lastRequest_;
-    lc::HttpRequestOptions lastOptions_;
+    std::vector<lgc::ServerSentEvent> events_;
+    lgc::HttpRequest lastRequest_;
+    lgc::HttpRequestOptions lastOptions_;
     int sendCalls_ { 0 };
     int streamCalls_ { 0 };
     bool closed_ { false };
 
-    [[nodiscard]] lc::HttpResult send(
-        lc::HttpRequest request,
-        lc::HttpRequestOptions options) override
+    [[nodiscard]] lgc::HttpResult send(
+        lgc::HttpRequest request,
+        lgc::HttpRequestOptions options) override
     {
         ++sendCalls_;
         lastRequest_ = std::move(request);
@@ -36,32 +36,32 @@ public:
         return response_;
     }
 
-    [[nodiscard]] lc::Status sendAsync(
-        lc::HttpRequest request,
-        lc::HttpRequestOptions options,
-        lc::HttpCallback callback) override
+    [[nodiscard]] lgc::Status sendAsync(
+        lgc::HttpRequest request,
+        lgc::HttpRequestOptions options,
+        lgc::HttpCallback callback) override
     {
         auto response = send(std::move(request), std::move(options));
         callback(std::move(response));
-        return lc::Status::ok();
+        return lgc::Status::ok();
     }
 
-    [[nodiscard]] lc::HttpResult sendStreaming(
-        lc::HttpRequest request,
-        lc::HttpRequestOptions options,
-        lc::HttpBodyChunkCallback,
-        lc::HttpStreamOptions = {}) override
+    [[nodiscard]] lgc::HttpResult sendStreaming(
+        lgc::HttpRequest request,
+        lgc::HttpRequestOptions options,
+        lgc::HttpBodyChunkCallback,
+        lgc::HttpStreamOptions = {}) override
     {
         lastRequest_ = std::move(request);
         lastOptions_ = std::move(options);
         return response_;
     }
 
-    [[nodiscard]] lc::HttpResult sendSse(
-        lc::HttpRequest request,
-        lc::HttpRequestOptions options,
-        lc::ServerSentEventCallback callback,
-        lc::HttpStreamOptions = {}) override
+    [[nodiscard]] lgc::HttpResult sendSse(
+        lgc::HttpRequest request,
+        lgc::HttpRequestOptions options,
+        lgc::ServerSentEventCallback callback,
+        lgc::HttpStreamOptions = {}) override
     {
         ++streamCalls_;
         lastRequest_ = std::move(request);
@@ -74,33 +74,33 @@ public:
         return response_;
     }
 
-    [[nodiscard]] std::shared_ptr<lc::IAuthorizationProvider> authorizationProvider() const override
+    [[nodiscard]] std::shared_ptr<lgc::IAuthorizationProvider> authorizationProvider() const override
     {
         return nullptr;
     }
 
-    [[nodiscard]] lc::Status close() override
+    [[nodiscard]] lgc::Status close() override
     {
         closed_ = true;
-        return lc::Status::ok();
+        return lgc::Status::ok();
     }
 
     [[nodiscard]] bool isClosed() const noexcept override { return closed_; }
 };
 
-class FakeTokenCounter final : public lc::ITokenCounter {
+class FakeTokenCounter final : public lgc::ITokenCounter {
 public:
     int textCalls_ { 0 };
     int messageCalls_ { 0 };
 
-    [[nodiscard]] lc::Result<std::uint64_t> countTextTokens(std::string_view text) override
+    [[nodiscard]] lgc::Result<std::uint64_t> countTextTokens(std::string_view text) override
     {
         ++textCalls_;
         return static_cast<std::uint64_t>(text.size());
     }
 
-    [[nodiscard]] lc::Result<std::uint64_t> countMessageTokens(
-        const std::vector<lc::BaseMessage>& messages) override
+    [[nodiscard]] lgc::Result<std::uint64_t> countMessageTokens(
+        const std::vector<lgc::BaseMessage>& messages) override
     {
         ++messageCalls_;
         std::uint64_t total = 0;
@@ -111,7 +111,7 @@ public:
 };
 
 [[nodiscard]] std::optional<std::string> headerValue(
-    const lc::HttpRequest& request,
+    const lgc::HttpRequest& request,
     std::string_view name)
 {
     for (const auto& [headerName, value] : request.headers_) {
@@ -126,25 +126,25 @@ void testOpenAICompatibleInvokeTrimsPrompt()
     auto http = std::make_shared<FakeHttpClient>();
     http->response_.body_ = R"({"choices":[{"message":{"role":"assistant","content":"trimmed"}}],"usage":{"prompt_tokens":4,"completion_tokens":1}})";
 
-    auto options = lc::ProviderChatModelOptions::openAICompatible(http, "edge-model", "secret-token");
+    auto options = lgc::ProviderChatModelOptions::openAICompatible(http, "edge-model", "secret-token");
     options.prompt_.maxMessages_ = 2;
     options.requestOptions_.timeout_ = 150ms;
-    options.requestOptions_.retryPolicy_ = lc::HttpRetryPolicy {
+    options.requestOptions_.retryPolicy_ = lgc::HttpRetryPolicy {
         .maxRetries_ = 2,
         .delay_ = 5ms,
         .statusCodes_ = { 429, 503 },
     };
     options.extraRequestFields_ = { { "temperature", 0.2 } };
-    lc::ProviderChatModel model(std::move(options));
+    lgc::ProviderChatModel model(std::move(options));
 
     auto response = model.invoke({
-        lc::BaseMessage::system("rules"),
-        lc::BaseMessage::human("old"),
-        lc::BaseMessage::human("new"),
+        lgc::BaseMessage::system("rules"),
+        lgc::BaseMessage::human("old"),
+        lgc::BaseMessage::human("new"),
     });
     assert(response.isOk());
     assert(response->content_ == "trimmed");
-    assert(response->usageMetadata_.source_ == lc::UsageMetadataSource::Provider);
+    assert(response->usageMetadata_.source_ == lgc::UsageMetadataSource::Provider);
     assert(response->usageMetadata_.provider_ == "openai-compatible");
     assert(response->usageMetadata_.model_ == "edge-model");
     assert(response->usageMetadata_.tokens_.inputTokens_.has_value());
@@ -174,19 +174,19 @@ void testOpenAICompatibleStreamUsageAndBackpressure()
 {
     auto http = std::make_shared<FakeHttpClient>();
     http->events_ = {
-        lc::ServerSentEvent { .data_ = R"({"choices":[{"delta":{"content":"hel"}}]})" },
-        lc::ServerSentEvent { .data_ = R"({"choices":[{"delta":{"content":"lo"}}],"usage":{"total_tokens":5}})" },
-        lc::ServerSentEvent { .data_ = "[DONE]" },
+        lgc::ServerSentEvent { .data_ = R"({"choices":[{"delta":{"content":"hel"}}]})" },
+        lgc::ServerSentEvent { .data_ = R"({"choices":[{"delta":{"content":"lo"}}],"usage":{"total_tokens":5}})" },
+        lgc::ServerSentEvent { .data_ = "[DONE]" },
     };
 
-    lc::ProviderChatModel model(
-        lc::ProviderChatModelOptions::openAICompatible(http, "edge-stream"));
+    lgc::ProviderChatModel model(
+        lgc::ProviderChatModelOptions::openAICompatible(http, "edge-stream"));
 
     std::vector<std::string> deltas;
     bool sawDone = false;
     auto response = model.stream(
-        { lc::BaseMessage::human("say hi") },
-        [&](const lc::AIMessageChunk& chunk) -> lc::Status {
+        { lgc::BaseMessage::human("say hi") },
+        [&](const lgc::AIMessageChunk& chunk) -> lgc::Status {
             if (!chunk.text_.empty())
                 deltas.push_back(chunk.text_);
             if (chunk.done_) {
@@ -197,7 +197,7 @@ void testOpenAICompatibleStreamUsageAndBackpressure()
                 assert(chunk.usageMetadata_.tokens_.totalTokens_.has_value());
                 assert(*chunk.usageMetadata_.tokens_.totalTokens_ == 5);
             }
-            return lc::Status::ok();
+            return lgc::Status::ok();
         });
     assert(response.isOk());
     assert(response->content_ == "hello");
@@ -212,17 +212,17 @@ void testOpenAICompatibleStreamUsageAndBackpressure()
 
     auto cancellingHttp = std::make_shared<FakeHttpClient>();
     cancellingHttp->events_ = {
-        lc::ServerSentEvent { .data_ = R"({"choices":[{"delta":{"content":"stop"}}]})" },
+        lgc::ServerSentEvent { .data_ = R"({"choices":[{"delta":{"content":"stop"}}]})" },
     };
-    lc::ProviderChatModel cancelling(
-        lc::ProviderChatModelOptions::openAICompatible(cancellingHttp, "edge-stream"));
+    lgc::ProviderChatModel cancelling(
+        lgc::ProviderChatModelOptions::openAICompatible(cancellingHttp, "edge-stream"));
     auto cancelled = cancelling.stream(
-        { lc::BaseMessage::human("cancel") },
-        [](const lc::AIMessageChunk&) -> lc::Status {
-            return lc::Status::cancelled("downstream backpressure");
+        { lgc::BaseMessage::human("cancel") },
+        [](const lgc::AIMessageChunk&) -> lgc::Status {
+            return lgc::Status::cancelled("downstream backpressure");
         });
     assert(!cancelled.isOk());
-    assert(cancelled.status().code() == lc::StatusCode::Cancelled);
+    assert(cancelled.status().code() == lgc::StatusCode::Cancelled);
 }
 
 void testOpenAIRequestUsesStandardMultimodalContentBlocks()
@@ -230,10 +230,10 @@ void testOpenAIRequestUsesStandardMultimodalContentBlocks()
     auto http = std::make_shared<FakeHttpClient>();
     http->response_.body_ = R"({"choices":[{"message":{"role":"assistant","content":"seen"}}]})";
 
-    lc::ProviderChatModel model(
-        lc::ProviderChatModelOptions::openAICompatible(http, "vision-model"));
+    lgc::ProviderChatModel model(
+        lgc::ProviderChatModelOptions::openAICompatible(http, "vision-model"));
 
-    lc::BaseMessage message = lc::BaseMessage::human("");
+    lgc::BaseMessage message = lgc::BaseMessage::human("");
     message.contentBlocks_ = {
         {
             { "type", "text" },
@@ -244,7 +244,7 @@ void testOpenAIRequestUsesStandardMultimodalContentBlocks()
             { "url", "https://example.com/image.jpg" },
         },
     };
-    message.content_ = lc::contentBlocksText(message.contentBlocks_);
+    message.content_ = lgc::contentBlocksText(message.contentBlocks_);
 
     auto response = model.invoke({ message });
     assert(response.isOk());
@@ -261,22 +261,22 @@ void testAnthropicProfileSeparatesSystemAndStreams()
 {
     auto http = std::make_shared<FakeHttpClient>();
     http->events_ = {
-        lc::ServerSentEvent { .data_ = R"({"type":"content_block_delta","delta":{"type":"text_delta","text":"edge "}})" },
-        lc::ServerSentEvent { .data_ = R"({"type":"content_block_delta","delta":{"type":"text_delta","text":"ok"}})" },
-        lc::ServerSentEvent { .data_ = R"({"type":"message_delta","usage":{"output_tokens":2}})" },
+        lgc::ServerSentEvent { .data_ = R"({"type":"content_block_delta","delta":{"type":"text_delta","text":"edge "}})" },
+        lgc::ServerSentEvent { .data_ = R"({"type":"content_block_delta","delta":{"type":"text_delta","text":"ok"}})" },
+        lgc::ServerSentEvent { .data_ = R"({"type":"message_delta","usage":{"output_tokens":2}})" },
     };
 
-    lc::ProviderChatModel model(
-        lc::ProviderChatModelOptions::anthropic(http, "claude-edge", "anthropic-key"));
+    lgc::ProviderChatModel model(
+        lgc::ProviderChatModelOptions::anthropic(http, "claude-edge", "anthropic-key"));
     auto response = model.stream(
         {
-            lc::BaseMessage::system("be terse"),
-            lc::BaseMessage::human("status"),
+            lgc::BaseMessage::system("be terse"),
+            lgc::BaseMessage::human("status"),
         },
         nullptr);
     assert(response.isOk());
     assert(response->content_ == "edge ok");
-    assert(response->usageMetadata_.source_ == lc::UsageMetadataSource::Provider);
+    assert(response->usageMetadata_.source_ == lgc::UsageMetadataSource::Provider);
     assert(response->usageMetadata_.provider_ == "anthropic");
     assert(response->usageMetadata_.tokens_.outputTokens_.has_value());
     assert(*response->usageMetadata_.tokens_.outputTokens_ == 2);
@@ -297,13 +297,13 @@ void testLocalTokenCounterFillsMissingUsage()
     http->response_.body_ = R"({"choices":[{"message":{"role":"assistant","content":"counted"}}]})";
     auto counter = std::make_shared<FakeTokenCounter>();
 
-    auto options = lc::ProviderChatModelOptions::openAICompatible(http, "counter-model");
+    auto options = lgc::ProviderChatModelOptions::openAICompatible(http, "counter-model");
     options.tokenCounter_ = counter;
-    lc::ProviderChatModel model(std::move(options));
+    lgc::ProviderChatModel model(std::move(options));
 
-    auto response = model.invoke({ lc::BaseMessage::human("hello") });
+    auto response = model.invoke({ lgc::BaseMessage::human("hello") });
     assert(response.isOk());
-    assert(response->usageMetadata_.source_ == lc::UsageMetadataSource::Local);
+    assert(response->usageMetadata_.source_ == lgc::UsageMetadataSource::Local);
     assert(response->usageMetadata_.tokens_.inputTokens_.has_value());
     assert(*response->usageMetadata_.tokens_.inputTokens_ == 5);
     assert(response->usageMetadata_.tokens_.outputTokens_.has_value());
@@ -318,12 +318,12 @@ void testBatchUsesInjectedTransport()
 {
     auto http = std::make_shared<FakeHttpClient>();
     http->response_.body_ = R"({"choices":[{"message":{"role":"assistant","content":"batched"}}]})";
-    lc::ProviderChatModel model(
-        lc::ProviderChatModelOptions::deepSeek(http, "deepseek-chat"));
+    lgc::ProviderChatModel model(
+        lgc::ProviderChatModelOptions::deepSeek(http, "deepseek-chat"));
 
     auto responses = model.batch({
-        { lc::BaseMessage::human("one") },
-        { lc::BaseMessage::human("two") },
+        { lgc::BaseMessage::human("one") },
+        { lgc::BaseMessage::human("two") },
     });
     assert(responses.isOk());
     assert(responses->size() == 2);
@@ -351,15 +351,15 @@ void testBindToolsBuildsOpenAIRequestAndParsesToolCalls()
         }]
     })";
 
-    lc::ProviderChatModel model(
-        lc::ProviderChatModelOptions::openAICompatible(http, "tool-model"));
-    auto bound = model.bindTools(lc::ChatModelToolBinding {
+    lgc::ProviderChatModel model(
+        lgc::ProviderChatModelOptions::openAICompatible(http, "tool-model"));
+    auto bound = model.bindTools(lgc::ChatModelToolBinding {
         .tools_ = {
-            lc::ChatModelTool {
+            lgc::ChatModelTool {
                 .name_ = "get_weather",
                 .description_ = "Get weather.",
-                .inputSchema_ = lc::JsonSchema::object()
-                                    .property("location", lc::JsonSchema::string(), true)
+                .inputSchema_ = lgc::JsonSchema::object()
+                                    .property("location", lgc::JsonSchema::string(), true)
                                     .additionalProperties(false),
             },
         },
@@ -368,7 +368,7 @@ void testBindToolsBuildsOpenAIRequestAndParsesToolCalls()
     });
     assert(bound.isOk());
 
-    auto response = (*bound)->invoke({ lc::BaseMessage::human("weather?") });
+    auto response = (*bound)->invoke({ lgc::BaseMessage::human("weather?") });
     assert(response.isOk());
     assert(response->content_.empty());
     assert(response->toolCalls_.size() == 1);
@@ -389,18 +389,18 @@ void testOpenAIStreamToolCallChunks()
 {
     auto http = std::make_shared<FakeHttpClient>();
     http->events_ = {
-        lc::ServerSentEvent { .data_ = R"({"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","function":{"name":"lookup","arguments":"{\"q\""}}]}}]})" },
-        lc::ServerSentEvent { .data_ = R"({"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\"edge\"}"}}]}}]})" },
-        lc::ServerSentEvent { .data_ = "[DONE]" },
+        lgc::ServerSentEvent { .data_ = R"({"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","function":{"name":"lookup","arguments":"{\"q\""}}]}}]})" },
+        lgc::ServerSentEvent { .data_ = R"({"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\"edge\"}"}}]}}]})" },
+        lgc::ServerSentEvent { .data_ = "[DONE]" },
     };
 
-    lc::ProviderChatModel model(
-        lc::ProviderChatModelOptions::openAICompatible(http, "tool-stream"));
+    lgc::ProviderChatModel model(
+        lgc::ProviderChatModelOptions::openAICompatible(http, "tool-stream"));
     std::size_t chunks = 0;
     std::size_t contentBlockChunks = 0;
     auto response = model.stream(
-        { lc::BaseMessage::human("lookup") },
-        [&](const lc::AIMessageChunk& chunk) -> lc::Status {
+        { lgc::BaseMessage::human("lookup") },
+        [&](const lgc::AIMessageChunk& chunk) -> lgc::Status {
             chunks += chunk.toolCallChunks_.size();
             for (const auto& block : chunk.contentBlocks_) {
                 if (block.at("type") == "tool_call_chunk") {
@@ -409,7 +409,7 @@ void testOpenAIStreamToolCallChunks()
                     assert(block.contains("index"));
                 }
             }
-            return lc::Status::ok();
+            return lgc::Status::ok();
         });
     assert(response.isOk());
     assert(chunks == 2);
@@ -418,7 +418,7 @@ void testOpenAIStreamToolCallChunks()
     assert(response->toolCalls_.front().id_ == "call-1");
     assert(response->toolCalls_.front().name_ == "lookup");
     assert(response->toolCalls_.front().args_.at("q") == "edge");
-    auto blocks = lc::messageContentBlocks(*response);
+    auto blocks = lgc::messageContentBlocks(*response);
     assert(blocks.size() == 1);
     assert(blocks.front().at("type") == "tool_call");
 }
@@ -427,27 +427,27 @@ void testAnthropicStreamToolUseDeltas()
 {
     auto http = std::make_shared<FakeHttpClient>();
     http->events_ = {
-        lc::ServerSentEvent { .data_ = R"({"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"Need tool."}})" },
-        lc::ServerSentEvent { .data_ = R"({"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_1","name":"inspect","input":{}}})" },
-        lc::ServerSentEvent { .data_ = R"({"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"target\""}})" },
-        lc::ServerSentEvent { .data_ = R"({"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":":\"motor\"}"}})" },
+        lgc::ServerSentEvent { .data_ = R"({"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"Need tool."}})" },
+        lgc::ServerSentEvent { .data_ = R"({"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_1","name":"inspect","input":{}}})" },
+        lgc::ServerSentEvent { .data_ = R"({"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"target\""}})" },
+        lgc::ServerSentEvent { .data_ = R"({"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":":\"motor\"}"}})" },
     };
 
-    lc::ProviderChatModel model(
-        lc::ProviderChatModelOptions::anthropic(http, "claude-tools"));
+    lgc::ProviderChatModel model(
+        lgc::ProviderChatModelOptions::anthropic(http, "claude-tools"));
 
     std::size_t reasoningBlocks = 0;
     std::size_t toolChunkBlocks = 0;
     auto response = model.stream(
-        { lc::BaseMessage::human("inspect") },
-        [&](const lc::AIMessageChunk& chunk) -> lc::Status {
+        { lgc::BaseMessage::human("inspect") },
+        [&](const lgc::AIMessageChunk& chunk) -> lgc::Status {
             for (const auto& block : chunk.contentBlocks_) {
                 if (block.at("type") == "reasoning")
                     ++reasoningBlocks;
                 if (block.at("type") == "tool_call_chunk")
                     ++toolChunkBlocks;
             }
-            return lc::Status::ok();
+            return lgc::Status::ok();
         });
     assert(response.isOk());
     assert(reasoningBlocks == 1);
@@ -457,7 +457,7 @@ void testAnthropicStreamToolUseDeltas()
     assert(response->toolCalls_.front().name_ == "inspect");
     assert(response->toolCalls_.front().args_.at("target") == "motor");
 
-    auto blocks = lc::messageContentBlocks(*response);
+    auto blocks = lgc::messageContentBlocks(*response);
     assert(blocks.size() == 2);
     assert(blocks.at(0).at("type") == "reasoning");
     assert(blocks.at(1).at("type") == "tool_call");
@@ -473,21 +473,21 @@ void testAnthropicBindToolsAndToolUseResponse()
         ]
     })";
 
-    lc::ProviderChatModel model(
-        lc::ProviderChatModelOptions::anthropic(http, "claude-tools"));
-    auto bound = model.bindTools(lc::ChatModelToolBinding {
+    lgc::ProviderChatModel model(
+        lgc::ProviderChatModelOptions::anthropic(http, "claude-tools"));
+    auto bound = model.bindTools(lgc::ChatModelToolBinding {
         .tools_ = {
-            lc::ChatModelTool {
+            lgc::ChatModelTool {
                 .name_ = "inspect",
                 .description_ = "Inspect target.",
-                .inputSchema_ = lc::JsonSchema::object()
-                                    .property("target", lc::JsonSchema::string(), true),
+                .inputSchema_ = lgc::JsonSchema::object()
+                                    .property("target", lgc::JsonSchema::string(), true),
             },
         },
     });
     assert(bound.isOk());
 
-    auto response = (*bound)->invoke({ lc::BaseMessage::human("inspect motor") });
+    auto response = (*bound)->invoke({ lgc::BaseMessage::human("inspect motor") });
     assert(response.isOk());
     assert(response->content_ == "checking");
     assert(response->toolCalls_.size() == 1);

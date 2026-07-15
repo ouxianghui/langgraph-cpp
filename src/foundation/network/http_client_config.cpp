@@ -11,7 +11,7 @@
 #include <system_error>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 using namespace http_client_detail;
 
 std::string_view httpMethodName(HttpMethod method) noexcept
@@ -367,4 +367,4 @@ Result<HttpClientConfig> HttpClientConfig::fromOrigin(std::string_view input) no
     return out;
 }
 
-} // namespace lc
+} // namespace lgc

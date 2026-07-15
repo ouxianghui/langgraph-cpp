@@ -2,7 +2,7 @@
 
 #include "foundation/cache/cache_common.hh"
 
-namespace lc {
+namespace lgc {
 
 Status validateCacheKey(const CacheKey& key)
 {
@@ -15,4 +15,4 @@ Status validateCacheKey(const CacheKey& key)
     return Status::ok();
 }
 
-} // namespace lc
+} // namespace lgc

@@ -12,7 +12,7 @@
 #include <unistd.h>
 #endif
 
-namespace lc {
+namespace lgc {
 
 std::filesystem::path executableDirectory(char* argv0)
 {
@@ -55,4 +55,4 @@ std::filesystem::path resolveConfigDirectory(char* argv0)
     return executableDirectory(argv0);
 }
 
-} // namespace lc
+} // namespace lgc

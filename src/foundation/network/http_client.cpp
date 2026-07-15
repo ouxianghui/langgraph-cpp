@@ -26,7 +26,7 @@
 #include <utility>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 using namespace http_client_detail;
 
 class HttpClient::Impl : public std::enable_shared_from_this<HttpClient::Impl> {
@@ -628,9 +628,16 @@ public:
                 r ? formatBodyForLog(r->body, cfg_.logOptions_, redactor_) : std::string());
 
             if (!r) {
-                const auto status = stop_.load()
+                auto status = stop_.load()
                     ? Status::cancelled("HTTP request cancelled")
                     : statusFromHttplibResultFailure(r.error(), cfg_.maxResponseBodyBytes_);
+                if (status.code() != StatusCode::Cancelled) {
+                    status = statusOrDeadline(
+                        r.error(),
+                        std::move(status),
+                        options.deadline_,
+                        SteadyClock::instance());
+                }
                 if (cfg_.circuitBreaker_)
                     cfg_.circuitBreaker_->recordFailure();
                 const auto decision = retryPolicy.decide(status, attempt);
@@ -797,9 +804,16 @@ public:
         applyRequestTimeouts(*client, requestOptions.deadline_);
         auto stream = performStreamingRequest(*client, request.method_, path, hdr, request, streamOptions);
         if (!stream) {
-            const auto status = stop_.load()
+            auto status = stop_.load()
                 ? Status::cancelled("HTTP request cancelled")
                 : statusFromHttplibError(stream.error());
+            if (status.code() != StatusCode::Cancelled) {
+                status = statusOrDeadline(
+                    stream.error(),
+                    std::move(status),
+                    requestOptions.deadline_,
+                    SteadyClock::instance());
+            }
             if (cfg_.circuitBreaker_)
                 cfg_.circuitBreaker_->recordFailure();
             return fail(status);
@@ -857,7 +871,12 @@ public:
         }
 
         if (stream.has_read_error()) {
-            const auto status = statusFromHttplibError(stream.read_error());
+            const auto readError = stream.read_error();
+            auto status = statusOrDeadline(
+                readError,
+                statusFromHttplibError(readError),
+                requestOptions.deadline_,
+                SteadyClock::instance());
             if (cfg_.circuitBreaker_)
                 cfg_.circuitBreaker_->recordFailure();
             return fail(status);
@@ -1086,4 +1105,4 @@ std::shared_ptr<IAuthorizationProvider> HttpClient::authorizationProvider() cons
     return impl_->authorizationProvider_;
 }
 
-} // namespace lc
+} // namespace lgc

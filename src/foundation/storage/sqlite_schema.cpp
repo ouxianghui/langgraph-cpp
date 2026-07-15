@@ -4,7 +4,7 @@
 
 #include <sqlite3.h>
 
-namespace lc {
+namespace lgc {
 namespace {
 constexpr int kSchemaVersion = 1;
 
@@ -73,4 +73,4 @@ Result<void> SQLiteStorage::migrateSchemaLocked()
     return okResult();
 }
 
-} // namespace lc
+} // namespace lgc

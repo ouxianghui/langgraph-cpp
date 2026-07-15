@@ -6,7 +6,7 @@
 #include <map>
 #include <mutex>
 
-namespace lc {
+namespace lgc {
 
 class MemoryStorage final : public IStorage {
 public:
@@ -43,4 +43,4 @@ private:
     bool closed_ { false };
 };
 
-} // namespace lc
+} // namespace lgc

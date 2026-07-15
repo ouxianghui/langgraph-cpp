@@ -14,7 +14,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 
 class Redactor;
 
@@ -221,52 +221,52 @@ void logTo(
         line);
 }
 
-} // namespace lc
+} // namespace lgc
 
 #define LOG_TRACE(TAG, fmt, ...)                                                \
     do {                                                                        \
-        if (::lc::Logger::shouldLog(::lc::LogLevel::Trace))                     \
-            ::lc::Logger::log(::lc::LogLevel::Trace, TAG,                       \
-                ::lc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
+        if (::lgc::Logger::shouldLog(::lgc::LogLevel::Trace))                     \
+            ::lgc::Logger::log(::lgc::LogLevel::Trace, TAG,                       \
+                ::lgc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
                 __FILE__, __LINE__);                                            \
     } while (false)
 
 #define LOG_DEBUG(TAG, fmt, ...)                                                \
     do {                                                                        \
-        if (::lc::Logger::shouldLog(::lc::LogLevel::Debug))                     \
-            ::lc::Logger::log(::lc::LogLevel::Debug, TAG,                       \
-                ::lc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
+        if (::lgc::Logger::shouldLog(::lgc::LogLevel::Debug))                     \
+            ::lgc::Logger::log(::lgc::LogLevel::Debug, TAG,                       \
+                ::lgc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
                 __FILE__, __LINE__);                                            \
     } while (false)
 
 #define LOG_INFO(TAG, fmt, ...)                                                 \
     do {                                                                        \
-        if (::lc::Logger::shouldLog(::lc::LogLevel::Info))                      \
-            ::lc::Logger::log(::lc::LogLevel::Info, TAG,                        \
-                ::lc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
+        if (::lgc::Logger::shouldLog(::lgc::LogLevel::Info))                      \
+            ::lgc::Logger::log(::lgc::LogLevel::Info, TAG,                        \
+                ::lgc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
                 __FILE__, __LINE__);                                            \
     } while (false)
 
 #define LOG_WARN(TAG, fmt, ...)                                                 \
     do {                                                                        \
-        if (::lc::Logger::shouldLog(::lc::LogLevel::Warn))                      \
-            ::lc::Logger::log(::lc::LogLevel::Warn, TAG,                        \
-                ::lc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
+        if (::lgc::Logger::shouldLog(::lgc::LogLevel::Warn))                      \
+            ::lgc::Logger::log(::lgc::LogLevel::Warn, TAG,                        \
+                ::lgc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
                 __FILE__, __LINE__);                                            \
     } while (false)
 
 #define LOG_ERROR(TAG, fmt, ...)                                                \
     do {                                                                        \
-        if (::lc::Logger::shouldLog(::lc::LogLevel::Error))                     \
-            ::lc::Logger::log(::lc::LogLevel::Error, TAG,                       \
-                ::lc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
+        if (::lgc::Logger::shouldLog(::lgc::LogLevel::Error))                     \
+            ::lgc::Logger::log(::lgc::LogLevel::Error, TAG,                       \
+                ::lgc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
                 __FILE__, __LINE__);                                            \
     } while (false)
 
 #define LOG_CRITICAL(TAG, fmt, ...)                                             \
     do {                                                                        \
-        if (::lc::Logger::shouldLog(::lc::LogLevel::Critical))                  \
-            ::lc::Logger::log(::lc::LogLevel::Critical, TAG,                    \
-                ::lc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
+        if (::lgc::Logger::shouldLog(::lgc::LogLevel::Critical))                  \
+            ::lgc::Logger::log(::lgc::LogLevel::Critical, TAG,                    \
+                ::lgc::formatLogMessage(fmt __VA_OPT__(, ) __VA_ARGS__),         \
                 __FILE__, __LINE__);                                            \
     } while (false)

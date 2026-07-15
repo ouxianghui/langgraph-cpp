@@ -5,7 +5,7 @@
 
 #include <memory>
 
-namespace lc {
+namespace lgc {
 
 class TimerHandle final {
 public:
@@ -90,4 +90,4 @@ private:
     std::shared_ptr<Impl> impl_;
 };
 
-} // namespace lc
+} // namespace lgc

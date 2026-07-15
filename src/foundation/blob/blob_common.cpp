@@ -9,7 +9,7 @@
 
 #include <openssl/evp.h>
 
-namespace lc::blob_detail {
+namespace lgc::blob_detail {
 namespace {
 
 class Sha256Context final {
@@ -391,4 +391,4 @@ Status removeFileStrict(const fs::path& path, std::string_view label)
     return Status::ok();
 }
 
-} // namespace lc::blob_detail
+} // namespace lgc::blob_detail

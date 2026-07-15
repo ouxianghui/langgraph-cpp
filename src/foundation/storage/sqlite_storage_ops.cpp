@@ -9,7 +9,7 @@
 
 #include <sqlite3.h>
 
-namespace lc {
+namespace lgc {
 namespace {
 using sqlite_detail::bindInt64;
 using sqlite_detail::bindItemValues;
@@ -460,4 +460,4 @@ Result<void> SQLiteStorage::clearScope(std::string_view scope)
     return okResult();
 }
 
-} // namespace lc
+} // namespace lgc

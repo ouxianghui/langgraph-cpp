@@ -2,7 +2,7 @@
 
 #include "foundation/async/channel_sender_receiver.hpp"
 
-namespace lc {
+namespace lgc {
 
 /// Thread-safe bounded FIFO channel for streaming and backpressure.
 ///
@@ -274,4 +274,4 @@ private:
     std::vector<std::weak_ptr<detail::ChannelWaiter>> waiters_;
 };
 
-} // namespace lc
+} // namespace lgc

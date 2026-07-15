@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 using namespace encryption_detail;
 
@@ -140,4 +140,4 @@ bool SecureStorage::isClosed() const noexcept
     return inner_->isClosed();
 }
 
-} // namespace lc
+} // namespace lgc

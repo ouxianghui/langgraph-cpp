@@ -6,7 +6,7 @@
 #include <string>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 
 constexpr std::array<std::string_view, 8> kUsageMetadataKnownFields {
@@ -241,4 +241,4 @@ Result<UsageMetadata> usageMetadataFromJson(const nlohmann::json& value)
     return usage;
 }
 
-} // namespace lc
+} // namespace lgc

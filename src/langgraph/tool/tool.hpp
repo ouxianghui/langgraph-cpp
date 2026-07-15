@@ -16,7 +16,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 /// Callable backing a tool. ToolNode validates inputSchema_ before invoking it.
 using ToolCallable = std::function<Result<nlohmann::json>(const nlohmann::json&)>;
@@ -249,4 +249,4 @@ private:
     const State& state,
     std::string_view messagesKey = "messages");
 
-} // namespace lc
+} // namespace lgc

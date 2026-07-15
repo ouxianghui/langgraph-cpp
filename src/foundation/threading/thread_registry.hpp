@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace lc {
+namespace lgc {
 
 class IThreadRegistry {
 public:
@@ -67,4 +67,4 @@ private:
     std::shared_ptr<ILogger> logger_;
 };
 
-} // namespace lc
+} // namespace lgc

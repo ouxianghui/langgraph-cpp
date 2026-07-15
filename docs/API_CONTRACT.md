@@ -1,6 +1,6 @@
 # API 与 Schema 合同
 
-`langgraph-cpp` 用显式版本号跟踪 edge-runtime 的源码 API 合同和持久化 schema 合同。当前 API 合同版本是 `25`；持久化 schema 合同版本仍是 `1`。
+`langgraph-cpp` 用显式版本号跟踪 edge-runtime 的源码 API 合同和持久化 schema 合同。当前 API 合同版本是 `26`；持久化 schema 合同版本仍是 `1`。
 
 这是源码兼容和数据兼容承诺，不是 ABI 承诺。跨版本升级时，调用方仍应预期需要重新从源码构建。`1.0` 前可以演进，但不能含糊：破坏性变更必须提升合同版本、删除旧接口、同步测试和文档。
 
@@ -12,9 +12,18 @@
 - checkpointer、store、message、model、tool 和 edge adapter 接口；
 - runtime surface 必需的 foundation 值类型和服务接口，例如 `Status`、`Result<T>`、storage、serialization、resource limits、cancellation、executor 和 event 类型。
 
-在 API 合同版本 `25` 内，变更应尽量保持 additive 和源码兼容。删除公共名称、改变必填字段、改变默认 runtime 语义，或改变可恢复错误码，都需要显式提升 API 合同版本。
+在 API 合同版本 `26` 内，变更应尽量保持 additive 和源码兼容。删除公共名称、改变必填字段、改变默认 runtime 语义，或改变可恢复错误码，都需要显式提升 API 合同版本。
 
-## 2. API 合同版本 `25`
+## 2. API 合同版本 `26`
+
+版本 `26` 将公共 C++ namespace 与 CMake 导出命名空间从 `lc` / `lc::` 重命名为 `lgc` / `lgc::`
+（见 [ADR/0011-public-namespace-lgc.md](ADR/0011-public-namespace-lgc.md)）。
+
+- 所有原先位于 `namespace lc` 的公共类型与自由函数现位于 `namespace lgc`。
+- CMake alias / install export namespace 为 `lgc::foundation`、`lgc::core`、`lgc::langgraph`。
+- 不保留 `lc` / `lc::` 兼容别名；调用方必须更新源码引用并重新配置构建。
+
+## 3. API 合同版本 `25`
 
 版本 `25` 将模型 token usage 从 provider raw JSON 透传收敛为标准 usage contract。
 
@@ -29,7 +38,7 @@
 - `LlamaCppChatModel` 实现 `ITokenCounter`，并在最终 assistant message/done chunk 中写入本地
   `input_tokens`、`output_tokens` 和 `total_tokens`。
 
-## 3. API 合同版本 `24`
+## 4. API 合同版本 `24`
 
 版本 `24` 将 HTTP request 执行策略从隐式 client-only 配置改为显式 per-request contract。
 
@@ -38,7 +47,7 @@
 - `HttpClientConfig` 仍提供默认 connect/read/write timeout 和 retry policy；单次请求的 options 会覆盖 retry policy，并用 timeout/deadline 截断连接池等待、retry delay 和底层 transport timeout。
 - `ProviderChatModelOptions` 新增 `requestOptions_`，provider invoke/stream 会把 request budget 传入注入的 `IHttpClient`。
 
-## 4. API 合同版本 `23`
+## 5. API 合同版本 `23`
 
 版本 `23` 进一步简化 request-auth API。
 
@@ -49,10 +58,11 @@
 
 版本 `23` 还规定：历史 `CompiledStateGraph::replay()` 如果写入新 checkpoint，新 checkpoint 会接在该 thread 和 checkpoint namespace 当前 latest step 之后。这保留 time-travel 历史，同时让 replay 后再次 interrupt 的分支可以继续通过普通 `resume(thread_id)` 路径恢复。
 
-## 5. 近期 API 合同变更摘要
+## 6. 近期 API 合同变更摘要
 
 | 版本 | 主题 | 当前合同 |
 | --- | --- | --- |
+| `26` | Public namespace rename | 公共 C++ namespace 与 CMake export 从 `lc` / `lc::` 重命名为 `lgc` / `lgc::`；无兼容别名。 |
 | `25` | Token usage metadata | `BaseMessage` 和 `AIMessageChunk` 使用标准 `UsageMetadata`；provider usage 和 llama.cpp 本地计数归一化为 `TokenUsage`。 |
 | `24` | HTTP request options | `IHttpClient` 所有 request entrypoint 显式接收 `HttpRequestOptions`；旧无 options 签名移除。 |
 | `23` | OAuth request auth | `IAuthorizationProvider` 只负责 `authorize(HttpRequest&)`；可刷新凭证通过 `IRefreshableAuthorization` 暴露 readiness/refresh gate。 |
@@ -78,13 +88,13 @@
 | `3` | Checkpoint tuple | checkpoint reads 使用 `get(CheckpointQuery)` / `list(CheckpointListOptions)`，并返回 `CheckpointTuple`。 |
 | `2` | Builder alias cleanup | 旧 builder alias 集合被移除；版本 `8` 进一步明确 LangGraph-style builder API 是唯一公共 surface。 |
 
-## 6. 持久化 Schema 合同
+## 7. 持久化 Schema 合同
 
 持久化 schema 合同版本是 `1`。当前由测试保护的组件 schema 版本如下：
 
 | Schema | 当前版本 |
 | --- | ---: |
-| API contract | `25` |
+| API contract | `26` |
 | Schema contract | `1` |
 | Checkpoint JSON schema | `3` |
 | Content envelope | `1` |
@@ -92,7 +102,7 @@
 
 除非显式加入 forward-compatible migration，否则 reader 读到未来版本时必须返回 `StatusCode::Unimplemented`。历史版本只在各组件声明的最低支持版本范围内保持支持。
 
-## 7. 稳定性范围
+## 8. 稳定性范围
 
 | 范围 | 当前承诺 |
 | --- | --- |
@@ -102,7 +112,7 @@
 | 私有实现 | `.cpp`、内部 `.hh`、test helpers、未导出的 helper 不冻结。 |
 | Optional adapters | provider、hardware、llama.cpp、future backend adapters 的内部实现不冻结。 |
 
-## 8. 不冻结的内容
+## 9. 不冻结的内容
 
 - C++ ABI 和二进制布局。
 - 私有实现文件、内部 helper 函数和 `.hh` 内部头。
@@ -110,7 +120,7 @@
 - 可选 provider、hardware、llama.cpp adapter 的内部实现细节。
 - 性能特征，除非测试或文档明确声明了约束。
 
-## 9. 变更规则
+## 10. 变更规则
 
 - 新公共 API 优先 additive，不复活旧兼容别名。
 - 如果新名称落地，旧接口应删除，而不是长期双轨兼容。
@@ -146,7 +156,7 @@
 - 新 public API 使用一致的 camelCase 方法命名。
 - 旧接口移除后，不保留“为了兼容”的 duplicate method。
 
-## 9. 验证
+## 11. 验证
 
 默认验证不依赖 Python：
 
@@ -177,7 +187,7 @@ ctest --preset unix-debug-conformance -L langgraph_conformance
 
 该 CTest 需要本地 Python 环境安装 upstream `langgraph` 包。它会比较 C++ probe 与 Python LangGraph 在 `RunnableConfig` merge/patch/apply、`StateSnapshot` shape/history order、checkpoint namespace shape、interrupt replay/resume、parallel/sequential multi-interrupt resume、`Command(goto+update)`、`Send` fan-out/reducer 和 subgraph boundary 等场景的行为。probe 也会输出 stream envelope、stream projection、interrupt/error task events 和 tool-returned `Command` 的 C++ golden shape。
 
-## 9. 关联文档
+## 12. 关联文档
 
 - [PRD.md](PRD.md)：产品目标和验收标准。
 - [ARCHITECTURE.md](ARCHITECTURE.md)：模块边界和运行模型。

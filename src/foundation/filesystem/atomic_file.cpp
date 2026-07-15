@@ -14,7 +14,7 @@
 #include <unistd.h>
 #endif
 
-namespace lc {
+namespace lgc {
 namespace fs = std::filesystem;
 namespace {
 
@@ -164,4 +164,4 @@ Result<void> writeFileAtomic(
     return okResult();
 }
 
-} // namespace lc
+} // namespace lgc

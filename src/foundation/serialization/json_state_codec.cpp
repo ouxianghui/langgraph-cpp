@@ -5,7 +5,7 @@
 #include <string>
 #include <utility>
 
-namespace lc {
+namespace lgc {
 namespace {
 using state_codec_detail::kJsonContentType;
 using state_codec_detail::requireJsonPayload;
@@ -31,4 +31,4 @@ Result<State> JsonStateCodec::decode(const Payload& payload) const
     return State::fromJson(payload.data_, limits_);
 }
 
-} // namespace lc
+} // namespace lgc
