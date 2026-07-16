@@ -14,6 +14,10 @@
 
 namespace lgc {
 
+namespace detail {
+class GraphRun;
+}
+
 /// Mutable graph builder.
 ///
 /// StateGraph owns graph declaration only: nodes, edges, routers, schemas, and
@@ -77,6 +81,7 @@ public:
 
 private:
     friend class CompiledStateGraph;
+    friend class detail::GraphRun;
 
     struct RouteTarget {
         NodeId node_;
@@ -94,6 +99,9 @@ private:
         RouteHandler router,
         std::vector<NodeId> destinations);
     [[nodiscard]] bool hasNodeOrEnd(std::string_view id) const;
+    [[nodiscard]] static NodeOutputHandler makeSubgraphNodeHandler(
+        std::shared_ptr<CompiledStateGraph> graph,
+        SubgraphOptions options);
 
     std::map<NodeId, NodeSpec> nodes_;
     std::map<NodeId, std::vector<NodeId>> edges_;

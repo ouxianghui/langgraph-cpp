@@ -30,11 +30,12 @@
 
 | 区域 | 错误示例 | 期望行为 |
 | --- | --- | --- |
-| checkpoint | put/list/get/delete 失败 | run 返回失败 status，并发出 failure event。 |
+| checkpoint | put/list/get/delete 失败 | `Result` 返回失败 `Status`；已开始的运行仍会尽量发出 failure event。 |
 | pending writes | task writes 写入失败 | 不假装 resume-safe；返回错误。 |
 | storage | SQLite busy/corruption/schema mismatch | 返回明确 status；测试覆盖可恢复边界。 |
 | schema | input/state/output/tool schema 不匹配 | 返回 invalid argument 或 schema validation error。 |
-| cancellation | cancellation token 被触发 | 当前 run 停止并返回 cancellation status。 |
+| cancellation | cancellation token 被触发 | 当前 run 停止；已开始的运行返回 `Ok(RunResult)` 且 `status_ == Cancelled`。 |
+| node / emit failure | handler、timeout、event sink 失败 | 已开始的运行返回 `Ok(RunResult)` 且 `status_ == Failed`（或 `MaxStepsExceeded`）；`collectEvents_` 时保留已收集 events。 |
 | tool | input validation、authorization、handler、output validation 失败 | 返回 structured tool error 或 runtime status。 |
 | transport | HTTP auth、retry exhausted、stream callback failure | 返回 status，不记录 secret。 |
 

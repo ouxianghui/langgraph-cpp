@@ -1155,8 +1155,8 @@ void stressCancellationTimeoutShutdownRace()
         }
         cv.notify_all();
         auto result = future.get();
-        assert(!result.isOk());
-        assert(result.status().code() == lgc::StatusCode::Cancelled);
+        assert(result.isOk());
+        assert(result->status_ == lgc::RunStatus::Cancelled);
     }
 
     {
@@ -1168,8 +1168,13 @@ void stressCancellationTimeoutShutdownRace()
         };
 
         lgc::StateGraph graph;
-        assert(graph.addNode("timeout", [](const lgc::State&, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        assert(graph.addNode("timeout", [](const lgc::State&, lgc::Runtime& context) -> lgc::Result<lgc::StateUpdate> {
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
+            while (std::chrono::steady_clock::now() < deadline) {
+                if (auto status = context.cancellationToken().check(); !status.isOk())
+                    return status;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
             return lgc::StateUpdate::fromJsonValue({ { "late", true } });
         },
                    timeoutOptions)

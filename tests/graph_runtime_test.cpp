@@ -364,8 +364,9 @@ void testConditionalRouterRejectsUndeclaredFanoutTarget()
     assert(compiled.isOk());
 
     auto result = compiled->invoke(stateFromJson("{}"));
-    assert(!result.isOk());
-    assert(result.status().code() == lgc::StatusCode::FailedPrecondition);
+    assert(result.isOk());
+    assert(result->status_ == lgc::RunStatus::Failed);
+    assert(result->state_.view().at("__run_error__").at("code") == "failed_precondition");
 }
 
 lgc::CompiledStateGraph buildSendMapReduceGraph()
@@ -476,8 +477,8 @@ void testResumeAfterSendCheckpoint()
     firstRun.limits_ = lgc::ResourceLimits {}.maxSteps(1);
 
     auto stopped = compiled.invoke(stateFromJson("{}"), firstRun);
-    assert(!stopped.isOk());
-    assert(stopped.status().code() == lgc::StatusCode::ResourceExhausted);
+    assert(stopped.isOk());
+    assert(stopped->status_ == lgc::RunStatus::MaxStepsExceeded);
 
     auto latest = latestCheckpoint(*checkpointer, "send-resume");
     assert(latest.isOk());
@@ -567,8 +568,9 @@ void testCommandRejectsUndeclaredGoto()
     assert(compiled.isOk());
 
     auto result = compiled->invoke(stateFromJson("{}"));
-    assert(!result.isOk());
-    assert(result.status().code() == lgc::StatusCode::FailedPrecondition);
+    assert(result.isOk());
+    assert(result->status_ == lgc::RunStatus::Failed);
+    assert(result->state_.view().at("__run_error__").at("code") == "failed_precondition");
 }
 
 void testMaxConcurrencyCapsParallelNodes()
@@ -763,8 +765,8 @@ void testResumeAfterFanoutCheckpoint()
     firstRun.limits_ = lgc::ResourceLimits {}.maxSteps(1);
 
     auto stopped = compiled->invoke(stateFromJson("{}"), firstRun);
-    assert(!stopped.isOk());
-    assert(stopped.status().code() == lgc::StatusCode::ResourceExhausted);
+    assert(stopped.isOk());
+    assert(stopped->status_ == lgc::RunStatus::MaxStepsExceeded);
 
     auto latest = latestCheckpoint(*checkpointer, "parallel-resume");
     assert(latest.isOk());
@@ -798,8 +800,8 @@ void testStorageSaverAndResume()
     firstRun.limits_ = lgc::ResourceLimits {}.maxSteps(2);
 
     auto stopped = compiled.invoke(stateFromJson(R"({"count":0})"), firstRun);
-    assert(!stopped.isOk());
-    assert(stopped.status().code() == lgc::StatusCode::ResourceExhausted);
+    assert(stopped.isOk());
+    assert(stopped->status_ == lgc::RunStatus::MaxStepsExceeded);
 
     auto latest = latestCheckpoint(*checkpointer, "thread-resume");
     assert(latest.isOk());
@@ -905,8 +907,8 @@ void testSQLiteStorageSaverResume()
         firstRun.limits_ = lgc::ResourceLimits {}.maxSteps(2);
 
         auto stopped = compiled.invoke(stateFromJson(R"({"count":0})"), firstRun);
-        assert(!stopped.isOk());
-        assert(stopped.status().code() == lgc::StatusCode::ResourceExhausted);
+        assert(stopped.isOk());
+        assert(stopped->status_ == lgc::RunStatus::MaxStepsExceeded);
         assert(storage->close().isOk());
     }
 
@@ -950,8 +952,8 @@ void testSQLiteCheckpointNamespaceResumeAfterReopen()
         firstRun.limits_ = lgc::ResourceLimits {}.maxSteps(2);
 
         auto stopped = compiled.invoke(stateFromJson(R"({"count":0})"), firstRun);
-        assert(!stopped.isOk());
-        assert(stopped.status().code() == lgc::StatusCode::ResourceExhausted);
+        assert(stopped.isOk());
+        assert(stopped->status_ == lgc::RunStatus::MaxStepsExceeded);
         assert(storage->close().isOk());
     }
 
@@ -1096,9 +1098,9 @@ void testMaxSteps()
     options.checkpointer_ = std::make_shared<lgc::InMemorySaver>();
     options.limits_ = lgc::ResourceLimits {}.maxSteps(2);
     auto result = compiled->invoke(stateFromJson("{}"), options);
-    assert(!result.isOk());
-    assert(result.status().code() == lgc::StatusCode::ResourceExhausted);
-    assert(lgc::runStatusFromStatus(result.status()) == lgc::RunStatus::MaxStepsExceeded);
+    assert(result.isOk());
+    assert(result->status_ == lgc::RunStatus::MaxStepsExceeded);
+    assert(result->state_.view().at("__run_error__").at("code") == "resource_exhausted");
 
     auto checkpoints = checkpointHistory(*options.checkpointer_, "max-step-thread");
     assert(checkpoints.isOk());
@@ -1332,7 +1334,8 @@ void testPendingWritesSkipCompletedParallelNodesOnResume()
     options.reducers_.set("visited", lgc::ReducerKind::Append);
 
     auto failed = compiled->invoke(stateFromJson("{}"), options);
-    assert(!failed.isOk());
+    assert(failed.isOk());
+    assert(failed->status_ == lgc::RunStatus::Failed);
     assert(aRuns.load() == 1);
     assert(bRuns.load() == 1);
     assert(cRuns.load() == 1);
@@ -1517,9 +1520,14 @@ void testNodeRetryTimeoutAndErrorHandler()
             { "attempt", context.executionInfo().nodeAttempt_ },
         });
     }, retryOptions).isOk());
-    assert(graph.addNode("timeout", [&](const lgc::State&, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
+    assert(graph.addNode("timeout", [&](const lgc::State&, lgc::Runtime& context) -> lgc::Result<lgc::StateUpdate> {
         timeoutRuns.fetch_add(1, std::memory_order_acq_rel);
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
+        while (std::chrono::steady_clock::now() < deadline) {
+            if (auto status = context.cancellationToken().check(); !status.isOk())
+                return status;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
         return lgc::StateUpdate::fromJson(R"({"should_not_win":true})");
     }, timeoutOptions).isOk());
     assert(graph.addEdge(std::string(lgc::START), "retry").isOk());
@@ -1642,6 +1650,127 @@ void testSubgraphParentCommand()
     assert(!result->parentCommand_.has_value());
     assert(result->state_.view().at("child_value") == 7);
     assert(result->state_.view().at("after") == true);
+}
+
+void testSubgraphFailurePropagatesToParent()
+{
+    lgc::StateGraph child;
+    assert(child.addNode("boom", [](const lgc::State&, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
+        return lgc::Status::failedPrecondition("child boom");
+    }).isOk());
+    assert(child.addEdge(std::string(lgc::START), "boom").isOk());
+    assert(child.addEdge("boom", std::string(lgc::END)).isOk());
+    auto compiledChild = child.compile();
+    assert(compiledChild.isOk());
+
+    std::atomic<bool> afterRan { false };
+    lgc::StateGraph parent;
+    assert(parent.addSubgraph("sub", std::make_shared<lgc::CompiledStateGraph>(*compiledChild)).isOk());
+    assert(parent.addNode("after", [&](const lgc::State&, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
+        afterRan.store(true, std::memory_order_release);
+        return lgc::StateUpdate::fromJson(R"({"after":true})");
+    }).isOk());
+    assert(parent.addEdge(std::string(lgc::START), "sub").isOk());
+    assert(parent.addEdge("sub", "after").isOk());
+    assert(parent.addEdge("after", std::string(lgc::END)).isOk());
+
+    auto compiledParent = parent.compile();
+    assert(compiledParent.isOk());
+
+    auto result = compiledParent->invoke(stateFromJson("{}"));
+    assert(result.isOk());
+    assert(result->status_ == lgc::RunStatus::Failed);
+    assert(result->state_.view().at("__run_error__").at("code") == "failed_precondition");
+    assert(result->state_.view().at("__run_error__").at("message").get<std::string>().find("child boom")
+        != std::string::npos);
+    assert(!afterRan.load(std::memory_order_acquire));
+    assert(!result->state_.view().contains("after"));
+}
+
+void testInjectedExecutorDoesNotHardwareBatchWhenUncapped()
+{
+    constexpr int kNodes = 16;
+    std::mutex mutex;
+    std::condition_variable ready;
+    int started = 0;
+
+    lgc::StateGraph graph;
+    for (int i = 0; i < kNodes; ++i) {
+        const auto name = "n" + std::to_string(i);
+        assert(graph.addNode(name, [&, name](const lgc::State&, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
+            std::unique_lock lock(mutex);
+            ++started;
+            ready.notify_all();
+            if (!ready.wait_for(lock, std::chrono::seconds(3), [&] { return started == kNodes; }))
+                return lgc::Status::deadlineExceeded("uncapped injected executor should run all tasks together");
+            return lgc::StateUpdate::fromJsonValue({
+                { "seen", nlohmann::json::array({ name }) },
+            });
+        }).isOk());
+        assert(graph.addEdge(std::string(lgc::START), name).isOk());
+        assert(graph.addEdge(name, std::string(lgc::END)).isOk());
+    }
+
+    auto compiled = graph.compile();
+    assert(compiled.isOk());
+
+    lgc::RunOptions options;
+    options.executor_ = lgc::makeConcurrentExecutor(static_cast<std::size_t>(kNodes));
+    options.maxConcurrency_ = 0;
+    options.reducers_.set("seen", lgc::ReducerKind::Append);
+
+    auto result = compiled->invoke(stateFromJson("{}"), options);
+    assert(result.isOk());
+    assert(result->status_ == lgc::RunStatus::Completed);
+    assert(result->state_.view().at("seen").size() == kNodes);
+}
+
+void testRetryBackoffHonorsCancellation()
+{
+    std::atomic<int> attempts { 0 };
+    std::mutex mutex;
+    std::condition_variable ready;
+    bool firstAttemptStarted = false;
+
+    lgc::NodeOptions retryOptions;
+    retryOptions.retry_.maxAttempts_ = 3;
+    retryOptions.retry_.initialInterval_ = std::chrono::milliseconds(500);
+
+    lgc::StateGraph graph;
+    assert(graph.addNode("retry", [&](const lgc::State&, lgc::Runtime&) -> lgc::Result<lgc::StateUpdate> {
+        attempts.fetch_add(1, std::memory_order_acq_rel);
+        {
+            std::lock_guard lock(mutex);
+            firstAttemptStarted = true;
+        }
+        ready.notify_all();
+        return lgc::Status::unavailable("try again");
+    }, retryOptions).isOk());
+    assert(graph.addEdge(std::string(lgc::START), "retry").isOk());
+    assert(graph.addEdge("retry", std::string(lgc::END)).isOk());
+
+    auto compiled = graph.compile();
+    assert(compiled.isOk());
+
+    lgc::CancellationSource source;
+    lgc::RunOptions options;
+    options.cancellationToken_ = source.token();
+
+    const auto startedAt = std::chrono::steady_clock::now();
+    auto future = std::async(std::launch::async, [&] {
+        return compiled->invoke(stateFromJson("{}"), options);
+    });
+    {
+        std::unique_lock lock(mutex);
+        assert(ready.wait_for(lock, std::chrono::seconds(2), [&] { return firstAttemptStarted; }));
+    }
+    assert(source.cancel("cancel during retry backoff"));
+    auto result = future.get();
+    const auto elapsed = std::chrono::steady_clock::now() - startedAt;
+    assert(result.isOk());
+    assert(result->status_ == lgc::RunStatus::Cancelled);
+    assert(attempts.load(std::memory_order_acquire) == 1);
+    assert(elapsed < std::chrono::milliseconds(400));
 }
 
 void testProjectedStreamEmitsParts()
@@ -2423,6 +2552,9 @@ int main()
     testNodeRetryTimeoutAndErrorHandler();
     testMultiInterruptResume();
     testSubgraphParentCommand();
+    testSubgraphFailurePropagatesToParent();
+    testInjectedExecutorDoesNotHardwareBatchWhenUncapped();
+    testRetryBackoffHonorsCancellation();
     testProjectedStreamEmitsParts();
     testModelNodeStreamingEmitsTokenEvents();
     testSyncDurabilityPersistsTaskLevelWrites();

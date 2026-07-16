@@ -84,6 +84,19 @@ set_tests_properties(langgraph_cpp_graph_runtime_test
     PROPERTIES
         LABELS "graph;contract;tsan_repeat")
 
+add_executable(langgraph_cpp_graph_failure_contract_test
+    graph_failure_contract_test.cpp)
+
+target_link_libraries(langgraph_cpp_graph_failure_contract_test
+    PRIVATE
+        langgraph)
+
+add_test(NAME langgraph_cpp_graph_failure_contract_test
+    COMMAND langgraph_cpp_graph_failure_contract_test)
+set_tests_properties(langgraph_cpp_graph_failure_contract_test
+    PROPERTIES
+        LABELS "graph;contract;failure_injection;tsan_repeat")
+
 add_executable(langgraph_cpp_langgraph_compat_test
     langgraph_compat_test.cpp)
 

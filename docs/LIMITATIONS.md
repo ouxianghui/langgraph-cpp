@@ -40,6 +40,8 @@
   pending branch state 会写入 checkpoint 并可 resume。
 - 并行 fan-out 可通过 `RunOptions::executor_` 注入执行器，并可通过
   `RunOptions::maxConcurrency_` 限制单个 super-step 的并发 node task 数。
+  `maxConcurrency_ == 0` 表示不额外限流：注入 executor 时按该 executor 提交全部 ready tasks；
+  未注入 executor 时，运行时临时线程池默认不超过 hardware concurrency。
 - `Command` 支持节点返回时 update state 并 goto 一个或多个声明目标；subgraph 节点可通过
   `Command::gotoParentNode(s)` 把控制权交回父图的声明目标。
 - `StateGraph::addSubgraph()` 支持将已编译子图作为父图节点执行；子图 state diff 会作为
@@ -54,7 +56,9 @@
   thread resume。
 - 并行 super-step 中如果部分节点失败，运行时会把同一步已成功节点的 writes 作为
   pending writes 存入 checkpoint；resume 时只重跑失败节点，并在该 super-step 完成后
-  一次性合并 pending writes 与新 writes。
+  一次性合并 pending writes 与新 writes。已开始执行的运行期失败通过
+  `Ok(RunResult)` 返回，并在 `RunResult::status_` 中区分 `Failed` / `Cancelled` /
+  `MaxStepsExceeded`；`collectEvents_` 时可保留失败前已发出的 events。
 - `RunOptions::durability_` 支持 `Async`、`Sync` 和 `Exit`。默认 `Async` 保持
   super-step 级提交；`Sync` 会在 super-step 内写入 task-level pending writes
   checkpoint；`Exit` 跳过普通中间 step，只保留初始、暂停、失败和完成 checkpoint。
@@ -137,7 +141,8 @@
   会把工具消息 update 与 tool-returned `Command` 合并后交给图运行时路由。
 - 工具 handler 可通过 `ToolRuntime::interrupt(id, payload)` 发起 HITL 暂停；resume 后
   tool node 会重跑该工具并把 `Command::resume()` payload 返回给 handler。
-- Node-level retry、同步 handler 返回后的 timeout 检查，以及 error handler fallback 已支持。
+- Node-level retry、协作式 timeout（attempt cancellation + handler 返回后核对 deadline），以及 error handler fallback 已支持。
+  不轮询 cancellation token 的长阻塞 handler 仍可能拖到返回后才判定超时。
 - Tool-level circuit-breaker、approval 和 sandbox middleware 仍属于后续扩展工作。
 
 ## Checkpoint 与存储

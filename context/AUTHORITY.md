@@ -28,7 +28,7 @@ These pins must match `PROJECT_MANIFEST.json` → `contracts`. The check script
 [`scripts/check-context-skills.sh`](../scripts/check-context-skills.sh) fails when they drift.
 
 <!-- AUTHORITY_PINS
-api_contract_version=26
+api_contract_version=28
 schema_contract_version=1
 checkpoint_json_schema_version=3
 content_envelope_version=1
@@ -38,7 +38,7 @@ abi_stable=false
 
 | Pin | Value | Meaning |
 | --- | ---: | --- |
-| `api_contract_version` | 26 | Numbered public source API contract (`langgraph.hpp` surface). |
+| `api_contract_version` | 28 | Numbered public source API contract (`langgraph.hpp` surface). |
 | `schema_contract_version` | 1 | Overall persisted schema contract lineage. |
 | `checkpoint_json_schema_version` | 3 | Checkpoint JSON reader/writer schema. |
 | `content_envelope_version` | 1 | Content envelope schema. |

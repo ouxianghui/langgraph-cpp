@@ -140,7 +140,8 @@ struct RunOptions {
     RunOptions options,
     const RunnableConfig& config);
 
-/// Run output for completed or paused executions. Failed runs are returned through Result status.
+/// Run output for completed, paused, or failed executions that began running.
+/// Setup/validation failures before a run id is assigned still return Result status.
 struct RunResult {
     State state_;
     std::string runId_;

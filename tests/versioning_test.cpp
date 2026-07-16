@@ -14,7 +14,7 @@ int main()
 {
     using namespace std::chrono_literals;
 
-    assert(lgc::kApiContractVersion == 26);
+    assert(lgc::kApiContractVersion == 28);
     assert(lgc::kSchemaContractVersion == 1);
     assert(lgc::kCheckpointSchemaVersion == 3);
     assert(lgc::kContentEnvelopeVersion == 1);

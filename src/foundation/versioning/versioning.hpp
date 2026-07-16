@@ -15,7 +15,7 @@ namespace lgc {
 
 using Version = std::uint32_t;
 
-inline constexpr Version kApiContractVersion = 26;
+inline constexpr Version kApiContractVersion = 28;
 inline constexpr Version kMinApiContractVersion = 26;
 inline constexpr Version kSchemaContractVersion = 1;
 inline constexpr Version kMinSchemaContractVersion = 1;

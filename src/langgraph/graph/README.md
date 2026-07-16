@@ -16,7 +16,7 @@
 ## 2. 执行模型
 
 - `StateGraph::compile()` 校验 builder 并生成 immutable plan。
-- `CompiledStateGraph::runFrom()` 驱动 super-step loop。
+- 内部 `GraphRun` 拥有 super-step loop；`CompiledStateGraph::runFrom()` 只创建 `GraphRun` 并转发。
 - 每个 super-step 的 ready nodes 观察同一个 state snapshot。
 - node 可以并发执行；输出收集后按 reducer 串行合并。
 - routing 在 merged state 后计算。

@@ -14,6 +14,7 @@
 | 测试文件 | 主要覆盖 |
 | --- | --- |
 | `graph_runtime_test.cpp` | graph execution、fan-out/fan-in、conditional、loop、`Send`、`Command`、stream、resume/replay、pending writes。 |
+| `graph_failure_contract_test.cpp` | 已开始运行的失败合同：`Ok(RunResult)` + `Failed`/`Cancelled`/`MaxStepsExceeded`、subgraph 传播、stream/resume/events、与 setup/put 的 `Status` 错误边界。 |
 | `langgraph_compat_test.cpp` | LangGraph-style shape、namespace、interrupt、stream projection、config 等兼容切片。 |
 | `checkpointer_test.cpp` | saver contract、put/get/list/deleteThread、pending writes、maintenance、namespace。 |
 | `crash_recovery_test.cpp` | SQLite reopen、hard-exit、partial write、stale latest pointer、corruption、contention。 |

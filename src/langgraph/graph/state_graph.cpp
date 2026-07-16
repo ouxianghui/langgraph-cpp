@@ -72,6 +72,55 @@ constexpr char kCheckpointNamespaceTaskSeparator = graph_detail::kCheckpointName
     return StateUpdate::fromJsonValue(diff);
 }
 
+[[nodiscard]] StatusCode statusCodeFromName(std::string_view name) noexcept
+{
+    for (const auto code : {
+             StatusCode::Cancelled,
+             StatusCode::Unknown,
+             StatusCode::InvalidArgument,
+             StatusCode::DeadlineExceeded,
+             StatusCode::NotFound,
+             StatusCode::AlreadyExists,
+             StatusCode::PermissionDenied,
+             StatusCode::ResourceExhausted,
+             StatusCode::FailedPrecondition,
+             StatusCode::Aborted,
+             StatusCode::OutOfRange,
+             StatusCode::Unimplemented,
+             StatusCode::Internal,
+             StatusCode::Unavailable,
+             StatusCode::DataLoss,
+             StatusCode::Unauthenticated,
+         }) {
+        if (statusCodeName(code) == name)
+            return code;
+    }
+    return StatusCode::Unknown;
+}
+
+[[nodiscard]] Status statusFromFailedSubgraphRun(const RunResult& child)
+{
+    std::string message = "subgraph run failed";
+    std::string codeName;
+    const auto& view = child.state_.view();
+    if (view.contains("__run_error__") && view.at("__run_error__").is_object()) {
+        const auto& error = view.at("__run_error__");
+        if (error.contains("message") && error.at("message").is_string())
+            message = error.at("message").get<std::string>();
+        if (error.contains("code") && error.at("code").is_string())
+            codeName = error.at("code").get<std::string>();
+    }
+
+    if (child.status_ == RunStatus::Cancelled)
+        return Status::cancelled(std::move(message));
+    if (child.status_ == RunStatus::MaxStepsExceeded)
+        return Status::resourceExhausted(message.empty() ? "subgraph exceeded max steps" : std::move(message));
+
+    if (!codeName.empty())
+        return Status(statusCodeFromName(codeName), std::move(message));
+    return Status::failedPrecondition(std::move(message));
+}
+
 [[nodiscard]] std::set<NodeId> reachableFrom(
     const std::map<NodeId, std::vector<NodeId>>& adjacency,
     const NodeId& start)
@@ -215,141 +264,158 @@ Result<void> StateGraph::addSubgraph(
 
     return addNode(
         std::move(id),
-        [graph = std::move(graph), options = std::move(options)](
-            const State& state,
-            Runtime& context) -> Result<NodeOutput> {
-            RunOptions childOptions = options.options_;
+        makeSubgraphNodeHandler(std::move(graph), std::move(options)));
+}
 
-            const std::string parentNamespace(context.executionInfo().checkpointNamespace_);
-            std::string baseNamespace = options.checkpointNamespace_.empty()
-                ? std::string(context.executionInfo().nodeId_)
-                : options.checkpointNamespace_;
-            if (options.persistence_ == SubgraphPersistenceMode::PerInvocation) {
-                std::string taskId = std::string(context.executionInfo().runId_);
-                taskId.push_back('-');
-                taskId.append(std::to_string(context.executionInfo().step_));
-                baseNamespace = checkpointNamespaceWithTask(std::move(baseNamespace), taskId);
-            }
-            std::string childNamespace = joinCheckpointNamespace(parentNamespace, baseNamespace);
-            childOptions.checkpointNamespace_ = childNamespace;
+NodeOutputHandler StateGraph::makeSubgraphNodeHandler(
+    std::shared_ptr<CompiledStateGraph> graph,
+    SubgraphOptions options)
+{
+    return [graph = std::move(graph), options = std::move(options)](
+               const State& state,
+               Runtime& context) -> Result<NodeOutput> {
+        RunOptions childOptions = options.options_;
 
-            if (childOptions.threadId_.empty() && options.inheritThreadId_) {
-                childOptions.threadId_ = std::string(context.executionInfo().threadId_);
+        const std::string parentNamespace(context.executionInfo().checkpointNamespace_);
+        std::string baseNamespace = options.checkpointNamespace_.empty()
+            ? std::string(context.executionInfo().nodeId_)
+            : options.checkpointNamespace_;
+        if (options.persistence_ == SubgraphPersistenceMode::PerInvocation) {
+            std::string taskId = std::string(context.executionInfo().runId_);
+            taskId.push_back('-');
+            taskId.append(std::to_string(context.executionInfo().step_));
+            baseNamespace = checkpointNamespaceWithTask(std::move(baseNamespace), taskId);
+        }
+        std::string childNamespace = joinCheckpointNamespace(parentNamespace, baseNamespace);
+        childOptions.checkpointNamespace_ = childNamespace;
+
+        if (childOptions.threadId_.empty() && options.inheritThreadId_) {
+            childOptions.threadId_ = std::string(context.executionInfo().threadId_);
+            childOptions.threadId_.append("/");
+            childOptions.threadId_.append(std::string(context.executionInfo().nodeId_));
+            if (!options.threadIdSuffix_.empty()) {
                 childOptions.threadId_.append("/");
-                childOptions.threadId_.append(std::string(context.executionInfo().nodeId_));
-                if (!options.threadIdSuffix_.empty()) {
-                    childOptions.threadId_.append("/");
-                    childOptions.threadId_.append(options.threadIdSuffix_);
-                }
-                if (options.persistence_ == SubgraphPersistenceMode::PerInvocation) {
-                    childOptions.threadId_.append("/");
-                    childOptions.threadId_.append(std::string(context.executionInfo().runId_));
-                    childOptions.threadId_.append("-");
-                    childOptions.threadId_.append(std::to_string(context.executionInfo().step_));
-                }
+                childOptions.threadId_.append(options.threadIdSuffix_);
             }
-            if (!childOptions.store_)
-                childOptions.store_ = context.store();
-            if (options.persistence_ == SubgraphPersistenceMode::Stateless) {
-                childOptions.checkpointer_.reset();
-            } else if (!childOptions.checkpointer_) {
-                childOptions.checkpointer_ = context.checkpointer();
+            if (options.persistence_ == SubgraphPersistenceMode::PerInvocation) {
+                childOptions.threadId_.append("/");
+                childOptions.threadId_.append(std::string(context.executionInfo().runId_));
+                childOptions.threadId_.append("-");
+                childOptions.threadId_.append(std::to_string(context.executionInfo().step_));
             }
-            if (context.hasResumeValue()) {
-                nlohmann::json childResumeValue = context.resumeValue();
-                const std::string subgraphInterruptId = std::string("subgraph:") + std::string(context.executionInfo().nodeId_);
-                if (childResumeValue.is_object() && childResumeValue.contains(subgraphInterruptId))
-                    childResumeValue = childResumeValue.at(subgraphInterruptId);
-                childOptions.command_ = Command::resume(std::move(childResumeValue));
-            }
+        }
+        if (!childOptions.store_)
+            childOptions.store_ = context.store();
+        if (options.persistence_ == SubgraphPersistenceMode::Stateless) {
+            childOptions.checkpointer_.reset();
+        } else if (!childOptions.checkpointer_) {
+            childOptions.checkpointer_ = context.checkpointer();
+        }
+        if (context.hasResumeValue()) {
+            nlohmann::json childResumeValue = context.resumeValue();
+            const std::string subgraphInterruptId =
+                std::string("subgraph:") + std::string(context.executionInfo().nodeId_);
+            if (childResumeValue.is_object() && childResumeValue.contains(subgraphInterruptId))
+                childResumeValue = childResumeValue.at(subgraphInterruptId);
+            childOptions.command_ = Command::resume(std::move(childResumeValue));
+        }
 
-            auto childCallback = std::move(childOptions.eventCallback_);
-            childOptions.eventCallback_ = [
-                                             &context,
-                                             childCallback = std::move(childCallback),
-                                             childNamespace
-                                         ](RuntimeEvent event) mutable -> Status {
-                if (childCallback) {
-                    if (auto status = childCallback(event); !status.isOk())
-                        return status;
-                }
-                if (event.payload_.is_object()) {
-                    if (!event.payload_.contains("ns"))
-                        event.payload_["ns"] = childNamespace;
-                    if (!event.payload_.contains("checkpoint_ns"))
-                        event.payload_["checkpoint_ns"] = childNamespace;
-                    if (!event.payload_.contains("parent_run_id"))
-                        event.payload_["parent_run_id"] = std::string(context.executionInfo().runId_);
-                    if (!event.payload_.contains("parent_thread_id"))
-                        event.payload_["parent_thread_id"] = std::string(context.executionInfo().threadId_);
-                    if (!event.payload_.contains("parent_node"))
-                        event.payload_["parent_node"] = std::string(context.executionInfo().nodeId_);
+        auto childCallback = std::move(childOptions.eventCallback_);
+        childOptions.eventCallback_ =
+            [&context, childCallback = std::move(childCallback), childNamespace](
+                RuntimeEvent event) mutable -> Status {
+            if (childCallback) {
+                if (auto status = childCallback(event); !status.isOk())
+                    return status;
+            }
+            if (event.payload_.is_object()) {
+                if (!event.payload_.contains("ns"))
+                    event.payload_["ns"] = childNamespace;
+                if (!event.payload_.contains("checkpoint_ns"))
+                    event.payload_["checkpoint_ns"] = childNamespace;
+                if (!event.payload_.contains("parent_run_id"))
+                    event.payload_["parent_run_id"] = std::string(context.executionInfo().runId_);
+                if (!event.payload_.contains("parent_thread_id"))
+                    event.payload_["parent_thread_id"] =
+                        std::string(context.executionInfo().threadId_);
+                if (!event.payload_.contains("parent_node"))
+                    event.payload_["parent_node"] = std::string(context.executionInfo().nodeId_);
 
-                    nlohmann::json parentIds = nlohmann::json::array({ std::string(context.executionInfo().runId_) });
-                    if (event.payload_.contains("parent_ids") && event.payload_.at("parent_ids").is_array()) {
-                        for (const auto& parent : event.payload_.at("parent_ids")) {
-                            if (parent.is_string() && parent.get<std::string>() != std::string(context.executionInfo().runId_))
-                                parentIds.push_back(parent);
-                        }
-                    } else if (event.payload_.contains("parent_run_id") && event.payload_.at("parent_run_id").is_string()
-                        && event.payload_.at("parent_run_id").get<std::string>() != std::string(context.executionInfo().runId_)) {
-                        parentIds.push_back(event.payload_.at("parent_run_id"));
+                nlohmann::json parentIds =
+                    nlohmann::json::array({ std::string(context.executionInfo().runId_) });
+                if (event.payload_.contains("parent_ids") && event.payload_.at("parent_ids").is_array()) {
+                    for (const auto& parent : event.payload_.at("parent_ids")) {
+                        if (parent.is_string()
+                            && parent.get<std::string>() != std::string(context.executionInfo().runId_))
+                            parentIds.push_back(parent);
                     }
-                    event.payload_["parent_ids"] = std::move(parentIds);
+                } else if (event.payload_.contains("parent_run_id")
+                    && event.payload_.at("parent_run_id").is_string()
+                    && event.payload_.at("parent_run_id").get<std::string>()
+                        != std::string(context.executionInfo().runId_)) {
+                    parentIds.push_back(event.payload_.at("parent_run_id"));
+                }
+                event.payload_["parent_ids"] = std::move(parentIds);
 
-                    std::vector<std::string> tracePath;
-                    auto appendTraceSegment = [&](std::string segment) {
-                        if (segment.empty())
-                            return;
-                        if (std::ranges::find(tracePath, segment) == tracePath.end())
-                            tracePath.push_back(std::move(segment));
-                    };
-                    appendTraceSegment(std::string(context.executionInfo().checkpointNamespace_));
-                    appendTraceSegment(childNamespace);
-                    if (event.payload_.contains("trace_path") && event.payload_.at("trace_path").is_array()) {
-                        for (const auto& segment : event.payload_.at("trace_path")) {
-                            if (segment.is_string())
-                                appendTraceSegment(segment.get<std::string>());
-                        }
+                std::vector<std::string> tracePath;
+                auto appendTraceSegment = [&](std::string segment) {
+                    if (segment.empty())
+                        return;
+                    if (std::ranges::find(tracePath, segment) == tracePath.end())
+                        tracePath.push_back(std::move(segment));
+                };
+                appendTraceSegment(std::string(context.executionInfo().checkpointNamespace_));
+                appendTraceSegment(childNamespace);
+                if (event.payload_.contains("trace_path") && event.payload_.at("trace_path").is_array()) {
+                    for (const auto& segment : event.payload_.at("trace_path")) {
+                        if (segment.is_string())
+                            appendTraceSegment(segment.get<std::string>());
                     }
-                    nlohmann::json traceJson = nlohmann::json::array();
-                    for (const auto& segment : tracePath)
-                        traceJson.push_back(segment);
-                    event.payload_["trace_path"] = traceJson;
-                    const std::string effectiveNamespace = event.payload_.contains("checkpoint_ns")
+                }
+                nlohmann::json traceJson = nlohmann::json::array();
+                for (const auto& segment : tracePath)
+                    traceJson.push_back(segment);
+                event.payload_["trace_path"] = traceJson;
+                const std::string effectiveNamespace = event.payload_.contains("checkpoint_ns")
                         && event.payload_.at("checkpoint_ns").is_string()
-                        ? event.payload_.at("checkpoint_ns").get<std::string>()
-                        : childNamespace;
-                    event.payload_["namespace"] = detail::namespacePathFromString(effectiveNamespace);
-                }
-                return context.streamWriter().publish(std::move(event));
-            };
-
-            auto child = graph->invokeSubgraph(state, std::move(childOptions));
-            if (!child.isOk())
-                return child.status();
-
-            auto diff = stateDiffUpdate(state, child->state_);
-            if (!diff.isOk())
-                return diff.status();
-
-            if (child->status_ == RunStatus::Paused) {
-                return NodeOutput::interrupt(
-                    Interrupt {
-                        .id_ = std::string("subgraph:") + std::string(context.executionInfo().nodeId_),
-                        .value_ = child->state_.view(),
-                    },
-                    std::move(*diff));
+                    ? event.payload_.at("checkpoint_ns").get<std::string>()
+                    : childNamespace;
+                event.payload_["namespace"] = detail::namespacePathFromString(effectiveNamespace);
             }
+            return context.streamWriter().publish(std::move(event));
+        };
 
-            if (child->parentCommand_.has_value()) {
-                return NodeOutput::command(Command::gotoNodes(
-                    child->parentCommand_->goto_,
-                    std::move(*diff)));
-            }
+        auto child = graph->invokeSubgraph(state, std::move(childOptions));
+        if (!child.isOk())
+            return child.status();
 
-            return NodeOutput::update(std::move(*diff));
-        });
+        if (child->status_ == RunStatus::Failed
+            || child->status_ == RunStatus::Cancelled
+            || child->status_ == RunStatus::MaxStepsExceeded) {
+            return statusFromFailedSubgraphRun(*child);
+        }
+
+        auto diff = stateDiffUpdate(state, child->state_);
+        if (!diff.isOk())
+            return diff.status();
+
+        if (child->status_ == RunStatus::Paused) {
+            return NodeOutput::interrupt(
+                Interrupt {
+                    .id_ = std::string("subgraph:") + std::string(context.executionInfo().nodeId_),
+                    .value_ = child->state_.view(),
+                },
+                std::move(*diff));
+        }
+
+        if (child->parentCommand_.has_value()) {
+            return NodeOutput::command(Command::gotoNodes(
+                child->parentCommand_->goto_,
+                std::move(*diff)));
+        }
+
+        return NodeOutput::update(std::move(*diff));
+    };
 }
 
 Result<void> StateGraph::setNodeOptions(NodeId id, NodeOptions options)

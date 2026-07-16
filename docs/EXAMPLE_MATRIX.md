@@ -3,9 +3,9 @@
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | 生效中 |
-| 最后更新 | 2026-07-13 |
+| 最后更新 | 2026-07-16 |
 | 默认 preset | `unix-debug` |
-| 可选示例 | `llama_cpp_chat`、`llama_cpp_tool_calling` |
+| 可选示例 | `llama_cpp_chat`、`llama_cpp_tool_calling`、`provider_weather_tool` |
 
 当 `LANGGRAPH_CPP_BUILD_EXAMPLES=ON` 时，示例由 `examples/CMakeLists.txt` 统一构建。
 
@@ -47,6 +47,7 @@ build/unix-debug/examples/minimal_graph
 | `agent_pattern_reflection` | `examples/agent_patterns/reflection.cpp` | 是 | `StateGraph`、draft/critic/reviser nodes | draft、critique、revise 的自我修正 workflow。 |
 | `llama_cpp_chat` | `examples/llama_cpp_chat.cpp` | 可选 | `LlamaCppChatModel`、`makeModelNode` | 通过 llama.cpp 调用本地 GGUF 模型。 |
 | `llama_cpp_tool_calling` | `examples/llama_cpp_tool_calling.cpp` | 可选 | `LlamaCppChatModel`、GBNF、`ToolRegistry` | 本地 GGUF 模型输出受约束 JSON tool calls。 |
+| `provider_weather_tool` | `examples/provider_weather_tool.cpp` | 可选 | `ProviderChatModel`、`HttpClient`、`ToolNode` | OpenAI-compatible HTTP 模型调用 `get_weather`（默认 `api.openai.com` + native `tool_calls`；可选 JSON content protocol）。 |
 | `human_interrupt` | `examples/human_interrupt.cpp` | 是 | `NodeOutput::interrupt`、`Command::resume` | action 前暂停，并用外部审批恢复。 |
 | `tool_approval_loop` | `examples/tool_approval_loop.cpp` | 是 | `Interrupt`、`ToolResult`、reducers | tool execution 前的人类审批 gate。 |
 | `edge_mock_tool_adapter` | `examples/edge_mock_tool_adapter.cpp` | 是 | `ToolRegistry`、JSON Schema、adapter sketch | 把 mock edge hardware operation 注册为结构化工具。 |
@@ -55,6 +56,8 @@ build/unix-debug/examples/minimal_graph
 `sqlite_checkpoint_resume` 仅在 `LANGGRAPH_CPP_WITH_SQLITE=ON` 时注册。
 
 `llama_cpp_chat` 和 `llama_cpp_tool_calling` 仅在 `LANGGRAPH_CPP_WITH_LLAMA_CPP=ON` 时注册，并需要外部 llama.cpp 源码树、安装前缀或 CMake target。
+
+`provider_weather_tool` 仅在 `LANGGRAPH_CPP_WITH_NETWORK=ON` 时注册，并需要真实 OpenAI-compatible endpoint 与 `LANGGRAPH_CPP_OPENAI_API_KEY`。
 
 ## 2. 验证状态
 
@@ -93,6 +96,7 @@ scripts/run-examples.sh
 | `agent_pattern_reflection` | 通过 | final state 包含 `pattern: reflection`、`critique`、`final_answer` 和 `revision_count: 1`。 |
 | `llama_cpp_chat` | 可选，默认门禁未运行 | 仅在提供 llama.cpp 和 GGUF 模型后构建。 |
 | `llama_cpp_tool_calling` | 可选，默认门禁未运行 | 仅在提供 llama.cpp 和 GGUF 模型后构建；使用 GBNF 约束输出。 |
+| `provider_weather_tool` | 可选，默认门禁未运行 | 需要 OpenAI-compatible endpoint 与 `LANGGRAPH_CPP_OPENAI_API_KEY`。 |
 | `human_interrupt` | 通过 | final state 包含 `approved: true`。 |
 | `tool_approval_loop` | 通过 | final state 包含 `tool_approved: true` 和 tool result `21`。 |
 | `edge_mock_tool_adapter` | 通过 | 两个 mock edge tools 均返回 structured tool results。 |
@@ -118,9 +122,10 @@ scripts/run-examples.sh
 16. `agent_pattern_reflection`
 17. `llama_cpp_chat`，当 `LANGGRAPH_CPP_WITH_LLAMA_CPP=ON`
 18. `llama_cpp_tool_calling`，当 `LANGGRAPH_CPP_WITH_LLAMA_CPP=ON`
-19. `human_interrupt`
-20. `tool_approval_loop`
-21. `mock_edge_repair`
+19. `provider_weather_tool`，当 `LANGGRAPH_CPP_WITH_NETWORK=ON` 且提供 API key
+20. `human_interrupt`
+21. `tool_approval_loop`
+22. `mock_edge_repair`
 
 这个顺序对应 runtime 层次：graph、routing、loop control、checkpointing、time travel、long-term memory、streaming、subgraph composition、messages/models/tools、agent patterns、interrupt/resume，最后是 edge-style workflow orchestration。
 
@@ -250,7 +255,7 @@ final state 包含：
 | store | `long_term_memory_store` |
 | stream projection | `stream_projection` |
 | subgraph | `subgraph_module` |
-| model/tool loop | `model_tool_model_loop`、`llama_cpp_tool_calling` |
+| model/tool loop | `model_tool_model_loop`、`llama_cpp_tool_calling`、`provider_weather_tool` |
 | agent patterns | `agent_pattern_react`、`agent_pattern_plan_and_solve`、`agent_pattern_reflection` |
 | HITL interrupt | `human_interrupt`、`tool_approval_loop`、`mock_edge_repair` |
 | edge adapter shape | `edge_mock_tool_adapter`、`mock_edge_repair` |

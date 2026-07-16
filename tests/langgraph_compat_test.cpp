@@ -493,8 +493,9 @@ void testSequentialInterruptReplayAndResumeErrors()
     lgc::RunOptions badResume = multiOptions;
     badResume.command_ = lgc::Command::resume({ { "left-int", "L" } });
     auto missingPayload = compiledMulti->resume("compat-multi-interrupt-error", badResume);
-    assert(!missingPayload.isOk());
-    assert(missingPayload.status().code() == lgc::StatusCode::FailedPrecondition);
+    assert(missingPayload.isOk());
+    assert(missingPayload->status_ == lgc::RunStatus::Failed);
+    assert(missingPayload->state_.view().at("__run_error__").at("code") == "failed_precondition");
 
     lgc::RunOptions wrongIdOptions;
     wrongIdOptions.threadId_ = "compat-multi-interrupt-wrong-id";
@@ -505,8 +506,9 @@ void testSequentialInterruptReplayAndResumeErrors()
     lgc::RunOptions wrongIdResume = wrongIdOptions;
     wrongIdResume.command_ = lgc::Command::resume({ { "unknown-int", "X" } });
     auto wrongPayload = compiledMulti->resume("compat-multi-interrupt-wrong-id", wrongIdResume);
-    assert(!wrongPayload.isOk());
-    assert(wrongPayload.status().code() == lgc::StatusCode::FailedPrecondition);
+    assert(wrongPayload.isOk());
+    assert(wrongPayload->status_ == lgc::RunStatus::Failed);
+    assert(wrongPayload->state_.view().at("__run_error__").at("code") == "failed_precondition");
 }
 
 void testSendAndCommandBoundaries()
@@ -1011,8 +1013,8 @@ void testInterruptAndErrorStreamGoldenDetails()
         }
     }
     auto failed = errorStream.result();
-    assert(!failed.isOk());
-    assert(failed.status().code() == lgc::StatusCode::FailedPrecondition);
+    assert(failed.isOk());
+    assert(failed->status_ == lgc::RunStatus::Failed);
     assert(sawNodeErrorEnvelope);
     assert(sawRunErrorEnvelope);
     assert(sawFailedTask);

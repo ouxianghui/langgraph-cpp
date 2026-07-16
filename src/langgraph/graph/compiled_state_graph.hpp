@@ -110,6 +110,7 @@ private:
         bool writeInitialCheckpoint,
         bool allowParentCommand) const;
 
+private:
     std::shared_ptr<const StateGraph> graph_;
 };
 

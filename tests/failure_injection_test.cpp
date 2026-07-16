@@ -316,10 +316,13 @@ void testEventSinkFailurePropagates()
 
     lgc::RunOptions options;
     options.eventSink_ = std::make_shared<RejectingEventSink>();
+    options.collectEvents_ = true;
 
     auto result = graph.invoke(*input, options);
-    assert(!result.isOk());
-    assert(result.status().code() == lgc::StatusCode::PermissionDenied);
+    assert(result.isOk());
+    assert(result->status_ == lgc::RunStatus::Failed);
+    assert(result->state_.view().at("__run_error__").at("code") == "permission_denied");
+    assert(!result->events_.empty());
 }
 
 void testStoreFailurePropagatesFromNode()
@@ -345,8 +348,9 @@ void testStoreFailurePropagatesFromNode()
     options.store_ = std::make_shared<RejectingStore>();
 
     auto result = compiled->invoke(*input, options);
-    assert(!result.isOk());
-    assert(result.status().code() == lgc::StatusCode::Unavailable);
+    assert(result.isOk());
+    assert(result->status_ == lgc::RunStatus::Failed);
+    assert(result->state_.view().at("__run_error__").at("code") == "unavailable");
 }
 
 void testExecutorFailurePropagatesFromParallelDispatch()
@@ -361,8 +365,9 @@ void testExecutorFailurePropagatesFromParallelDispatch()
     options.reducers_.set("items", lgc::ReducerKind::Append);
 
     auto result = graph.invoke(*input, options);
-    assert(!result.isOk());
-    assert(result.status().code() == lgc::StatusCode::Unavailable);
+    assert(result.isOk());
+    assert(result->status_ == lgc::RunStatus::Failed);
+    assert(result->state_.view().at("__run_error__").at("code") == "unavailable");
 }
 
 void testHttpTransportFailurePropagatesFromProviderModel()

@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | 生效中 |
-| 最后更新 | 2026-07-13 |
+| 最后更新 | 2026-07-16 |
 | 范围 | `examples/` 中的可运行示例、学习路径和验收信号 |
 | 关联文档 | [../docs/EXAMPLE_MATRIX.md](../docs/EXAMPLE_MATRIX.md)、[../docs/tutorials/API_EXAMPLES.md](../docs/tutorials/API_EXAMPLES.md)、[../docs/TRACEABILITY_MATRIX.md](../docs/TRACEABILITY_MATRIX.md) |
 
@@ -49,6 +49,24 @@ scripts/run-examples.sh
 - `LANGGRAPH_CPP_WITH_LLAMA_CPP=ON`；
 - 外部 llama.cpp 源码树、安装前缀或 CMake target；
 - 本地 GGUF 模型。
+
+`provider_weather_tool` 需要：
+
+- `LANGGRAPH_CPP_WITH_NETWORK=ON`（默认开启）；
+- 真实 OpenAI-compatible HTTP endpoint；
+- 环境变量 `LANGGRAPH_CPP_OPENAI_API_KEY`（必需）；
+- 可选 `LANGGRAPH_CPP_OPENAI_BASE_URL`、`LANGGRAPH_CPP_OPENAI_MODEL`。
+
+```sh
+export LANGGRAPH_CPP_OPENAI_API_KEY='...'
+# Optional overrides (defaults: https://api.openai.com , gpt-4o-mini , native tools)
+# export LANGGRAPH_CPP_OPENAI_BASE_URL='https://api.openai.com'
+# export LANGGRAPH_CPP_OPENAI_MODEL='gpt-4o-mini'
+# export LANGGRAPH_CPP_TOOL_MODE='native'   # or 'json' for proxies without tool_calls
+build/unix-debug/examples/provider_weather_tool
+```
+
+默认对接公开的 OpenAI API（`https://api.openai.com`）并使用原生 `tool_calls`。若代理接受 `tools` 但不返回原生 `tool_calls`，可设 `LANGGRAPH_CPP_TOOL_MODE=json`。
 
 它们不是默认 release gate 的必要条件。
 
